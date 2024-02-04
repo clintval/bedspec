@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "bedspec"
+version = "0.1.0"
+description = "An HTS-specs compliant BED toolkit."
+readme = "README.md"
+authors = ["Clint Valentine <valentine.clint@gmail.com>"]
+
+[tool.poetry.dependencies]
+pybedlite = "^0.0.4"
+python = "^3.10"
+
+[tool.poetry.dev-dependencies]
+mypy = "^1.8"
+pytest = "^7.4"
+pytest-cov = "^4.1"
+pytest-mypy = "^0.10"
+pytest-ruff = "^0.2"
+ruff = "0.1.13"
+
+[build-system]
+requires = ["poetry-core>=1.6"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+python_version = "3.12"
+strict_optional = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+addopts = ["--color=yes",  "--import-mode=importlib", "--cov", "--mypy", "--ruff"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["C901", "B", "E", "F", "W", "Q"]
+show-source = true
