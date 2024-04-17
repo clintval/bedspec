@@ -13,9 +13,10 @@ The command will:
 - Test for linting and styling errors with [`ruff`](https://docs.astral.sh/ruff/)
 - Emit a testing coverage report with [`coverage`](https://coverage.readthedocs.io/)
 
-To format the code in the library, run the following command:
+To format the code in the library, run the following commands:
 
 ```console
+poetry run ruff check --select I --fix
 poetry run ruff format bedspec tests
 ```
 
