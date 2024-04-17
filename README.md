@@ -7,14 +7,40 @@
 
 An HTS-specs compliant BED toolkit.
 
-## Local Installation
+## Installation
 
-First install the Python packaging and dependency management tool [`poetry`](https://python-poetry.org/docs/#installation).
-You must have Python 3.12 or greater available on your system path, which could be managed by [`pyenv`](https://github.com/pyenv/pyenv) or another package manager. 
-Finally, install the dependencies of the project with:
+`bedspec` may be installed with `pip`:
 
-```bash
-poetry install
+```console
+pip install bedspec
+```
+
+## Quickstart
+
+### Writing BED
+
+```python
+from bedspec import Bed3
+from bedspec.io import BedWriter
+
+with BedWriter(open("test.bed", "w")) as handle:
+    handle.write_comment("browser position chr7:127471196-127495720")
+    handle.write(Bed3(contig="chr7", start=127_471_196, start=127_495_720))
+```
+
+
+### Reading BED
+
+```python
+from bedspec import Bed3
+from bedspec.io import BedReader
+
+with BedReader(open("test.bed")) as handle:
+    for bed in handle:
+        print(bed)
+```
+```console
+Bed3(contig="chr7", start=127_471_196, start=127_495_720)
 ```
 
 ## Development and Testing

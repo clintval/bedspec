@@ -1,5 +1,17 @@
 # Development and Testing
 
+## Local Installation
+
+First install the Python packaging and dependency management tool [`poetry`](https://python-poetry.org/docs/#installation).
+You must have Python 3.12 or greater available on your system path, which could be managed by [`pyenv`](https://github.com/pyenv/pyenv) or another package manager. 
+Finally, install the dependencies of the project with:
+
+```bash
+poetry install
+```
+
+## Running Tests
+
 To test the codebase, run the following command:
 
 ```console
