@@ -222,6 +222,8 @@ class Bed6(SimpleBed, Stranded):
 #     blockSizes: list[int]
 #     blockStarts: list[int]
 
+# TODO: Implement BED detail format? https://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
+# TODO: Implement bedGraph format? https://genome.ucsc.edu/goldenPath/help/bedgraph.html
 
 @dataclass
 class BedPE(PairBed):

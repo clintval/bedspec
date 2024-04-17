@@ -70,11 +70,11 @@ ignore_missing_imports = true
 minversion = "7.4"
 addopts = [
     "--color=yes",
-     "--import-mode=importlib",
-     "--cov",
-     "--mypy",
-     "--ruff",
-     "--ignore=cgranges/"
+    "--import-mode=importlib",
+    "--cov",
+    "--mypy",
+    "--ruff",
+    "--ignore=cgranges/",
 ]
 
 [tool.ruff]
