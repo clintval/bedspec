@@ -9,7 +9,7 @@ An HTS-specs compliant BED toolkit.
 
 ## Installation
 
-`bedspec` may be installed with `pip`:
+The package can be installed with `pip`:
 
 ```console
 pip install bedspec
@@ -17,30 +17,64 @@ pip install bedspec
 
 ## Quickstart
 
-### Writing BED
+### Writing
 
 ```python
-from bedspec import Bed3
-from bedspec.io import BedWriter
+from bedspec import Bed3, BedWriter
+
+bed = Bed3("chr1", start=3, end=9)
 
 with BedWriter(open("test.bed", "w")) as handle:
-    handle.write_comment("browser position chr7:127471196-127495720")
-    handle.write(Bed3(contig="chr7", start=127_471_196, start=127_495_720))
+    handle.write(bed)
 ```
 
-
-### Reading BED
+### Reading
 
 ```python
-from bedspec import Bed3
-from bedspec.io import BedReader
+from bedspec import Bed3, BedReader
 
 with BedReader(open("test.bed")) as handle:
     for bed in handle:
         print(bed)
 ```
 ```console
-Bed3(contig="chr7", start=127_471_196, start=127_495_720)
+Bed3(contig="chr1", start=3, start=9)
+```
+
+### BED Types
+
+This package provides pre-defined classes for the following BED formats:
+
+- `Bed2`
+- `Bed3`
+- `Bed4`
+- `Bed5`
+- `Bed6`
+- `BedPE`
+
+### Custom BED Types
+
+Creating custom records is as simple as inheriting from the relevent BED-type:
+
+| Type        | Description                                      |
+| ---         | ---                                              |
+| `PointBed`  | Records that are a single point (1-length) only. |
+| `SimpleBed` | Records that are a single interval.              |
+| `PairBed`   | Records that are a pair of intervals.            |
+
+For example, to create a custom BED3+1 class:
+
+```python
+from dataclasses import dataclass
+
+from bedspec import SimpleBed
+
+@dataclass
+class MyCustomBed(SimpleBed):
+    contig: str
+    start: int
+    end: int
+    my_custom_field: float
 ```
 
 ## Development and Testing
