@@ -2,12 +2,29 @@
 name = "bedspec"
 version = "0.1.0"
 description = "An HTS-specs compliant BED toolkit."
-readme = "README.md"
 authors = ["Clint Valentine <valentine.clint@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/clintval/bedspec"
+repository = "https://github.com/clintval/bedspec"
+keywords = ["bioinformatics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+include = ["LICENSE"]
+packages = [{ include = "bedspec" }, { include = "cgranges" }]
 
 [tool.poetry.dependencies]
-pybedlite = "^0.0.4"
-python = "^3.10"
+python = "^3.12"
 
 [tool.poetry.dev-dependencies]
 mypy = "^1.8"
@@ -17,8 +34,12 @@ pytest-mypy = "^0.10"
 pytest-ruff = "^0.2"
 ruff = "0.1.13"
 
+[tool.poetry.build]
+script = "build.py"
+generate-setup-file = true
+
 [build-system]
-requires = ["poetry-core>=1.6"]
+requires = ["poetry-core>=1.6", "setuptools", "cython"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
@@ -37,12 +58,31 @@ warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = "Cython.Build"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "setuptools"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "7.4"
-addopts = ["--color=yes",  "--import-mode=importlib", "--cov", "--mypy", "--ruff"]
+addopts = [
+    "--color=yes",
+     "--import-mode=importlib",
+     "--cov",
+     "--mypy",
+     "--ruff",
+     "--ignore=cgranges/"
+]
 
 [tool.ruff]
+exclude = ["cgranges/*"]
 line-length = 100
 target-version = "py312"
-select = ["C901", "B", "E", "F", "W", "Q"]
+select = ["C901", "B", "E", "F", "I", "W", "Q"]
 show-source = true
+
+[tool.ruff.lint.isort]
+force-single-line = true
