@@ -2,8 +2,8 @@ name: tests
 
 on:
   push:
-    tags-ignore:
-      - '**'
+    tags:
+      - '!**'
   workflow_call:
 
 env:
