@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bedspec"
-version = "0.1.0"
+version = "0.1.1"
 description = "An HTS-specs compliant BED toolkit."
 authors = ["Clint Valentine <valentine.clint@gmail.com>"]
 license = "MIT"
