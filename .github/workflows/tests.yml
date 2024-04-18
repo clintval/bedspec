@@ -2,8 +2,10 @@ name: tests
 
 on:
   push:
+    branches:
+      - "**"
     tags:
-      - '!**'
+      - "!**"
   workflow_call:
 
 env:
