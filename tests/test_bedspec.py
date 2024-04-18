@@ -1,6 +1,7 @@
 import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 
@@ -11,6 +12,7 @@ from bedspec import Bed5
 from bedspec import Bed6
 from bedspec import BedColor
 from bedspec import BedPE
+from bedspec import BedReader
 from bedspec import BedStrand
 from bedspec import BedType
 from bedspec import BedWriter
@@ -96,12 +98,8 @@ def test_paired_bed_has_two_interval_properties() -> None:
         strand1=BedStrand.POSITIVE,
         strand2=BedStrand.NEGATIVE,
     )
-    assert record.bed1 == Bed6(
-        contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.POSITIVE
-    )
-    assert record.bed2 == Bed6(
-        contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.NEGATIVE
-    )
+    assert record.bed1 == Bed6(contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.POSITIVE)  # fmt: skip  # noqa: E501
+    assert record.bed2 == Bed6(contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.NEGATIVE)  # fmt: skip  # noqa: E501
 
 
 def test_point_bed_types_have_a_territory() -> None:
@@ -142,31 +140,18 @@ def test_paired_bed_types_have_a_territory() -> None:
     assert list(record.territory()) == expected
 
 
-def test_all_bed_types_can_be_decoded() -> None:
-    """Test that we can decode a BED type based on its class definition."""
-    assert len(Bed2.fieldnames()) == 2
-    assert len(Bed3.fieldnames()) == 3
-    assert len(Bed4.fieldnames()) == 4
-    assert len(Bed5.fieldnames()) == 5
-    assert len(Bed6.fieldnames()) == 6
-    assert len(BedPE.fieldnames()) == 10
-
-
 def test_that_decoding_splits_on_any_whitespace() -> None:
     """Test that we can decode a BED on arbitrary whitespace."""
     assert Bed3.decode("   chr1 \t 1\t \t2  \n") == Bed3(contig="chr1", start=1, end=2)
 
 
 def test_all_bed_types_have_fieldnames() -> None:
+    # fmt: off
     assert Bed2.decode("chr1\t1") == Bed2(contig="chr1", start=1)
     assert Bed3.decode("chr1\t1\t2") == Bed3(contig="chr1", start=1, end=2)
     assert Bed4.decode("chr1\t1\t2\tfoo") == Bed4(contig="chr1", start=1, end=2, name="foo")
-    assert Bed5.decode("chr1\t1\t2\tfoo\t3") == Bed5(
-        contig="chr1", start=1, end=2, name="foo", score=3
-    )
-    assert Bed6.decode("chr1\t1\t2\tfoo\t3\t+") == Bed6(
-        contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE
-    )
+    assert Bed5.decode("chr1\t1\t2\tfoo\t3") == Bed5(contig="chr1", start=1, end=2, name="foo", score=3)  # noqa: E501
+    assert Bed6.decode("chr1\t1\t2\tfoo\t3\t+") == Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE)  # noqa: E501
     assert BedPE.decode("chr1\t1\t2\tchr2\t3\t4\tfoo\t5\t+\t-") == BedPE(
         contig1="chr1",
         start1=1,
@@ -179,6 +164,7 @@ def test_all_bed_types_have_fieldnames() -> None:
         strand1=BedStrand.POSITIVE,
         strand2=BedStrand.NEGATIVE,
     )
+    # fmt: on
 
 
 def test_that_we_can_make_our_own_custom_point_bed() -> None:
@@ -293,7 +279,7 @@ def test_that_we_get_a_helpful_error_when_we_cant_decode_the_types() -> None:
         [
             Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE),
             "chr1\t1\t2\tfoo\t3\t+\n",
-        ],
+        ],  # fmt: skip
         [
             BedPE(
                 contig1="chr1",
@@ -316,6 +302,20 @@ def test_bed_writer_can_write_all_bed_types(bed: BedType, expected: str, tmp_pat
     with open(tmp_path / "test.bed", "w") as handle:
         writer: BedWriter = BedWriter(handle)
         writer.write(bed)
+
+    assert Path(tmp_path / "test.bed").read_text() == expected
+
+
+def test_bed_writer_can_write_all_at_once(tmp_path: Path) -> None:
+    """Test that the BED writer can write multiple BED records at once."""
+    expected: str = "chr1\t1\t2\nchr2\t3\t4\n"
+
+    def records() -> Iterator[Bed3]:
+        yield Bed3(contig="chr1", start=1, end=2)
+        yield Bed3(contig="chr2", start=3, end=4)
+
+    with open(tmp_path / "test.bed", "w") as handle:
+        BedWriter[Bed3](handle).write_all(records())
 
     assert Path(tmp_path / "test.bed").read_text() == expected
 
@@ -385,3 +385,56 @@ def test_bed_writer_write_comment_without_prefix_pound_symbol(tmp_path: Path) ->
     )
 
     assert Path(tmp_path / "test.bed").read_text() == expected
+
+
+def test_bed_reader_can_read_bed_records_if_typed(tmp_path: Path) -> None:
+    """Test that the BED reader can read BED records if the reader is typed."""
+
+    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
+
+    with open(tmp_path / "test.bed", "w") as handle:
+        writer: BedWriter = BedWriter(handle)
+        writer.write(bed)
+
+    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
+
+    with open(tmp_path / "test.bed", "r") as handle:
+        assert list(BedReader[Bed3](handle)) == [bed]
+
+
+def test_bed_reader_can_raises_exception_if_not_typed(tmp_path: Path) -> None:
+    """Test that the BED reader raises an exception if it is not typed."""
+
+    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
+
+    with open(tmp_path / "test.bed", "w") as handle:
+        writer: BedWriter = BedWriter(handle)
+        writer.write(bed)
+
+    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
+
+    with open(tmp_path / "test.bed", "r") as handle:
+        with pytest.raises(
+            NotImplementedError,
+            match="Untyped reading is not yet supported!",
+        ):
+            list(BedReader(handle))
+
+
+def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
+    """Test that the BED reader can read BED records with comments."""
+
+    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
+
+    with open(tmp_path / "test.bed", "w") as handle:
+        writer: BedWriter = BedWriter(handle)
+        writer.write_comment("track this-is-fine")
+        writer.write_comment("browser is mario's enemy?")
+        writer.write_comment("hello mom!")
+        handle.write("\n") # empty line
+        handle.write(" \t\n") # empty line
+        writer.write(bed)
+        writer.write_comment("hello dad!")
+
+    with open(tmp_path / "test.bed", "r") as handle:
+        assert list(BedReader[Bed3](handle)) == [bed]

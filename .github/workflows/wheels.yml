@@ -22,12 +22,12 @@ jobs:
           # These don't work right now - they just hang while pulling the build image from quay.
           # If this doesn't resolve itself, we could try to configure different images:
           # https://cibuildwheel.readthedocs.io/en/stable/options/.
-          - os: ubuntu-latest
-            target: manylinux
-            arch: aarch64
-          - os: ubuntu-latest
-            target: musllinux
-            arch: aarch64
+          # - os: ubuntu-latest
+          #   target: manylinux
+          #   arch: aarch64
+          # - os: ubuntu-latest
+          #   target: musllinux
+          #   arch: aarch64
           - os: macos-latest
             target: macosx
             arch: x86_64
@@ -40,7 +40,7 @@ jobs:
         with:
           submodules: "true"
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.12
 
@@ -54,7 +54,7 @@ jobs:
           CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform.target }}_${{ matrix.platform.arch }}
           CIBW_BUILD_VERBOSITY: 1
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: ./wheelhouse/*.whl
