@@ -86,8 +86,8 @@ jobs:
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages_dir: packages/
-          skip_existing: true
+          packages-dir: packages/
+          skip-existing: true
           verbose: true
 
   make-changelog:
