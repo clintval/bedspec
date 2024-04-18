@@ -1,16 +1,19 @@
-name: python package
+name: Tests
 
-on: [push]
+on:
+  push:
+  workflow_call:
 
 env:
   POETRY_VERSION: 1.6
 
 jobs:
-  testing:
+  unit-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         PYTHON_VERSION: ["3.12"]
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +27,7 @@ jobs:
       - name: Get full Python version
         id: full-python-version
         shell: bash
-        run: echo ::set-output name=version::$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")
+        run: echo "version=$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")" >> $GITHUB_OUTPUT
 
       - name: Install poetry
         run: |
