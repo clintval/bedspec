@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Software Development :: Documentation",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-include = ["LICENSE"]
+include = ["CONTRIBUTING.md", "LICENSE"]
 packages = [{ include = "bedspec" }, { include = "cgranges" }]
 
 [tool.poetry.dependencies]
