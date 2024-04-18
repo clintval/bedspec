@@ -128,5 +128,5 @@ jobs:
           name: ${{ github.ref_name }}
           body: |
             ${{ needs.draft-changelog.outputs.release_body }}
-          draft: true
-          prerelease: true
+          draft: false
+          prerelease: false
