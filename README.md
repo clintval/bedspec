@@ -20,47 +20,49 @@ pip install bedspec
 ### Writing
 
 ```python
-from bedspec import Bed3, BedWriter
+from bedspec import BedWriter, Bed3
 
-bed = Bed3("chr1", start=3, end=9)
+bed = Bed3("chr1", start=2, end=8)
 
-with BedWriter(open("test.bed", "w")) as handle:
-    handle.write(bed)
+with BedWriter(open("test.bed", "w")) as writer:
+    writer.write(bed)
 ```
 
 ### Reading
 
 ```python
-from bedspec import Bed3, BedReader
+from bedspec import BedReader, Bed3
 
-with BedReader(open("test.bed")) as handle:
-    for bed in handle:
+with BedReader[Bed3](open("test.bed")) as reader:
+    for bed in reader:
         print(bed)
 ```
 ```console
-Bed3(contig="chr1", start=3, start=9)
+Bed3(contig="chr1", start=2, start=8)
 ```
 
 ### BED Types
 
 This package provides pre-defined classes for the following BED formats:
 
-- `Bed2`
-- `Bed3`
-- `Bed4`
-- `Bed5`
-- `Bed6`
-- `BedPE`
+```python
+from bedspec import Bed2
+from bedspec import Bed3
+from bedspec import Bed4
+from bedspec import Bed5
+from bedspec import Bed6
+from bedspec import BedPE
+```
 
 ### Custom BED Types
 
 Creating custom records is as simple as inheriting from the relevent BED-type:
 
-| Type        | Description                                      |
-| ---         | ---                                              |
-| `PointBed`  | Records that are a single point (1-length) only. |
-| `SimpleBed` | Records that are a single interval.              |
-| `PairBed`   | Records that are a pair of intervals.            |
+| Type        | Description                                         |
+| ---         | ---                                                 |
+| `PointBed`  | BED ecords that are a single point (1-length) only. |
+| `SimpleBed` | BED ecords that are a single interval.              |
+| `PairBed`   | BED ecords that are a pair of intervals.            |
 
 For example, to create a custom BED3+1 class:
 

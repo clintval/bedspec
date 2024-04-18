@@ -6,7 +6,7 @@ First install the Python packaging and dependency management tool [`poetry`](htt
 You must have Python 3.12 or greater available on your system path, which could be managed by [`pyenv`](https://github.com/pyenv/pyenv) or another package manager. 
 Finally, install the dependencies of the project with:
 
-```bash
+```console
 poetry install
 ```
 
