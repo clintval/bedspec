@@ -58,13 +58,13 @@ from bedspec import BedPE
 
 ### Custom BED Types
 
-Creating custom records is as simple as inheriting from the relevent BED-type:
+To create a custom BED record, inherit from the relevent BED-type:
 
-| Type        | Description                                         |
-| ---         | ---                                                 |
-| `PointBed`  | BED ecords that are a single point (1-length) only. |
-| `SimpleBed` | BED ecords that are a single interval.              |
-| `PairBed`   | BED ecords that are a pair of intervals.            |
+| Type        | Description                                          |
+| ---         | ---                                                  |
+| `PointBed`  | BED records that are a single point (1-length) only. |
+| `SimpleBed` | BED records that are a single interval.              |
+| `PairBed`   | BED records that are a pair of intervals.            |
 
 For example, to create a custom BED3+1 class:
 
