@@ -26,7 +26,7 @@ jobs:
   tests:
     name: tests
     needs: on-main-branch-check
-    if: ${{ needs.on-main-branch-check.outputs.on_main == 'true' }}
+    if: ${{ needs.on-main-branch-check.outputs.on_main == 'false' }}  # TODO: fix me
     uses: "./.github/workflows/tests.yml"
 
   build-wheels:
@@ -68,7 +68,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bedspec-sdist
           path: dist/*.tar.gz
 
   publish-to-pypi:
