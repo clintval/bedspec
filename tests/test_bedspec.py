@@ -119,6 +119,34 @@ def test_simple_bed_types_have_a_territory() -> None:
         assert list(record.territory()) == [record]
 
 
+def test_simple_bed_validates_start_and_end() -> None:
+    """Test that a simple BED record validates its start and end."""
+    with pytest.raises(ValueError):
+        Bed3(contig="chr1", start=-1, end=5)
+    with pytest.raises(ValueError):
+        Bed3(contig="chr1", start=5, end=5)
+    with pytest.raises(ValueError):
+        Bed3(contig="chr1", start=5, end=0)
+
+
+def test_paired_bed_validates_start_and_end() -> None:
+    """Test that a simple BED record validates its start and end."""
+    # fmt: off
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=-1, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=5, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=5, end1=0, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=-1, end2=5, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=5, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    with pytest.raises(ValueError):
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=0, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+    # fmt: on
+
+
 def test_paired_bed_types_have_a_territory() -> None:
     """Test that simple BEDs are their own territory."""
     record = BedPE(
@@ -402,6 +430,24 @@ def test_bed_reader_can_read_bed_records_if_typed(tmp_path: Path) -> None:
         assert list(BedReader[Bed3](handle)) == [bed]
 
 
+def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
+    """Test that the BED reader can read BED records from a path if it is typed."""
+
+    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
+
+    with open(tmp_path / "test.bed", "w") as handle:
+        writer: BedWriter = BedWriter(handle)
+        writer.write(bed)
+
+    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
+
+    reader = BedReader[Bed3].from_path(tmp_path / "test.bed", bed_kind=Bed3)
+    assert list(reader) == [bed]
+
+    reader = BedReader[Bed3].from_path(str(tmp_path / "test.bed"), bed_kind=Bed3)
+    assert list(reader) == [bed]
+
+
 def test_bed_reader_can_raises_exception_if_not_typed(tmp_path: Path) -> None:
     """Test that the BED reader raises an exception if it is not typed."""
 
@@ -431,8 +477,8 @@ def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
         writer.write_comment("track this-is-fine")
         writer.write_comment("browser is mario's enemy?")
         writer.write_comment("hello mom!")
-        handle.write("\n") # empty line
-        handle.write(" \t\n") # empty line
+        handle.write("\n")  # empty line
+        handle.write(" \t\n")  # empty line
         writer.write(bed)
         writer.write_comment("hello dad!")
 
