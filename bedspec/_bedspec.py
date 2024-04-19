@@ -4,12 +4,12 @@ import io
 import typing
 from abc import ABC
 from abc import abstractmethod
-from csv import DictWriter
 from dataclasses import asdict as as_dict
 from dataclasses import dataclass
 from dataclasses import fields
 from enum import StrEnum
 from enum import unique
+from pathlib import Path
 from types import FrameType
 from types import TracebackType
 from typing import Any
@@ -133,6 +133,11 @@ class SimpleBed(BedType, ABC, Locatable):
     start: int
     end: int
 
+    def __post_init__(self) -> None:
+        """Validate this dataclass."""
+        if self.start >= self.end or self.start < 0:
+            raise ValueError("start must be greater than 0 and less than end!")
+
     def length(self) -> int:
         """The length of this record."""
         return self.end - self.start
@@ -151,6 +156,13 @@ class PairBed(BedType, ABC):
     contig2: str
     start2: int
     end2: int
+
+    def __post_init__(self) -> None:
+        """Validate this dataclass."""
+        if self.start1 >= self.end1 or self.start1 < 0:
+            raise ValueError("start1 must be greater than 0 and less than end1!")
+        if self.start2 >= self.end2 or self.start2 < 0:
+            raise ValueError("start2 must be greater than 0 and less than end2!")
 
     @property
     def bed1(self) -> SimpleBed:
@@ -301,8 +313,7 @@ class BedWriter(Generic[BedKind], ContextManager):
     def __new__(cls, handle: io.TextIOWrapper) -> "BedWriter[BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
-        argvalues = inspect.getargvalues(signature)
-        typelevel = argvalues.locals.get("self", None)
+        typelevel = signature.f_locals.get("self", None)
         bed_kind = None if typelevel is None else typelevel.__args__[0]
         instance = super().__new__(cls)
         instance.bed_kind = bed_kind
@@ -315,7 +326,6 @@ class BedWriter(Generic[BedKind], ContextManager):
     def __init__(self, handle: io.TextIOWrapper) -> None:
         """Initialize a BED writer wihout knowing yet what BED types we will write."""
         self._handle = handle
-        self._writer: DictWriter | None = None
 
     def __exit__(
         self,
@@ -350,14 +360,7 @@ class BedWriter(Generic[BedKind], ContextManager):
         else:
             self.bed_kind = type(bed)
 
-        if self._writer is None:
-            self._writer = DictWriter(
-                self._handle,
-                delimiter="\t",
-                fieldnames=[field.name for field in fields(self.bed_kind)],
-            )
-
-        self._writer.writerow(as_dict(bed))
+        self._handle.write(f"{"\t".join(map(str, as_dict(bed).values()))}\n")
 
     def write_all(self, beds: Iterable[BedKind]) -> None:
         """Write all the BED records to the BED output."""
@@ -394,8 +397,7 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
     def __new__(cls, handle: io.TextIOWrapper) -> "BedReader[BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
-        argvalues = inspect.getargvalues(signature)
-        typelevel = argvalues.locals.get("self", None)
+        typelevel = signature.f_locals.get("self", None)
         bed_kind = None if typelevel is None else typelevel.__args__[0]
         instance = super().__new__(cls)
         instance.bed_kind = bed_kind
@@ -411,12 +413,14 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
 
     def __iter__(self) -> Iterator[BedKind]:
         """Iterate through the BED records of this IO handle."""
+        if self.bed_kind is None:
+            raise NotImplementedError("Untyped reading is not yet supported!")
         for line in self._handle:
             if line.strip() == "":
                 continue
             if any(line.startswith(prefix) for prefix in COMMENT_PREFIXES):
                 continue
-            yield self._decode(line)
+            yield cast(BedKind, self.bed_kind.decode(line))
 
     def __exit__(
         self,
@@ -428,10 +432,12 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
         self.close()
         return super().__exit__(__exc_type, __exc_value, __traceback)
 
-    def _decode(self, line: str) -> BedKind:
-        if self.bed_kind is None:
-            raise NotImplementedError("Untyped reading is not yet supported!")
-        return cast(BedKind, self.bed_kind.decode(line))
+    @classmethod
+    def from_path(cls, path: Path | str, bed_kind: type[BedKind]) -> "BedReader[BedKind]":
+        """Open a BED reader from a file path."""
+        reader = cls(handle=Path(path).open())
+        reader.bed_kind = bed_kind
+        return reader
 
     def close(self) -> None:
         """Close the underlying IO handle."""
