@@ -1,7 +1,6 @@
 import dataclasses
 import inspect
 import io
-import typing
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import asdict as as_dict
@@ -9,24 +8,97 @@ from dataclasses import dataclass
 from dataclasses import fields
 from enum import StrEnum
 from enum import unique
+from functools import update_wrapper
 from pathlib import Path
 from types import FrameType
 from types import TracebackType
+from types import UnionType
 from typing import Any
+from typing import Callable
 from typing import ClassVar
 from typing import ContextManager
 from typing import Generic
 from typing import Iterable
 from typing import Iterator
 from typing import Protocol
+from typing import Type
 from typing import TypeVar
+from typing import Union
+from typing import _BaseGenericAlias  # type: ignore[attr-defined]
+from typing import _GenericAlias  # type: ignore[attr-defined]
 from typing import cast
+from typing import get_args
+from typing import get_origin
+from typing import get_type_hints
+from typing import runtime_checkable
 
 COMMENT_PREFIXES: set[str] = {"#", "browser", "track"}
 """The set of BED comment prefixes supported by this implementation."""
 
 MISSING_FIELD: str = "."
 """The string used to indicate a missing field in a BED record."""
+
+BED_EXTENSION: str = ".bed"
+"""The specification defined file extension for BED files."""
+
+BEDPE_EXTENSION: str = ".bedpe"
+"""The specification defined file extension for BedPE files."""
+
+
+def is_union(annotation: Type) -> bool:
+    """Test if we have a union type annotation or not."""
+    return get_origin(annotation) in {Union, UnionType}
+
+
+def is_optional(annotation: Type) -> bool:
+    """Return if this type annotation is optional (a union type with None) or not."""
+    return is_union(annotation) and type(None) in get_args(annotation)
+
+
+def singular_non_optional_type(annotation: Type) -> Type:
+    """Return the non-optional version of a singular type annotation."""
+    if not is_optional(annotation):
+        return annotation
+
+    not_none: list[Type] = [arg for arg in get_args(annotation) if arg is not type(None)]
+    if len(not_none) == 1:
+        return not_none[0]
+    else:
+        raise TypeError(f"Complex non-optional types are not supported! Found: {not_none}")
+
+
+class MethodType:
+    def __init__(self, func: Callable, obj: object) -> None:
+        self.__func__ = func
+        self.__self__ = obj
+
+    def __call__(self, *args: object, **kwargs: object) -> object:
+        func = self.__func__
+        obj = self.__self__
+        return func(obj, *args, **kwargs)
+
+
+class classmethod_generic:
+    def __init__(self, f: Callable) -> None:
+        self.f = f
+        update_wrapper(self, f)
+
+    def __get__(self, obj: object, cls: object | None = None) -> Callable:
+        if cls is None:
+            cls = type(obj)
+        method = MethodType(self.f, cls)
+        method._generic_classmethod = True  # type: ignore[attr-defined]
+        return method
+
+
+def __getattr__(self: object, name: str | None = None) -> object:
+    if hasattr(obj := orig_getattr(self, name), "_generic_classmethod"):
+        obj.__self__ = self
+    return obj
+
+
+orig_getattr = _BaseGenericAlias.__getattr__
+_BaseGenericAlias.__getattr__ = __getattr__
 
 
 @unique
@@ -35,29 +107,37 @@ class BedStrand(StrEnum):
 
     POSITIVE = "+"
     NEGATIVE = "-"
-    UNKNOWN = MISSING_FIELD
+
+    def opposite(self) -> "BedStrand":
+        """Return the opposite strand."""
+        match self:
+            case BedStrand.POSITIVE:
+                return BedStrand.NEGATIVE
+            case BedStrand.NEGATIVE:
+                return BedStrand.POSITIVE
 
 
+@dataclass
 class BedColor:
     """The color of a BED record in red, green, and blue values."""
 
-    def __init__(self, r: int, g: int, b: int):
-        """Build a new BED color from red, green, and blue values."""
-        self.r = r
-        self.g = g
-        self.b = b
+    r: int
+    g: int
+    b: int
 
     def __str__(self) -> str:
         """Return a string representation of this BED color."""
         return f"{self.r},{self.g},{self.b}"
 
 
+@runtime_checkable
 class DataclassProtocol(Protocol):
     """A protocol for objects that are dataclass instances."""
 
     __dataclass_fields__: ClassVar[dict[str, Any]]
 
 
+@runtime_checkable
 class Locatable(Protocol):
     """A protocol for 0-based half-open objects located on a reference sequence."""
 
@@ -66,16 +146,17 @@ class Locatable(Protocol):
     end: int
 
 
+@runtime_checkable
 class Stranded(Protocol):
     """A protocol for stranded BED types."""
 
-    strand: BedStrand
+    strand: BedStrand | None
 
 
 class BedType(ABC, DataclassProtocol):
     """An abstract base class for all types of BED records."""
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> "BedType":
+    def __new__(cls, *args: object, **kwargs: object) -> "BedType":
         if not dataclasses.is_dataclass(cls):
             raise TypeError("You must mark custom BED records with @dataclass!")
         return cast("BedType", object.__new__(cls))
@@ -84,7 +165,7 @@ class BedType(ABC, DataclassProtocol):
     def decode(cls, line: str) -> "BedType":
         """Decode a line of text into a BED record."""
         row: list[str] = line.strip().split()
-        coerced: dict[str, Any] = {}
+        coerced: dict[str, object] = {}
 
         try:
             zipped = list(zip(fields(cls), row, strict=True))
@@ -94,9 +175,14 @@ class BedType(ABC, DataclassProtocol):
                 f" '{' '.join(row)}'"
             ) from None
 
+        hints: dict[str, Type] = get_type_hints(cls)
+
         for field, value in zipped:
             try:
-                coerced[field.name] = field.type(value)
+                if is_optional(hints[field.name]) and value == MISSING_FIELD:
+                    coerced[field.name] = None
+                else:
+                    coerced[field.name] = singular_non_optional_type(field.type)(value)
             except ValueError:
                 raise TypeError(
                     f"Tried to build the BED field '{field.name}' (of type '{field.type.__name__}')"
@@ -117,6 +203,7 @@ class PointBed(BedType, ABC):
     contig: str
     start: int
 
+    @property
     def length(self) -> int:
         """The length of this record."""
         return 1
@@ -138,6 +225,7 @@ class SimpleBed(BedType, ABC, Locatable):
         if self.start >= self.end or self.start < 0:
             raise ValueError("start must be greater than 0 and less than end!")
 
+    @property
     def length(self) -> int:
         """The length of this record."""
         return self.end - self.start
@@ -204,7 +292,7 @@ class Bed4(SimpleBed):
     contig: str
     start: int
     end: int
-    name: str
+    name: str | None
 
 
 @dataclass
@@ -214,8 +302,8 @@ class Bed5(SimpleBed):
     contig: str
     start: int
     end: int
-    name: str
-    score: int
+    name: str | None
+    score: int | None
 
 
 @dataclass
@@ -225,9 +313,9 @@ class Bed6(SimpleBed, Stranded):
     contig: str
     start: int
     end: int
-    name: str
-    score: int
-    strand: BedStrand
+    name: str | None
+    score: int | None
+    strand: BedStrand | None
 
 
 # @dataclass
@@ -260,10 +348,10 @@ class BedPE(PairBed):
     contig2: str
     start2: int
     end2: int
-    name: str
-    score: int
-    strand1: BedStrand
-    strand2: BedStrand
+    name: str | None
+    score: int | None
+    strand1: BedStrand | None
+    strand2: BedStrand | None
 
     @property
     def bed1(self) -> Bed6:
@@ -306,9 +394,9 @@ class BedWriter(Generic[BedKind], ContextManager):
 
     bed_kind: type[BedKind] | None
 
-    def __class_getitem__(cls, key: Any) -> type:
+    def __class_getitem__(cls, key: object) -> type:
         """Wrap all objects of this class to become generic aliases."""
-        return typing._GenericAlias(cls, key)  # type: ignore[attr-defined,no-any-return]
+        return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
     def __new__(cls, handle: io.TextIOWrapper) -> "BedWriter[BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
@@ -336,6 +424,13 @@ class BedWriter(Generic[BedKind], ContextManager):
         """Close and exit this context."""
         self.close()
         return super().__exit__(__exc_type, __exc_value, __traceback)
+
+    @classmethod_generic
+    def from_path(cls, path: Path | str) -> "BedWriter[BedKind]":
+        """Open a BED reader from a file path."""
+        reader = cls(handle=Path(path).open("w")) # type: ignore[operator]
+        reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
+        return cast("BedWriter[BedKind]", reader)
 
     def close(self) -> None:
         """Close the underlying IO handle."""
@@ -390,9 +485,9 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
 
     bed_kind: type[BedKind] | None
 
-    def __class_getitem__(cls, key: Any) -> type:
+    def __class_getitem__(cls, key: object) -> type:
         """Wrap all objects of this class to become generic aliases."""
-        return typing._GenericAlias(cls, key)  # type: ignore[attr-defined,no-any-return]
+        return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
     def __new__(cls, handle: io.TextIOWrapper) -> "BedReader[BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
@@ -413,6 +508,7 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
 
     def __iter__(self) -> Iterator[BedKind]:
         """Iterate through the BED records of this IO handle."""
+        # TODO: Implement __next__ and type this class as an iterator.
         if self.bed_kind is None:
             raise NotImplementedError("Untyped reading is not yet supported!")
         for line in self._handle:
@@ -432,12 +528,12 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
         self.close()
         return super().__exit__(__exc_type, __exc_value, __traceback)
 
-    @classmethod
-    def from_path(cls, path: Path | str, bed_kind: type[BedKind]) -> "BedReader[BedKind]":
+    @classmethod_generic
+    def from_path(cls, path: Path | str) -> "BedReader[BedKind]":
         """Open a BED reader from a file path."""
-        reader = cls(handle=Path(path).open())
-        reader.bed_kind = bed_kind
-        return reader
+        reader = cls(handle=Path(path).open()) # type: ignore[operator]
+        reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
+        return cast("BedReader[BedKind]", reader)
 
     def close(self) -> None:
         """Close the underlying IO handle."""

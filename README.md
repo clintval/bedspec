@@ -22,20 +22,22 @@ pip install bedspec
 ### Writing
 
 ```python
-from bedspec import BedWriter, Bed3
+from bedspec import Bed3
+from bedspec import BedWriter
 
 bed = Bed3("chr1", start=2, end=8)
 
-with BedWriter(open("test.bed", "w")) as writer:
+with BedWriter[Bed3].from_path("test.bed") as writer:
     writer.write(bed)
 ```
 
 ### Reading
 
 ```python
-from bedspec import BedReader, Bed3
+from bedspec import Bed3
+from bedspec import BedReader
 
-with BedReader[Bed3](open("test.bed")) as reader:
+with BedReader[Bed3].from_path("test.bed") as reader:
     for bed in reader:
         print(bed)
 ```

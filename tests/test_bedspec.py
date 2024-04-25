@@ -5,6 +5,7 @@ from typing import Iterator
 
 import pytest
 
+from bedspec import MISSING_FIELD
 from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed4
@@ -16,20 +17,33 @@ from bedspec import BedReader
 from bedspec import BedStrand
 from bedspec import BedType
 from bedspec import BedWriter
+from bedspec import Locatable
 from bedspec import PairBed
 from bedspec import PointBed
 from bedspec import SimpleBed
 from bedspec import Stranded
+from bedspec._bedspec import is_union
+
+
+def test_is_union() -> None:
+    """Test that a union type is a union type."""
+    # TODO: have a positive unit test for is_union
+    assert not is_union(type(int))
+    assert not is_union(type(None))
 
 
 def test_bed_strand() -> None:
     """Test that BED strands behave as string."""
     assert BedStrand("+") == BedStrand.POSITIVE
     assert BedStrand("-") == BedStrand.NEGATIVE
-    assert BedStrand(".") == BedStrand.UNKNOWN
     assert str(BedStrand.POSITIVE) == "+"
     assert str(BedStrand.NEGATIVE) == "-"
-    assert str(BedStrand.UNKNOWN) == "."
+
+
+def test_bed_strand_opposite() -> None:
+    """Test that we return an opposite BED strand."""
+    assert BedStrand.POSITIVE.opposite() == BedStrand.NEGATIVE
+    assert BedStrand.NEGATIVE.opposite() == BedStrand.POSITIVE
 
 
 def test_bed_color() -> None:
@@ -47,6 +61,13 @@ def test_bed_type_class_hierarchy() -> None:
 def test_all_bed_types_are_dataclasses(bed_type: type[BedType]) -> None:
     """Test that a simple BED record behaves as expected."""
     assert dataclasses.is_dataclass(bed_type)
+
+
+def test_locatable_structural_type() -> None:
+    """Test that the Locatable structural type is set correctly."""
+    _: Locatable = Bed6(
+        contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE
+    )
 
 
 def test_stranded_structural_type() -> None:
@@ -108,6 +129,11 @@ def test_point_bed_types_have_a_territory() -> None:
     assert list(Bed2(contig="chr1", start=1).territory()) == [expected]
 
 
+def test_point_bed_types_are_length_1() -> None:
+    """Test that a point BED has a length of 1."""
+    assert Bed2(contig="chr1", start=1).length == 1
+
+
 def test_simple_bed_types_have_a_territory() -> None:
     """Test that simple BEDs are their own territory."""
     for record in (
@@ -117,6 +143,13 @@ def test_simple_bed_types_have_a_territory() -> None:
         Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE),
     ):
         assert list(record.territory()) == [record]
+
+
+def test_simple_bed_types_have_length() -> None:
+    """Test that a simple BED has the right length."""
+    assert Bed3(contig="chr1", start=1, end=2).length == 1
+    assert Bed3(contig="chr1", start=1, end=3).length == 2
+    assert Bed3(contig="chr1", start=1, end=4).length == 3
 
 
 def test_simple_bed_validates_start_and_end() -> None:
@@ -333,6 +366,32 @@ def test_bed_writer_can_write_all_bed_types(bed: BedType, expected: str, tmp_pat
 
     assert Path(tmp_path / "test.bed").read_text() == expected
 
+def test_bed_writer_can_be_closed(tmp_path: Path) -> None:
+    """Test that we can close a BED writer."""
+    path: Path = tmp_path / "test.bed"
+    writer = BedWriter[Bed3](open(path, "w"))
+    writer.write(Bed3(contig="chr1", start=1, end=2))
+    writer.close()
+
+    with pytest.raises(ValueError, match="I/O operation on closed file"):
+        writer.write(Bed3(contig="chr1", start=1, end=2))
+
+
+def test_bed_wrtier_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
+    """Test that the BED write can write BED records from a path if it is typed."""
+
+    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
+
+    with BedWriter[Bed3].from_path(tmp_path / "test1.bed") as writer:
+        writer.write(bed)
+
+    assert (tmp_path / "test1.bed").read_text() == "chr1\t1\t2\n"
+
+    with BedWriter[Bed3].from_path(str(tmp_path / "test2.bed")) as writer:
+        writer.write(bed)
+
+    assert (tmp_path / "test2.bed").read_text() == "chr1\t1\t2\n"
+
 
 def test_bed_writer_can_write_all_at_once(tmp_path: Path) -> None:
     """Test that the BED writer can write multiple BED records at once."""
@@ -414,6 +473,14 @@ def test_bed_writer_write_comment_without_prefix_pound_symbol(tmp_path: Path) ->
 
     assert Path(tmp_path / "test.bed").read_text() == expected
 
+def test_bed_writer_can_be_used_as_context_manager(tmp_path: Path) -> None:
+    """Test that the BED writer can be used as a context manager."""
+    with BedWriter[Bed2](open(tmp_path / "test.bed", "w")) as handle:
+        handle.write(Bed2(contig="chr1", start=1))
+        handle.write(Bed2(contig="chr2", start=2))
+
+    expected = "chr1\t1\nchr2\t2\n"
+    assert Path(tmp_path / "test.bed").read_text() == expected
 
 def test_bed_reader_can_read_bed_records_if_typed(tmp_path: Path) -> None:
     """Test that the BED reader can read BED records if the reader is typed."""
@@ -430,6 +497,17 @@ def test_bed_reader_can_read_bed_records_if_typed(tmp_path: Path) -> None:
         assert list(BedReader[Bed3](handle)) == [bed]
 
 
+def test_bed_reader_can_be_closed(tmp_path: Path) -> None:
+    """Test that we can close a BED reader."""
+    path: Path = tmp_path / "test.bed"
+    path.touch()
+    reader = BedReader[Bed3](open(path))
+    reader.close()
+
+    with pytest.raises(ValueError, match="I/O operation on closed file"):
+        next(iter(reader))
+
+
 def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
     """Test that the BED reader can read BED records from a path if it is typed."""
 
@@ -441,10 +519,10 @@ def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
 
     assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
 
-    reader = BedReader[Bed3].from_path(tmp_path / "test.bed", bed_kind=Bed3)
+    reader = BedReader[Bed3].from_path(tmp_path / "test.bed")
     assert list(reader) == [bed]
 
-    reader = BedReader[Bed3].from_path(str(tmp_path / "test.bed"), bed_kind=Bed3)
+    reader = BedReader[Bed3].from_path(str(tmp_path / "test.bed"))
     assert list(reader) == [bed]
 
 
@@ -484,3 +562,35 @@ def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
 
     with open(tmp_path / "test.bed", "r") as handle:
         assert list(BedReader[Bed3](handle)) == [bed]
+
+
+def test_bed_reader_can_read_optional_string_types(tmp_path: Path) -> None:
+    """Test that the BED reader can read BED records with optional string types."""
+
+    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+
+    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+
+    with open(tmp_path / "test.bed", "r") as handle:
+        assert list(BedReader[Bed4](handle)) == [bed]
+
+
+def test_bed_reader_can_read_optional_other_types(tmp_path: Path) -> None:
+    """Test that the BED reader can read BED records with optional other types."""
+
+    bed: Bed5 = Bed5(contig="chr1", start=1, end=2, name="foo", score=None)
+
+    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\tfoo\t{MISSING_FIELD}\n")
+
+    with open(tmp_path / "test.bed", "r") as handle:
+        assert list(BedReader[Bed5](handle)) == [bed]
+
+
+def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
+    """Test that the BED reader can be used as a context manager."""
+    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+
+    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+
+    with BedReader[Bed4](open(tmp_path / "test.bed")) as reader:
+        assert list(reader) == [bed]
