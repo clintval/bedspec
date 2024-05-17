@@ -12,6 +12,7 @@ from ._bedspec import BedReader
 from ._bedspec import BedStrand
 from ._bedspec import BedType
 from ._bedspec import BedWriter
+from ._bedspec import Locatable
 from ._bedspec import PairBed
 from ._bedspec import PointBed
 from ._bedspec import SimpleBed
