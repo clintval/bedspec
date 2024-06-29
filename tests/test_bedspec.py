@@ -1,96 +1,28 @@
-import dataclasses
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterator
 
 import pytest
 
-from bedspec import MISSING_FIELD
 from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed5
 from bedspec import Bed6
-from bedspec import BedColor
+from bedspec import BedGraph
 from bedspec import BedPE
-from bedspec import BedReader
 from bedspec import BedStrand
-from bedspec import BedType
-from bedspec import BedWriter
-from bedspec import Locatable
 from bedspec import PairBed
 from bedspec import PointBed
 from bedspec import SimpleBed
-from bedspec import Stranded
-from bedspec._bedspec import is_union
-
-
-def test_is_union() -> None:
-    """Test that a union type is a union type."""
-    # TODO: have a positive unit test for is_union
-    assert not is_union(type(int))
-    assert not is_union(type(None))
-
-
-def test_bed_strand() -> None:
-    """Test that BED strands behave as string."""
-    assert BedStrand("+") == BedStrand.POSITIVE
-    assert BedStrand("-") == BedStrand.NEGATIVE
-    assert str(BedStrand.POSITIVE) == "+"
-    assert str(BedStrand.NEGATIVE) == "-"
-
-
-def test_bed_strand_opposite() -> None:
-    """Test that we return an opposite BED strand."""
-    assert BedStrand.POSITIVE.opposite() == BedStrand.NEGATIVE
-    assert BedStrand.NEGATIVE.opposite() == BedStrand.POSITIVE
-
-
-def test_bed_color() -> None:
-    """Test the small helper class for BED color."""
-    assert str(BedColor(2, 3, 4)) == "2,3,4"
-
-
-def test_bed_type_class_hierarchy() -> None:
-    """Test that all abstract base classes are subclasses of Bedtype."""
-    for subclass in (PointBed, SimpleBed, PairBed):
-        assert issubclass(subclass, BedType)
-
-
-@pytest.mark.parametrize("bed_type", (Bed2, Bed3, Bed4, Bed5, Bed6, BedPE))
-def test_all_bed_types_are_dataclasses(bed_type: type[BedType]) -> None:
-    """Test that a simple BED record behaves as expected."""
-    assert dataclasses.is_dataclass(bed_type)
-
-
-def test_locatable_structural_type() -> None:
-    """Test that the Locatable structural type is set correctly."""
-    _: Locatable = Bed6(
-        contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE
-    )
-
-
-def test_stranded_structural_type() -> None:
-    """Test that the Stranded structural type is set correctly."""
-    _: Stranded = Bed6(
-        contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE
-    )
-
-
-def test_dataclass_protocol_structural_type() -> None:
-    """Test that the dataclass structural type is set correctly."""
-    from bedspec._bedspec import DataclassProtocol
-
-    _: DataclassProtocol = Bed2(contig="chr1", start=1)
 
 
 def test_instantiating_all_bed_types() -> None:
-    """Test that we can instantiate all BED types."""
+    """Test that we can instantiate all builtin BED types."""
     Bed2(contig="chr1", start=1)
     Bed3(contig="chr1", start=1, end=2)
     Bed4(contig="chr1", start=1, end=2, name="foo")
     Bed5(contig="chr1", start=1, end=2, name="foo", score=3)
-    Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE)
+    Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive)
+    BedGraph(contig="chr1", start=1, end=2, value=0.2)
     BedPE(
         contig1="chr1",
         start1=1,
@@ -100,8 +32,8 @@ def test_instantiating_all_bed_types() -> None:
         end2=4,
         name="foo",
         score=5,
-        strand1=BedStrand.POSITIVE,
-        strand2=BedStrand.NEGATIVE,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
     )
 
 
@@ -116,11 +48,11 @@ def test_paired_bed_has_two_interval_properties() -> None:
         end2=4,
         name="foo",
         score=5,
-        strand1=BedStrand.POSITIVE,
-        strand2=BedStrand.NEGATIVE,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
     )
-    assert record.bed1 == Bed6(contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.POSITIVE)  # fmt: skip  # noqa: E501
-    assert record.bed2 == Bed6(contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.NEGATIVE)  # fmt: skip  # noqa: E501
+    assert record.bed1 == Bed6(contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.Positive)  # fmt: skip  # noqa: E501
+    assert record.bed2 == Bed6(contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.Negative)  # fmt: skip  # noqa: E501
 
 
 def test_point_bed_types_have_a_territory() -> None:
@@ -140,7 +72,8 @@ def test_simple_bed_types_have_a_territory() -> None:
         Bed3(contig="chr1", start=1, end=2),
         Bed4(contig="chr1", start=1, end=2, name="foo"),
         Bed5(contig="chr1", start=1, end=2, name="foo", score=3),
-        Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE),
+        Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive),
+        BedGraph(contig="chr1", start=1, end=2, value=1.0),
     ):
         assert list(record.territory()) == [record]
 
@@ -163,25 +96,25 @@ def test_simple_bed_validates_start_and_end() -> None:
 
 
 def test_paired_bed_validates_start_and_end() -> None:
-    """Test that a simple BED record validates its start and end."""
+    """Test a paired BED record validates its start and end for both intervals."""
     # fmt: off
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=-1, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=-1, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=5, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=5, end1=5, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=5, end1=0, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=5, end1=0, contig2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=-1, end2=5, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=-1, end2=5, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=5, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=5, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     with pytest.raises(ValueError):
-        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=0, name="foo", score=5, strand1=BedStrand.POSITIVE, strand2=BedStrand.POSITIVE)  # noqa: E501
+        BedPE(contig1="chr1", start1=1, end1=2, contig2="chr1", start2=5, end2=0, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
     # fmt: on
 
 
 def test_paired_bed_types_have_a_territory() -> None:
-    """Test that simple BEDs are their own territory."""
+    """Test that paired BEDs use both their intervals as their territory."""
     record = BedPE(
         contig1="chr1",
         start1=1,
@@ -191,28 +124,30 @@ def test_paired_bed_types_have_a_territory() -> None:
         end2=4,
         name="foo",
         score=5,
-        strand1=BedStrand.POSITIVE,
-        strand2=BedStrand.NEGATIVE,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
     )
     expected: list[Bed6] = [
-        Bed6(contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.POSITIVE),
-        Bed6(contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.NEGATIVE),
+        Bed6(contig="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.Positive),
+        Bed6(contig="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.Negative),
     ]
     assert list(record.territory()) == expected
 
 
 def test_that_decoding_splits_on_any_whitespace() -> None:
-    """Test that we can decode a BED on arbitrary whitespace."""
+    """Test that we can decode a BED on arbitrary whitespace (tabs or spaces)."""
     assert Bed3.decode("   chr1 \t 1\t \t2  \n") == Bed3(contig="chr1", start=1, end=2)
 
 
-def test_all_bed_types_have_fieldnames() -> None:
+def test_that_we_can_decode_all_bed_types_from_strings() -> None:
+    """Test that we can decode all builtin BED types from strings."""
     # fmt: off
     assert Bed2.decode("chr1\t1") == Bed2(contig="chr1", start=1)
     assert Bed3.decode("chr1\t1\t2") == Bed3(contig="chr1", start=1, end=2)
     assert Bed4.decode("chr1\t1\t2\tfoo") == Bed4(contig="chr1", start=1, end=2, name="foo")
     assert Bed5.decode("chr1\t1\t2\tfoo\t3") == Bed5(contig="chr1", start=1, end=2, name="foo", score=3)  # noqa: E501
-    assert Bed6.decode("chr1\t1\t2\tfoo\t3\t+") == Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE)  # noqa: E501
+    assert Bed6.decode("chr1\t1\t2\tfoo\t3\t+") == Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive)  # noqa: E501
+    assert BedGraph.decode("chr1\t1\t2\t0.2") == BedGraph(contig="chr1", start=1, end=2, value=0.2)
     assert BedPE.decode("chr1\t1\t2\tchr2\t3\t4\tfoo\t5\t+\t-") == BedPE(
         contig1="chr1",
         start1=1,
@@ -222,8 +157,8 @@ def test_all_bed_types_have_fieldnames() -> None:
         end2=4,
         name="foo",
         score=5,
-        strand1=BedStrand.POSITIVE,
-        strand2=BedStrand.NEGATIVE,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
     )
     # fmt: on
 
@@ -288,6 +223,7 @@ def test_that_we_can_make_our_own_custom_paired_bed() -> None:
         end2=4,
         custom1=4.0,
     )
+
     assert PairedBed6_1.decode("chr1\t1\t2\tchr2\t3\t4\t4.0") == decoded
     territory = list(decoded.territory())
     assert territory == [Bed3(contig="chr1", start=1, end=2), Bed3(contig="chr2", start=3, end=4)]
@@ -303,7 +239,9 @@ def test_that_we_cannot_build_a_custom_bed_without_it_being_a_dataclass() -> Non
         start: int
         custom1: float
 
-    with pytest.raises(TypeError, match="You must mark custom BED records with @dataclass."):
+    with pytest.raises(
+        TypeError, match="You must annotate custom BED class definitions with @dataclass!"
+    ):
         Bed2_1(contig="chr1", start=1, custom1=3.0)  # type: ignore[abstract]
 
 
@@ -328,269 +266,3 @@ def test_that_we_get_a_helpful_error_when_we_cant_decode_the_types() -> None:
         ),
     ):
         Bed2.decode("chr1\tchr1")
-
-
-@pytest.mark.parametrize(
-    "bed,expected",
-    [
-        [Bed2(contig="chr1", start=1), "chr1\t1\n"],
-        [Bed3(contig="chr1", start=1, end=2), "chr1\t1\t2\n"],
-        [Bed4(contig="chr1", start=1, end=2, name="foo"), "chr1\t1\t2\tfoo\n"],
-        [Bed5(contig="chr1", start=1, end=2, name="foo", score=3), "chr1\t1\t2\tfoo\t3\n"],
-        [
-            Bed6(contig="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.POSITIVE),
-            "chr1\t1\t2\tfoo\t3\t+\n",
-        ],  # fmt: skip
-        [
-            BedPE(
-                contig1="chr1",
-                start1=1,
-                end1=2,
-                contig2="chr2",
-                start2=3,
-                end2=4,
-                name="foo",
-                score=5,
-                strand1=BedStrand.POSITIVE,
-                strand2=BedStrand.NEGATIVE,
-            ),
-            "chr1\t1\t2\tchr2\t3\t4\tfoo\t5\t+\t-\n",
-        ],
-    ],
-)
-def test_bed_writer_can_write_all_bed_types(bed: BedType, expected: str, tmp_path: Path) -> None:
-    """Test that the BED writer can write all BED types."""
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write(bed)
-
-    assert Path(tmp_path / "test.bed").read_text() == expected
-
-def test_bed_writer_can_be_closed(tmp_path: Path) -> None:
-    """Test that we can close a BED writer."""
-    path: Path = tmp_path / "test.bed"
-    writer = BedWriter[Bed3](open(path, "w"))
-    writer.write(Bed3(contig="chr1", start=1, end=2))
-    writer.close()
-
-    with pytest.raises(ValueError, match="I/O operation on closed file"):
-        writer.write(Bed3(contig="chr1", start=1, end=2))
-
-
-def test_bed_wrtier_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
-    """Test that the BED write can write BED records from a path if it is typed."""
-
-    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
-
-    with BedWriter[Bed3].from_path(tmp_path / "test1.bed") as writer:
-        writer.write(bed)
-
-    assert (tmp_path / "test1.bed").read_text() == "chr1\t1\t2\n"
-
-    with BedWriter[Bed3].from_path(str(tmp_path / "test2.bed")) as writer:
-        writer.write(bed)
-
-    assert (tmp_path / "test2.bed").read_text() == "chr1\t1\t2\n"
-
-
-def test_bed_writer_can_write_all_at_once(tmp_path: Path) -> None:
-    """Test that the BED writer can write multiple BED records at once."""
-    expected: str = "chr1\t1\t2\nchr2\t3\t4\n"
-
-    def records() -> Iterator[Bed3]:
-        yield Bed3(contig="chr1", start=1, end=2)
-        yield Bed3(contig="chr2", start=3, end=4)
-
-    with open(tmp_path / "test.bed", "w") as handle:
-        BedWriter[Bed3](handle).write_all(records())
-
-    assert Path(tmp_path / "test.bed").read_text() == expected
-
-
-def test_bed_writer_remembers_the_type_it_will_write(tmp_path: Path) -> None:
-    """Test that the BED writer remembers the type it can only write."""
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write(Bed2(contig="chr1", start=1))
-        assert writer.bed_kind is Bed2
-        with pytest.raises(
-            TypeError,
-            match=(
-                "BedWriter can only continue to write features of the same type. Will not write a"
-                " Bed3 after a Bed2"
-            ),
-        ):
-            writer.write(Bed3(contig="chr1", start=1, end=2))
-
-
-def test_bed_writer_remembers_the_type_it_will_write_generic(tmp_path: Path) -> None:
-    """Test that the generically parameterized BED writer remembers the type it can only write."""
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter[Bed2](handle)
-        assert writer.bed_kind is Bed2
-        with pytest.raises(
-            TypeError,
-            match=(
-                "BedWriter can only continue to write features of the same type. Will not write a"
-                " Bed3 after a Bed2"
-            ),
-        ):
-            writer.write(Bed3(contig="chr1", start=1, end=2))  # type: ignore[arg-type]
-
-
-def test_bed_writer_write_comment_with_prefix_pound_symbol(tmp_path: Path) -> None:
-    """Test that we can write comments that have a leading pound symbol."""
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter[Bed2](handle)
-        writer.write_comment("# hello mom!")
-        writer.write(Bed2(contig="chr1", start=1))
-        writer.write_comment("# hello dad!")
-        writer.write(Bed2(contig="chr2", start=2))
-
-    expected = "# hello mom!\nchr1\t1\n# hello dad!\nchr2\t2\n"
-    assert Path(tmp_path / "test.bed").read_text() == expected
-
-
-def test_bed_writer_write_comment_without_prefix_pound_symbol(tmp_path: Path) -> None:
-    """Test that we can write comments that do not have a leading pound symbol."""
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter[Bed2](handle)
-        writer.write_comment("track this-is-fine")
-        writer.write_comment("browser is mario's enemy?")
-        writer.write_comment("hello mom!")
-        writer.write(Bed2(contig="chr1", start=1))
-        writer.write_comment("hello dad!")
-        writer.write(Bed2(contig="chr2", start=2))
-
-    expected = (
-        "track this-is-fine\n"
-        "browser is mario's enemy?\n"
-        "# hello mom!\n"
-        "chr1\t1\n"
-        "# hello dad!\n"
-        "chr2\t2\n"
-    )
-
-    assert Path(tmp_path / "test.bed").read_text() == expected
-
-def test_bed_writer_can_be_used_as_context_manager(tmp_path: Path) -> None:
-    """Test that the BED writer can be used as a context manager."""
-    with BedWriter[Bed2](open(tmp_path / "test.bed", "w")) as handle:
-        handle.write(Bed2(contig="chr1", start=1))
-        handle.write(Bed2(contig="chr2", start=2))
-
-    expected = "chr1\t1\nchr2\t2\n"
-    assert Path(tmp_path / "test.bed").read_text() == expected
-
-def test_bed_reader_can_read_bed_records_if_typed(tmp_path: Path) -> None:
-    """Test that the BED reader can read BED records if the reader is typed."""
-
-    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
-
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write(bed)
-
-    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
-
-    with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader[Bed3](handle)) == [bed]
-
-
-def test_bed_reader_can_be_closed(tmp_path: Path) -> None:
-    """Test that we can close a BED reader."""
-    path: Path = tmp_path / "test.bed"
-    path.touch()
-    reader = BedReader[Bed3](open(path))
-    reader.close()
-
-    with pytest.raises(ValueError, match="I/O operation on closed file"):
-        next(iter(reader))
-
-
-def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
-    """Test that the BED reader can read BED records from a path if it is typed."""
-
-    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
-
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write(bed)
-
-    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
-
-    reader = BedReader[Bed3].from_path(tmp_path / "test.bed")
-    assert list(reader) == [bed]
-
-    reader = BedReader[Bed3].from_path(str(tmp_path / "test.bed"))
-    assert list(reader) == [bed]
-
-
-def test_bed_reader_can_raises_exception_if_not_typed(tmp_path: Path) -> None:
-    """Test that the BED reader raises an exception if it is not typed."""
-
-    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
-
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write(bed)
-
-    assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
-
-    with open(tmp_path / "test.bed", "r") as handle:
-        with pytest.raises(
-            NotImplementedError,
-            match="Untyped reading is not yet supported!",
-        ):
-            list(BedReader(handle))
-
-
-def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
-    """Test that the BED reader can read BED records with comments."""
-
-    bed: Bed3 = Bed3(contig="chr1", start=1, end=2)
-
-    with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle)
-        writer.write_comment("track this-is-fine")
-        writer.write_comment("browser is mario's enemy?")
-        writer.write_comment("hello mom!")
-        handle.write("\n")  # empty line
-        handle.write(" \t\n")  # empty line
-        writer.write(bed)
-        writer.write_comment("hello dad!")
-
-    with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader[Bed3](handle)) == [bed]
-
-
-def test_bed_reader_can_read_optional_string_types(tmp_path: Path) -> None:
-    """Test that the BED reader can read BED records with optional string types."""
-
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
-
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
-
-    with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader[Bed4](handle)) == [bed]
-
-
-def test_bed_reader_can_read_optional_other_types(tmp_path: Path) -> None:
-    """Test that the BED reader can read BED records with optional other types."""
-
-    bed: Bed5 = Bed5(contig="chr1", start=1, end=2, name="foo", score=None)
-
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\tfoo\t{MISSING_FIELD}\n")
-
-    with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader[Bed5](handle)) == [bed]
-
-
-def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
-    """Test that the BED reader can be used as a context manager."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
-
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
-
-    with BedReader[Bed4](open(tmp_path / "test.bed")) as reader:
-        assert list(reader) == [bed]
