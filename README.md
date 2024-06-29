@@ -22,32 +22,27 @@ pip install bedspec
 ### Writing
 
 ```python
-from bedspec import Bed3
-from bedspec import BedWriter
-
-bed = Bed3("chr1", start=2, end=8)
+from bedspec import Bed3, BedWriter
 
 with BedWriter[Bed3].from_path("test.bed") as writer:
-    writer.write(bed)
+    writer.write(Bed3("chr1", start=2, end=8))
 ```
 
 ### Reading
 
 ```python
-from bedspec import Bed3
-from bedspec import BedReader
+from bedspec import Bed3, BedReader
 
 with BedReader[Bed3].from_path("test.bed") as reader:
-    for bed in reader:
-        print(bed)
+    print(list(reader))
 ```
 ```console
-Bed3(contig="chr1", start=2, start=8)
+[Bed3(contig="chr1", start=2, start=8)]
 ```
 
 ### BED Types
 
-This package provides pre-defined classes for the following BED formats:
+This package provides builtin classes for the following BED formats:
 
 ```python
 from bedspec import Bed2
@@ -55,12 +50,29 @@ from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed5
 from bedspec import Bed6
+from bedspec import BedGraph
 from bedspec import BedPE
 ```
 
-### Custom BED Types
+### Overlap Detection
 
-To create a custom BED record, inherit from the relevent BED-type:
+Use a fast overlap detector for any collection of interval types, including third-party:
+
+```python
+from bedspec import Bed3, Bed4
+from bedspec.overlap import OverlapDetector
+
+bed1: Bed4 = Bed4(contig="chr1", start=1, end=4, name="bed1")
+bed2: Bed4 = Bed4(contig="chr1", start=5, end=9, name="bed2")
+
+detector: OverlapDetector[Bed4] = OverlapDetector([bed1, bed2])
+
+assert detector.get_overlapping(Bed3(contig="chr1", start=2, 3)) == bed1
+```
+
+### Create Custom BED Types
+
+To create a custom BED record, inherit from the relevant BED-type:
 
 | Type        | Description                                          |
 | ---         | ---                                                  |
@@ -75,7 +87,7 @@ from dataclasses import dataclass
 
 from bedspec import SimpleBed
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class MyCustomBed(SimpleBed):
     contig: str
     start: int
