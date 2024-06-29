@@ -1,4 +1,6 @@
 # ruff: noqa: F401
+import xbgzip.bgzip
+
 from ._bedspec import Bed2
 from ._bedspec import Bed3
 from ._bedspec import Bed4

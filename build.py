@@ -13,7 +13,12 @@ ext_modules = [
             "cgranges/python/cgranges.pyx"
         ],
         include_dirs=["cgranges"],
-    )
+    ),
+    Extension(
+        "bgzip.bgzip_utils",
+        sources=["xbgzip/bgzip_utils/bgzip_utils.pyx"],
+        depends=["xbgzip/bgzip_utils/bgzip_utils.pyx"],
+    ),
 ]
 
 def build(setup_kwargs: dict[str, Any]) -> None:

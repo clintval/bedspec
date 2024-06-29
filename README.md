@@ -72,13 +72,7 @@ assert detector.get_overlapping(Bed3(contig="chr1", start=2, 3)) == bed1
 
 ### Create Custom BED Types
 
-To create a custom BED record, inherit from the relevant BED-type:
-
-| Type        | Description                                          |
-| ---         | ---                                                  |
-| `PointBed`  | BED records that are a single point (1-length) only. |
-| `SimpleBed` | BED records that are a single interval.              |
-| `PairBed`   | BED records that are a pair of intervals.            |
+To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).
 
 For example, to create a custom BED3+1 class:
 
