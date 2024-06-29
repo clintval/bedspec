@@ -25,7 +25,7 @@ class PointBed(BedType, ABC):
         yield Bed3(contig=self.contig, start=self.start, end=self.start + 1)
 
 
-class SimpleBed(BedType, ABC, GenomicSpan):
+class SimpleBed(BedType, GenomicSpan, ABC):
     """An abstract class for a BED record that describes a contiguous linear interval."""
 
     contig: str
@@ -88,14 +88,14 @@ class BedColor:
     g: int
     b: int
 
-    def __str__(self) -> str:
-        """Return a comma-delimited string representation of this BED color."""
-        return f"{self.r},{self.g},{self.b}"
-
     def __post_init__(self) -> None:
         """Validate that all color values are well-formatted."""
         if any(value > 255 or value < 0 for value in (self.r, self.g, self.b)):
             raise ValueError(f"RGB color values must be in the range [0, 255] but found: {self}")
+
+    def __str__(self) -> str:
+        """Return a comma-delimited string representation of this BED color."""
+        return f"{self.r},{self.g},{self.b}"
 
 
 @dataclass(eq=True, frozen=True)
@@ -137,7 +137,7 @@ class Bed5(SimpleBed, Named):
 
 
 @dataclass(eq=True, frozen=True)
-class Bed6(SimpleBed, Stranded, Named):
+class Bed6(SimpleBed, Named, Stranded):
     """A BED6 record that describes a contiguous linear interval."""
 
     contig: str
@@ -149,7 +149,7 @@ class Bed6(SimpleBed, Stranded, Named):
 
 
 @dataclass(eq=True, frozen=True)
-class Bed12(SimpleBed, Stranded, Named):
+class Bed12(SimpleBed, Named, Stranded):
     """A BED12 record that describes a contiguous linear interval."""
 
     contig: str

@@ -49,6 +49,7 @@ def test_bed_color_validation() -> None:
         BedColor(0, 256, 0)
         BedColor(0, 0, 256)
 
+
 @pytest.mark.parametrize("bed_type", (PointBed, SimpleBed, PairBed))
 def test_bed_type_class_hierarchy(bed_type: type[BedType]) -> None:
     """Test that all abstract base classes are subclasses of BedType."""
