@@ -23,10 +23,6 @@ jobs:
         with:
           submodules: "true"
 
-      - run: |
-          sudo apt-get update
-          sudo apt-get install zlib1g-dev
-
       - name: Set up Python ${{ matrix.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:

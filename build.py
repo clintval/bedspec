@@ -18,6 +18,7 @@ ext_modules = [
         "bgzip.bgzip_utils",
         sources=["xbgzip/bgzip_utils/bgzip_utils.pyx"],
         depends=["xbgzip/bgzip_utils/bgzip_utils.pyx"],
+        include_dirs=["xbgzip"],
     ),
 ]
 
