@@ -47,6 +47,9 @@ generate-setup-file = true
 requires = ["poetry-core>=1.6", "setuptools>=70.1.1", "Cython>=3.0.10"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.coverage.run]
+omit = ["cgranges/*", "xbgzip/*"]
+
 [tool.mypy]
 check_untyped_defs = true
 disallow_incomplete_defs = true

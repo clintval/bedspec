@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import TypeAlias
 
+import pytest
+
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec.overlap import OverlapDetector
@@ -31,6 +33,35 @@ def test_we_can_add_a_feature_to_the_overlap_detector() -> None:
     detector.add(bed2)
     assert list(detector) == [bed1, bed2]
 
+
+def test_that_we_require_hashable_features_in_the_overlap_detector() -> None:
+    """Test that we require hashable features in the overlap detector."""
+
+    @dataclass
+    class MissingHashFeature:
+        contig: str
+        start: int
+        end: int
+
+    feature: MissingHashFeature = MissingHashFeature("chr1", 2, 3)
+    detector: OverlapDetector[MissingHashFeature] = OverlapDetector()
+
+    with pytest.raises(ValueError):
+        detector.add(feature)
+
+
+def test_structural_type_reference_name_raises_if_not_found() -> None:
+
+    @dataclass(eq=True, frozen=True)
+    class BadInterval:
+        chromosome_name: str
+        start: int
+        end: int
+
+    feature: BadInterval = BadInterval("chr1", 1, 2)
+
+    with pytest.raises(ValueError):
+        OverlapDetector._reference_sequence_name(feature)  # type: ignore[type-var]
 
 def test_we_can_add_all_features_to_the_overlap_detector() -> None:
     """Test we can add all features to the overlap detector."""

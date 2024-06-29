@@ -112,4 +112,3 @@ class BedType(ABC, DataclassInstance):
     @abstractmethod
     def territory(self) -> Iterator[GenomicSpan]:
         """Return intervals that describe the territory of this BED record."""
-        raise NotImplementedError("Method not yet implemented!")

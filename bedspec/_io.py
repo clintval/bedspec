@@ -16,8 +16,7 @@ from typing import _GenericAlias  # type: ignore[attr-defined]
 from typing import cast
 
 import bedspec._typing
-import xbgzip
-import xbgzip.bgzip
+from xbgzip import bgzip
 
 ####################################################################################################
 
@@ -85,7 +84,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
         """Wrap all objects of this class to become generic aliases."""
         return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
-    def __new__(cls, handle: io.TextIOWrapper | xbgzip.bgzip.BGZipWriter) -> "BedWriter[_BedKind]":
+    def __new__(cls, handle: io.TextIOWrapper | bgzip.BGZipWriter) -> "BedWriter[_BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
         typelevel = signature.f_locals.get("self", None)
@@ -98,9 +97,9 @@ class BedWriter(Generic[_BedKind], ContextManager):
         """Enter this context."""
         return self
 
-    def __init__(self, handle: TextIO | TextIOWrapper | xbgzip.bgzip.BGZipWriter) -> None:
+    def __init__(self, handle: TextIO | TextIOWrapper | bgzip.BGZipWriter) -> None:
         """Initialize a BED writer without knowing yet what BED types we will write."""
-        self._handle: TextIO | TextIOWrapper | xbgzip.bgzip.BGZipWriter = handle
+        self._handle: TextIO | TextIOWrapper | bgzip.BGZipWriter = handle
 
     def __exit__(
         self,
@@ -115,9 +114,9 @@ class BedWriter(Generic[_BedKind], ContextManager):
     @bedspec._typing.classmethod_generic
     def from_path(cls, path: Path | str) -> "BedWriter[_BedKind]":
         """Open a BED writer from a file path."""
-        handle: TextIO | TextIOWrapper | xbgzip.bgzip.BGZipWriter
+        handle: TextIO | TextIOWrapper | bgzip.BGZipWriter
         if any(str(path).endswith(extension) for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
-            handle = xbgzip.bgzip.BGZipWriter(open(path, "wb"))
+            handle = bgzip.BGZipWriter(open(path, "wb"))
         else:
             handle = Path(path).open("w")
         reader = cls(handle=handle)  # type: ignore[operator]
@@ -126,7 +125,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
 
     def _write_string(self, text: str) -> None:
         """Write a string of text to the underlying handle accounting for binary write modes."""
-        if isinstance(self._handle, xbgzip.bgzip.BGZipWriter):
+        if isinstance(self._handle, bgzip.BGZipWriter):
             self._handle.write(text.encode())  # type: ignore[no-untyped-call]
         else:
             self._handle.write(text)
