@@ -1,0 +1,40 @@
+from io import IOBase
+from multiprocessing import cpu_count
+from typing import IO
+from typing import ClassVar
+from typing import ContextManager
+
+import xbgzip.bgzip_utils as bgzip
+from xbgzip.bgzip import Deflater
+
+
+class BgzipWriter(IOBase, ContextManager):
+    encoding: ClassVar[str] = "utf-8"
+
+    def __init__(self, handle: IO[str], threads: int = cpu_count()):
+        self._handle: IO[str] = handle
+        self._buffer: bytearray = bytearray()
+        self._deflater: Deflater = Deflater(threads)
+
+    def writable(self) -> True:
+        return True
+
+    def _compress(self, process_all_chunks: bool = False) -> None:
+        while self._buffer:
+            bytes_deflated, blocks = self._deflater.deflate(self._buffer)
+            for block in blocks:
+                self._handle.write(block)
+            self._buffer = self._buffer[bytes_deflated:]
+            if not process_all_chunks and len(self._buffer) < bgzip.block_data_inflated_size:
+                break
+
+    def write(self, string: str) -> None:
+        self._buffer.extend(string.encode(encoding=self.encoding))
+        if len(self._buffer) > bgzip.block_batch_size * bgzip.block_data_inflated_size:
+            self._compress()
+
+    def close(self):
+        eof = bytes.fromhex("1f8b08040000000000ff0600424302001b0003000000000000000000")
+        if self._buffer:
+            self._compress(process_all_chunks=True)
+        self._handle.write(eof.decode("utf-8"))

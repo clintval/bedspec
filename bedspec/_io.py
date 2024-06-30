@@ -115,7 +115,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
     def from_path(cls, path: Path | str) -> "BedWriter[_BedKind]":
         """Open a BED writer from a file path."""
         handle: TextIO | TextIOWrapper | BGZipWriter
-        if any(str(path).endswith(extension) for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
+        if any(Path(path).suffix == extension for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
             handle = BGZipWriter(open(path, "wb"))
         else:
             handle = Path(path).open("w")
@@ -230,7 +230,7 @@ class BedReader(Generic[_BedKind], ContextManager, Iterable[_BedKind]):
     def from_path(cls, path: Path | str) -> "BedReader[_BedKind]":
         """Open a BED reader from a plaintext or gzip compressed file path."""
         handle: io.TextIOWrapper | TextIO
-        if any(str(path).endswith(extension) for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
+        if any(Path(path).suffix == extension for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
             handle = cast(io.TextIOWrapper, gzip.open(path, "rt"))
         else:
             handle = Path(path).open("r")
