@@ -21,7 +21,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 include = ["CONTRIBUTING.md", "LICENSE"]
-packages = [{ include = "bedspec" }, { include = "cgranges" }]
+packages = [
+    { include = "bedspec" },
+    { include = "cgranges" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.12.0"
@@ -39,9 +42,15 @@ ruff = "0.1.13"
 script = "build.py"
 generate-setup-file = true
 
+[tool.poetry.group.dev.dependencies]
+pyright = "^1.1.369"
+
 [build-system]
-requires = ["poetry-core>=1.6", "setuptools", "Cython"]
+requires = ["poetry-core>=1.6", "setuptools>=70.1.1", "Cython>=3.0.10"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.coverage.run]
+omit = ["cgranges/*"]
 
 [tool.mypy]
 check_untyped_defs = true

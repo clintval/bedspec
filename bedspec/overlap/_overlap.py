@@ -1,5 +1,5 @@
-import itertools
 from collections import defaultdict
+from itertools import chain
 from typing import Generic
 from typing import Hashable
 from typing import Iterable
@@ -7,11 +7,12 @@ from typing import Iterator
 from typing import Protocol
 from typing import TypeAlias
 from typing import TypeVar
+from typing import runtime_checkable
 
-import bedspec
 import cgranges as cr
 
 
+@runtime_checkable
 class _Span(Hashable, Protocol):
     """A span with a start and an end. 0-based open-ended."""
 
@@ -24,6 +25,7 @@ class _Span(Hashable, Protocol):
         """A 0-based open-ended position."""
 
 
+@runtime_checkable
 class _GenomicSpanWithChrom(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `chrom`."""
 
@@ -32,6 +34,7 @@ class _GenomicSpanWithChrom(_Span, Protocol):
         """A reference sequence name."""
 
 
+@runtime_checkable
 class _GenomicSpanWithContig(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `contig`."""
 
@@ -40,6 +43,7 @@ class _GenomicSpanWithContig(_Span, Protocol):
         """A reference sequence name."""
 
 
+@runtime_checkable
 class _GenomicSpanWithRefName(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `refname`."""
 
@@ -94,26 +98,21 @@ class OverlapDetector(Generic[_GenericGenomicSpanLike], Iterable[_GenericGenomic
 
     def __iter__(self) -> Iterator[_GenericGenomicSpanLike]:
         """Iterate over the features in the overlap detector."""
-        return itertools.chain(*self._refname_to_features.values())
+        return chain(*self._refname_to_features.values())
 
     @staticmethod
     def _reference_sequence_name(feature: GenomicSpanLike) -> Refname:
         """Return the reference name of a given genomic feature."""
-        if isinstance(feature, bedspec.GenomicSpan) or hasattr(feature, "contig"):
+        if isinstance(feature, _GenomicSpanWithContig):
             return feature.contig
-        if hasattr(feature, "chrom"):
+        if isinstance(feature, _GenomicSpanWithChrom):
             return feature.chrom
-        elif hasattr(feature, "refname"):
+        elif isinstance(feature, _GenomicSpanWithRefName):
             return feature.refname
         else:
             raise ValueError(
                 f"Genomic feature is missing a reference sequence name property: {feature}"
             )
-
-    def _maybe_index_tree(self, refname: Refname) -> None:
-        """Index a tree for a given reference sequence name if necessary."""
-        if refname in self._refname_to_tree and not self._refname_to_is_indexed[refname]:
-            self._refname_to_tree[refname].index()
 
     def add(self, feature: _GenericGenomicSpanLike) -> None:
         """Add a genomic feature to this overlap detector."""
@@ -132,18 +131,28 @@ class OverlapDetector(Generic[_GenericGenomicSpanLike], Iterable[_GenericGenomic
         for feature in features:
             self.add(feature)
 
-    def get_overlapping(self, feature: GenomicSpanLike) -> Iterator[_GenericGenomicSpanLike]:
+    def overlapping(self, feature: GenomicSpanLike) -> Iterator[_GenericGenomicSpanLike]:
         """Yields all the overlapping features for a given genomic span."""
         refname: Refname = self._reference_sequence_name(feature)
-        self._maybe_index_tree(refname)
+
+        if refname in self._refname_to_tree and not self._refname_to_is_indexed[refname]:
+            self._refname_to_tree[refname].index()  # index the tree if we find it is not indexed
 
         for *_, idx in self._refname_to_tree[refname].overlap(refname, feature.start, feature.end):
             yield self._refname_to_features[refname][idx]
 
     def overlaps_any(self, feature: GenomicSpanLike) -> bool:
         """Determine if a given genomic span overlaps any features."""
-        try:
-            next(self.get_overlapping(feature))
-            return True
-        except StopIteration:
-            return False
+        return next(self.overlapping(feature), None) is not None
+
+    def those_enclosing(self, feature: GenomicSpanLike) -> Iterator[_GenericGenomicSpanLike]:
+        """Yields all the overlapping features that completely enclose the given genomic span."""
+        for overlap in self.overlapping(feature):
+            if feature.start >= overlap.start and feature.end <= overlap.end:
+                yield overlap
+
+    def those_enclosed_by(self, feature: GenomicSpanLike) -> Iterator[_GenericGenomicSpanLike]:
+        """Yields all the overlapping features that are enclosed by the given genomic span."""
+        for overlap in self.overlapping(feature):
+            if feature.start <= overlap.start and feature.end >= overlap.end:
+                yield overlap

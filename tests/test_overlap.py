@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import TypeAlias
 
+import pytest
+
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec.overlap import OverlapDetector
@@ -32,6 +34,35 @@ def test_we_can_add_a_feature_to_the_overlap_detector() -> None:
     assert list(detector) == [bed1, bed2]
 
 
+def test_that_we_require_hashable_features_in_the_overlap_detector() -> None:
+    """Test that we require hashable features in the overlap detector."""
+
+    @dataclass
+    class MissingHashFeature:
+        contig: str
+        start: int
+        end: int
+
+    feature: MissingHashFeature = MissingHashFeature("chr1", 2, 3)
+    detector: OverlapDetector[MissingHashFeature] = OverlapDetector()
+
+    with pytest.raises(ValueError):
+        detector.add(feature)
+
+
+def test_structural_type_reference_name_raises_if_not_found() -> None:
+    @dataclass(eq=True, frozen=True)
+    class BadInterval:
+        chromosome_name: str
+        start: int
+        end: int
+
+    feature: BadInterval = BadInterval("chr1", 1, 2)
+
+    with pytest.raises(ValueError):
+        OverlapDetector._reference_sequence_name(feature)  # type: ignore[type-var]
+
+
 def test_we_can_add_all_features_to_the_overlap_detector() -> None:
     """Test we can add all features to the overlap detector."""
     bed1 = Bed3(contig="chr1", start=1, end=2)
@@ -46,7 +77,33 @@ def test_we_can_query_with_different_type_in_the_overlap_detector() -> None:
     bed1 = Bed3(contig="chr1", start=1, end=2)
     bed2 = Bed4(contig="chr1", start=1, end=2, name="Clint Valentine")
     detector: OverlapDetector[Bed3] = OverlapDetector([bed1])
-    assert list(detector.get_overlapping(bed2)) == [bed1]
+    assert list(detector.overlapping(bed2)) == [bed1]
+
+
+def test_we_can_those_enclosing_intervals() -> None:
+    """Test that we can get intervals enclosing a given genomic feature."""
+    bed1 = Bed3(contig="chr1", start=1, end=5)
+    bed2 = Bed3(contig="chr1", start=3, end=9)
+    detector: OverlapDetector[Bed3] = OverlapDetector([bed1, bed2])
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=2, end=5))) == [bed1]
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=3, end=8))) == [bed2]
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=4, end=9))) == [bed2]
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=3, end=9))) == [bed2]
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=2, end=10))) == []
+    assert list(detector.those_enclosing(Bed3(contig="chr1", start=1, end=10))) == []
+
+
+def test_we_can_those_enclosed_by_intervals() -> None:
+    """Test that we can get intervals enclosed by a given genomic feature."""
+    bed1 = Bed3(contig="chr1", start=1, end=5)
+    bed2 = Bed3(contig="chr1", start=3, end=9)
+    detector: OverlapDetector[Bed3] = OverlapDetector([bed1, bed2])
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=2, end=5))) == []
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=3, end=8))) == []
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=4, end=9))) == []
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=3, end=9))) == [bed2]
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=2, end=10))) == [bed2]
+    assert list(detector.those_enclosed_by(Bed3(contig="chr1", start=1, end=10))) == [bed1, bed2]
 
 
 def test_we_can_query_for_overlapping_features() -> None:
@@ -58,12 +115,12 @@ def test_we_can_query_for_overlapping_features() -> None:
 
     assert list(detector) == [bed1, bed2, bed3]
 
-    assert list(detector.get_overlapping(Bed3("chr1", 0, 1))) == []
-    assert list(detector.get_overlapping(Bed3("chr1", 2, 3))) == [bed1]
-    assert list(detector.get_overlapping(Bed3("chr1", 4, 5))) == [bed1, bed2]
-    assert list(detector.get_overlapping(Bed3("chr1", 5, 6))) == [bed2]
-    assert list(detector.get_overlapping(Bed3("chr2", 0, 1))) == []
-    assert list(detector.get_overlapping(Bed3("chr2", 4, 5))) == [bed3]
+    assert list(detector.overlapping(Bed3("chr1", 0, 1))) == []
+    assert list(detector.overlapping(Bed3("chr1", 2, 3))) == [bed1]
+    assert list(detector.overlapping(Bed3("chr1", 4, 5))) == [bed1, bed2]
+    assert list(detector.overlapping(Bed3("chr1", 5, 6))) == [bed2]
+    assert list(detector.overlapping(Bed3("chr2", 0, 1))) == []
+    assert list(detector.overlapping(Bed3("chr2", 4, 5))) == [bed3]
 
 
 def test_we_can_query_if_at_least_one_feature_overlaps() -> None:

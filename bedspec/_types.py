@@ -38,7 +38,7 @@ class BedStrand(StrEnum):
         """Return the opposite BED strand."""
         if self is BedStrand.Positive:
             return BedStrand.Negative
-        if self is BedStrand.Negative:
+        else:
             return BedStrand.Positive
 
 
@@ -112,4 +112,3 @@ class BedType(ABC, DataclassInstance):
     @abstractmethod
     def territory(self) -> Iterator[GenomicSpan]:
         """Return intervals that describe the territory of this BED record."""
-        raise NotImplementedError("Method not yet implemented!")

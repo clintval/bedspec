@@ -13,7 +13,7 @@ ext_modules = [
             "cgranges/python/cgranges.pyx"
         ],
         include_dirs=["cgranges"],
-    )
+    ),
 ]
 
 def build(setup_kwargs: dict[str, Any]) -> None:

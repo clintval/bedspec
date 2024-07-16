@@ -25,8 +25,29 @@ BEDGRAPH_EXTENSION: str = ".bedgraph"
 BEDPE_EXTENSION: str = ".bedpe"
 """The default file extension for BedPE files."""
 
+BGZ_EXTENSION: str = ".bgz"
+"""The default file extension for block-compressed gzip files (`.bgz`)."""
+
+BGZIP_EXTENSION: str = ".bgzip"
+"""The default file extension for block-compressed gzip files (`.bgzip`)."""
+
+GZ_EXTENSION: str = ".gz"
+"""The default file extension for compressed gzip files (`.gz`)."""
+
+GZIP_EXTENSION: str = ".gzip"
+"""The default file extension for compressed gzip files (`.gzip`)."""
+
 TRACK_EXTENSION: str = ".track"
 """The default file extension for UCSC track files."""
+
+_BGZIP_EXTENSIONS: set[str] = {BGZ_EXTENSION, BGZIP_EXTENSION}
+"""All supported block-compressed gzip file extensions."""
+
+_GZIP_EXTENSIONS: set[str] = {GZ_EXTENSION, GZIP_EXTENSION}
+"""All supported compressed gzip file extensions."""
+
+_ALL_GZIP_COMPATIBLE_EXTENSIONS: set[str] = _BGZIP_EXTENSIONS.union(_GZIP_EXTENSIONS)
+"""All supported compressed and block-compressed gzip file extensions."""
 
 ####################################################################################################
 
@@ -38,11 +59,11 @@ MISSING_FIELD: str = "."
 
 ####################################################################################################
 
-BedKind = TypeVar("BedKind", bound=bedspec._types.BedType)
+_BedKind = TypeVar("_BedKind", bound=bedspec._types.BedType)
 """A type variable for any kind of BED record type."""
 
 
-class BedWriter(Generic[BedKind], ContextManager):
+class BedWriter(ContextManager, Generic[_BedKind]):
     """A writer of BED records.
 
     Args:
@@ -53,13 +74,13 @@ class BedWriter(Generic[BedKind], ContextManager):
 
     """
 
-    bed_kind: type[BedKind] | None
+    bed_kind: type[_BedKind] | None
 
     def __class_getitem__(cls, key: object) -> type:
         """Wrap all objects of this class to become generic aliases."""
         return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
-    def __new__(cls, handle: io.TextIOWrapper) -> "BedWriter[BedKind]":
+    def __new__(cls, handle: io.TextIOWrapper) -> "BedWriter[_BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
         typelevel = signature.f_locals.get("self", None)
@@ -68,7 +89,7 @@ class BedWriter(Generic[BedKind], ContextManager):
         instance.bed_kind = bed_kind
         return instance
 
-    def __enter__(self) -> "BedWriter[BedKind]":
+    def __enter__(self) -> "BedWriter[_BedKind]":
         """Enter this context."""
         return self
 
@@ -87,11 +108,11 @@ class BedWriter(Generic[BedKind], ContextManager):
         return super().__exit__(__exc_type, __exc_value, __traceback)
 
     @bedspec._typing.classmethod_generic
-    def from_path(cls, path: Path | str) -> "BedWriter[BedKind]":
+    def from_path(cls, path: Path | str) -> "BedWriter[_BedKind]":
         """Open a BED writer from a file path."""
         reader = cls(handle=Path(path).open("w"))  # type: ignore[operator]
         reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
-        return cast("BedWriter[BedKind]", reader)
+        return cast("BedWriter[_BedKind]", reader)
 
     def close(self) -> None:
         """Close the underlying IO handle."""
@@ -100,12 +121,10 @@ class BedWriter(Generic[BedKind], ContextManager):
     def write_comment(self, comment: str) -> None:
         """Write a comment to the BED output."""
         for line in comment.splitlines():
-            if any(line.startswith(prefix) for prefix in COMMENT_PREFIXES):
-                self._handle.write(f"{comment}\n")
-            else:
-                self._handle.write(f"# {comment}\n")
+            prefix = "" if any(line.startswith(prefix) for prefix in COMMENT_PREFIXES) else "# "
+            self._handle.write(f"{prefix}{comment}\n")
 
-    def write(self, bed: BedKind) -> None:
+    def write(self, bed: _BedKind) -> None:
         """Write a BED record to the BED output."""
         if self.bed_kind is not None:
             if type(bed) is not self.bed_kind:
@@ -116,15 +135,20 @@ class BedWriter(Generic[BedKind], ContextManager):
         else:
             self.bed_kind = type(bed)
 
-        self._handle.write(f"{"\t".join(map(str, as_dict(bed).values()))}\n")
+        mapping: dict[str, object] = {
+            key: (value if value is not None else MISSING_FIELD)
+            for key, value in as_dict(bed).items()
+        }
 
-    def write_all(self, beds: Iterable[BedKind]) -> None:
+        self._handle.write(f"{"\t".join(map(str, mapping.values()))}\n")
+
+    def write_all(self, beds: Iterable[_BedKind]) -> None:
         """Write all the BED records to the BED output."""
         for bed in beds:
             self.write(bed)
 
 
-class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
+class BedReader(ContextManager, Iterable[_BedKind], Generic[_BedKind]):
     """A reader of BED records.
 
     This reader is capable of reading BED records but must be typed at runtime:
@@ -144,13 +168,13 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
 
     """
 
-    bed_kind: type[BedKind] | None
+    bed_kind: type[_BedKind] | None
 
     def __class_getitem__(cls, key: object) -> type:
         """Wrap all objects of this class to become generic aliases."""
         return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
-    def __new__(cls, handle: io.TextIOWrapper) -> "BedReader[BedKind]":
+    def __new__(cls, handle: io.TextIOWrapper) -> "BedReader[_BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
         typelevel = signature.f_locals.get("self", None)
@@ -163,19 +187,18 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
         """Initialize a BED reader without knowing yet what BED types we will write."""
         self._handle = handle
 
-    def __enter__(self) -> "BedReader[BedKind]":
+    def __enter__(self) -> "BedReader[_BedKind]":
         """Enter this context."""
         return self
 
-    def __iter__(self) -> Iterator[BedKind]:
+    def __iter__(self) -> Iterator[_BedKind]:
         """Iterate through the BED records of this IO handle."""
-        # TODO: Implement __next__ and type this class as an iterator.
         if self.bed_kind is None:
             raise NotImplementedError("Untyped reading is not yet supported!")
         for line in map(lambda line: line.strip(), self._handle):
             if line == "" or any(line.startswith(prefix) for prefix in COMMENT_PREFIXES):
                 continue
-            yield cast(BedKind, self.bed_kind.decode(line))
+            yield cast(_BedKind, self.bed_kind.decode(line))
 
     def __exit__(
         self,
@@ -188,11 +211,11 @@ class BedReader(Generic[BedKind], ContextManager, Iterable[BedKind]):
         return super().__exit__(__exc_type, __exc_value, __traceback)
 
     @bedspec._typing.classmethod_generic
-    def from_path(cls, path: Path | str) -> "BedReader[BedKind]":
-        """Open a BED reader from a file path."""
+    def from_path(cls, path: Path | str) -> "BedReader[_BedKind]":
+        """Open a BED reader from a plaintext or gzip compressed file path."""
         reader = cls(handle=Path(path).open("r"))  # type: ignore[operator]
         reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
-        return cast("BedReader[BedKind]", reader)
+        return cast("BedReader[_BedKind]", reader)
 
     def close(self) -> None:
         """Close the underlying IO handle."""
