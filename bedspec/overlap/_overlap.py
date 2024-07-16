@@ -7,11 +7,12 @@ from typing import Iterator
 from typing import Protocol
 from typing import TypeAlias
 from typing import TypeVar
+from typing import runtime_checkable
 
-import bedspec
 import cgranges as cr
 
 
+@runtime_checkable
 class _Span(Hashable, Protocol):
     """A span with a start and an end. 0-based open-ended."""
 
@@ -24,6 +25,7 @@ class _Span(Hashable, Protocol):
         """A 0-based open-ended position."""
 
 
+@runtime_checkable
 class _GenomicSpanWithChrom(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `chrom`."""
 
@@ -32,6 +34,7 @@ class _GenomicSpanWithChrom(_Span, Protocol):
         """A reference sequence name."""
 
 
+@runtime_checkable
 class _GenomicSpanWithContig(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `contig`."""
 
@@ -40,6 +43,7 @@ class _GenomicSpanWithContig(_Span, Protocol):
         """A reference sequence name."""
 
 
+@runtime_checkable
 class _GenomicSpanWithRefName(_Span, Protocol):
     """A genomic feature where reference sequence is accessed with `refname`."""
 
@@ -99,11 +103,11 @@ class OverlapDetector(Generic[_GenericGenomicSpanLike], Iterable[_GenericGenomic
     @staticmethod
     def _reference_sequence_name(feature: GenomicSpanLike) -> Refname:
         """Return the reference name of a given genomic feature."""
-        if isinstance(feature, bedspec.GenomicSpan) or hasattr(feature, "contig"):
+        if isinstance(feature, _GenomicSpanWithContig):
             return feature.contig
-        if hasattr(feature, "chrom"):
+        if isinstance(feature, _GenomicSpanWithChrom):
             return feature.chrom
-        elif hasattr(feature, "refname"):
+        elif isinstance(feature, _GenomicSpanWithRefName):
             return feature.refname
         else:
             raise ValueError(

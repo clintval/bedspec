@@ -1,8 +1,6 @@
-import gzip
 import inspect
 import io
 from dataclasses import asdict as as_dict
-from io import TextIOWrapper
 from pathlib import Path
 from types import FrameType
 from types import TracebackType
@@ -10,13 +8,11 @@ from typing import ContextManager
 from typing import Generic
 from typing import Iterable
 from typing import Iterator
-from typing import TextIO
 from typing import TypeVar
 from typing import _GenericAlias  # type: ignore[attr-defined]
 from typing import cast
 
 import bedspec._typing
-from xbgzip.bgzip import BGZipWriter
 
 ####################################################################################################
 
@@ -67,7 +63,7 @@ _BedKind = TypeVar("_BedKind", bound=bedspec._types.BedType)
 """A type variable for any kind of BED record type."""
 
 
-class BedWriter(Generic[_BedKind], ContextManager):
+class BedWriter(ContextManager, Generic[_BedKind]):
     """A writer of BED records.
 
     Args:
@@ -84,7 +80,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
         """Wrap all objects of this class to become generic aliases."""
         return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
-    def __new__(cls, handle: io.TextIOWrapper | BGZipWriter) -> "BedWriter[_BedKind]":
+    def __new__(cls, handle: io.TextIOWrapper) -> "BedWriter[_BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
         typelevel = signature.f_locals.get("self", None)
@@ -97,9 +93,9 @@ class BedWriter(Generic[_BedKind], ContextManager):
         """Enter this context."""
         return self
 
-    def __init__(self, handle: TextIO | TextIOWrapper | BGZipWriter) -> None:
+    def __init__(self, handle: io.TextIOWrapper) -> None:
         """Initialize a BED writer without knowing yet what BED types we will write."""
-        self._handle: TextIO | TextIOWrapper | BGZipWriter = handle
+        self._handle = handle
 
     def __exit__(
         self,
@@ -114,21 +110,9 @@ class BedWriter(Generic[_BedKind], ContextManager):
     @bedspec._typing.classmethod_generic
     def from_path(cls, path: Path | str) -> "BedWriter[_BedKind]":
         """Open a BED writer from a file path."""
-        handle: TextIO | TextIOWrapper | BGZipWriter
-        if any(Path(path).suffix == extension for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
-            handle = BGZipWriter(open(path, "wb"))
-        else:
-            handle = Path(path).open("w")
-        reader = cls(handle=handle)  # type: ignore[operator]
+        reader = cls(handle=Path(path).open("w"))  # type: ignore[operator]
         reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
         return cast("BedWriter[_BedKind]", reader)
-
-    def _write_string(self, text: str) -> None:
-        """Write a string of text to the underlying handle accounting for binary write modes."""
-        if isinstance(self._handle, BGZipWriter):
-            self._handle.write(text.encode())  # type: ignore[no-untyped-call]
-        else:
-            self._handle.write(text)
 
     def close(self) -> None:
         """Close the underlying IO handle."""
@@ -138,7 +122,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
         """Write a comment to the BED output."""
         for line in comment.splitlines():
             prefix = "" if any(line.startswith(prefix) for prefix in COMMENT_PREFIXES) else "# "
-            self._write_string(f"{prefix}{comment}\n")
+            self._handle.write(f"{prefix}{comment}\n")
 
     def write(self, bed: _BedKind) -> None:
         """Write a BED record to the BED output."""
@@ -156,7 +140,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
             for key, value in as_dict(bed).items()
         }
 
-        self._write_string(f"{"\t".join(map(str, mapping.values()))}\n")
+        self._handle.write(f"{"\t".join(map(str, mapping.values()))}\n")
 
     def write_all(self, beds: Iterable[_BedKind]) -> None:
         """Write all the BED records to the BED output."""
@@ -164,7 +148,7 @@ class BedWriter(Generic[_BedKind], ContextManager):
             self.write(bed)
 
 
-class BedReader(Generic[_BedKind], ContextManager, Iterable[_BedKind]):
+class BedReader(ContextManager, Iterable[_BedKind], Generic[_BedKind]):
     """A reader of BED records.
 
     This reader is capable of reading BED records but must be typed at runtime:
@@ -190,7 +174,7 @@ class BedReader(Generic[_BedKind], ContextManager, Iterable[_BedKind]):
         """Wrap all objects of this class to become generic aliases."""
         return _GenericAlias(cls, key)  # type: ignore[no-any-return]
 
-    def __new__(cls, handle: io.TextIOWrapper | TextIO) -> "BedReader[_BedKind]":
+    def __new__(cls, handle: io.TextIOWrapper) -> "BedReader[_BedKind]":
         """Bind the kind of BED type to this class for later introspection."""
         signature = cast(FrameType, cast(FrameType, inspect.currentframe()).f_back)
         typelevel = signature.f_locals.get("self", None)
@@ -199,7 +183,7 @@ class BedReader(Generic[_BedKind], ContextManager, Iterable[_BedKind]):
         instance.bed_kind = bed_kind
         return instance
 
-    def __init__(self, handle: io.TextIOWrapper | TextIO) -> None:
+    def __init__(self, handle: io.TextIOWrapper) -> None:
         """Initialize a BED reader without knowing yet what BED types we will write."""
         self._handle = handle
 
@@ -229,13 +213,7 @@ class BedReader(Generic[_BedKind], ContextManager, Iterable[_BedKind]):
     @bedspec._typing.classmethod_generic
     def from_path(cls, path: Path | str) -> "BedReader[_BedKind]":
         """Open a BED reader from a plaintext or gzip compressed file path."""
-        handle: io.TextIOWrapper | TextIO
-        if any(Path(path).suffix == extension for extension in _ALL_GZIP_COMPATIBLE_EXTENSIONS):
-            handle = cast(io.TextIOWrapper, gzip.open(path, "rt"))
-        else:
-            handle = Path(path).open("r")
-
-        reader = cls(handle=handle)  # type: ignore[operator]
+        reader = cls(handle=Path(path).open("r"))  # type: ignore[operator]
         reader.bed_kind = None if len(cls.__args__) == 0 else cls.__args__[0]  # type: ignore[attr-defined]
         return cast("BedReader[_BedKind]", reader)
 

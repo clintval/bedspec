@@ -24,7 +24,6 @@ include = ["CONTRIBUTING.md", "LICENSE"]
 packages = [
     { include = "bedspec" },
     { include = "cgranges" },
-    { include = "xbgzip" },
 ]
 
 [tool.poetry.dependencies]
@@ -43,12 +42,15 @@ ruff = "0.1.13"
 script = "build.py"
 generate-setup-file = true
 
+[tool.poetry.group.dev.dependencies]
+pyright = "^1.1.369"
+
 [build-system]
 requires = ["poetry-core>=1.6", "setuptools>=70.1.1", "Cython>=3.0.10"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.run]
-omit = ["cgranges/*", "xbgzip/*"]
+omit = ["cgranges/*"]
 
 [tool.mypy]
 check_untyped_defs = true
@@ -84,12 +86,11 @@ addopts = [
     "--mypy",
     "--ruff",
     "--ignore=cgranges/",
-    "--ignore=xbgzip/",
     "--ignore=build.py",
 ]
 
 [tool.ruff]
-exclude = ["cgranges/*", "xbgzip/*"]
+exclude = ["cgranges/*"]
 line-length = 100
 target-version = "py312"
 select = ["C901", "B", "E", "F", "I", "W", "Q"]

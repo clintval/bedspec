@@ -3,8 +3,3 @@
 	url = https://github.com/lh3/cgranges.git
 	branch = master
 	ignore = dirty
-[submodule "xbgzip"]
-	path = xbgzip
-	url = https://github.com/xbrianh/xbgzip.git
-	branch = master
-	ignore = dirty

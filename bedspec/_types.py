@@ -38,7 +38,7 @@ class BedStrand(StrEnum):
         """Return the opposite BED strand."""
         if self is BedStrand.Positive:
             return BedStrand.Negative
-        if self is BedStrand.Negative:
+        else:
             return BedStrand.Positive
 
 

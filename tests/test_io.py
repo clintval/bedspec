@@ -1,4 +1,3 @@
-import gzip
 from pathlib import Path
 from typing import Iterator
 
@@ -15,9 +14,6 @@ from bedspec import BedReader
 from bedspec import BedStrand
 from bedspec import BedType
 from bedspec import BedWriter
-from bedspec._io import _ALL_GZIP_COMPATIBLE_EXTENSIONS
-from bedspec._io import _BGZIP_EXTENSIONS
-from bedspec._io import _GZIP_EXTENSIONS
 from bedspec._io import MISSING_FIELD
 
 
@@ -290,58 +286,58 @@ def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
         assert list(reader) == [bed]
 
 
-@pytest.mark.parametrize("ext", _ALL_GZIP_COMPATIBLE_EXTENSIONS)
-def test_bed_reader_can_read_gzip_compressed(tmp_path: Path, ext: str) -> None:
-    """Test that the BED reader can read gzip compressed paths."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+# @pytest.mark.parametrize("ext", _ALL_GZIP_COMPATIBLE_EXTENSIONS)
+# def test_bed_reader_can_read_gzip_compressed(tmp_path: Path, ext: str) -> None:
+#     """Test that the BED reader can read gzip compressed paths."""
+#     bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
 
-    with gzip.open(tmp_path / ("test.bed" + ext), "wt") as handle:
-        handle.write(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+#     with gzip.open(tmp_path / ("test.bed" + ext), "wt") as handle:
+#         handle.write(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
-    with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
-        assert list(reader) == [bed]
+#     with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
+#         assert list(reader) == [bed]
 
 
-@pytest.mark.parametrize("ext", _ALL_GZIP_COMPATIBLE_EXTENSIONS)
-def test_bed_reader_can_read_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
-    """Test that the BED reader can read gzip compressed paths."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+# @pytest.mark.parametrize("ext", _ALL_GZIP_COMPATIBLE_EXTENSIONS)
+# def test_bed_reader_can_read_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
+#     """Test that the BED reader can read gzip compressed paths."""
+#     bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
 
-    with gzip.open(tmp_path / ("test.bed" + ext), "wt") as handle:
-        handle.write(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+#     with gzip.open(tmp_path / ("test.bed" + ext), "wt") as handle:
+#         handle.write(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
-    with BedReader[Bed4].from_path(tmp_path / ("test.bed" + ext)) as reader:
-        assert list(reader) == [bed]
+#     with BedReader[Bed4].from_path(tmp_path / ("test.bed" + ext)) as reader:
+#         assert list(reader) == [bed]
 
-@pytest.mark.parametrize("ext", _GZIP_EXTENSIONS)
-def test_bed_writer_can_write_gzip_compressed(tmp_path: Path, ext: str) -> None:
-    """Test that the BED writer can write gzip compressed paths."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+# @pytest.mark.parametrize("ext", _GZIP_EXTENSIONS)
+# def test_bed_writer_can_write_gzip_compressed(tmp_path: Path, ext: str) -> None:
+#     """Test that the BED writer can write gzip compressed paths."""
+#     bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
 
-    with BedWriter[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "wt")) as writer:
-        writer.write(bed)
+#     with BedWriter[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "wt")) as writer:
+#         writer.write(bed)
 
-    with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
-        assert list(reader) == [bed]
+#     with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
+#         assert list(reader) == [bed]
 
-@pytest.mark.parametrize("ext", _GZIP_EXTENSIONS)
-def test_bed_writer_can_write_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
-    """Test that the BED writer can write gzip compressed paths."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+# @pytest.mark.parametrize("ext", _GZIP_EXTENSIONS)
+# def test_bed_writer_can_write_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
+#     """Test that the BED writer can write gzip compressed paths."""
+#     bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
 
-    with BedWriter[Bed4].from_path(tmp_path / ("test.bed" + ext)) as writer:
-        writer.write(bed)
+#     with BedWriter[Bed4].from_path(tmp_path / ("test.bed" + ext)) as writer:
+#         writer.write(bed)
 
-    with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
-        assert list(reader) == [bed]
+#     with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
+#         assert list(reader) == [bed]
 
-@pytest.mark.parametrize("ext", _BGZIP_EXTENSIONS)
-def test_bed_writer_can_write_block_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
-    """Test that the BED writer can write gzip compressed paths."""
-    bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
+# @pytest.mark.parametrize("ext", _BGZIP_EXTENSIONS)
+# def test_bed_writer_can_write_block_gzip_compressed_generic(tmp_path: Path, ext: str) -> None:
+#     """Test that the BED writer can write gzip compressed paths."""
+#     bed: Bed4 = Bed4(contig="chr1", start=1, end=2, name=None)
 
-    with BedWriter[Bed4].from_path(tmp_path / ("test.bed" + ext)) as writer:
-        writer.write(bed)
+#     with BedWriter[Bed4].from_path(tmp_path / ("test.bed" + ext)) as writer:
+#         writer.write(bed)
 
-    with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
-        assert list(reader) == [bed]
+#     with BedReader[Bed4](gzip.open(tmp_path / ("test.bed" + ext), "rt")) as reader:
+#         assert list(reader) == [bed]
