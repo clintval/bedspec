@@ -7,14 +7,11 @@ ext_modules = [
     Extension(
         "cgranges",
         sources=["cgranges/python/cgranges.pyx", "cgranges/cgranges.c"],
-        depends=[
-            "cgranges/cgranges.h",
-            "cgranges/khash.h",
-            "cgranges/python/cgranges.pyx"
-        ],
+        depends=["cgranges/cgranges.h", "cgranges/khash.h", "cgranges/python/cgranges.pyx"],
         include_dirs=["cgranges"],
     ),
 ]
+
 
 def build(setup_kwargs: dict[str, Any]) -> None:
     """This function is mandatory in order to build the extensions."""
@@ -22,5 +19,5 @@ def build(setup_kwargs: dict[str, Any]) -> None:
         {
             "ext_modules": ext_modules,
             "cmdclass": {"build_ext": build_ext},
-        }
+        },
     )
