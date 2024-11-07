@@ -328,3 +328,20 @@ class BedPE(PairBed, Named):
             score=self.score,
             strand=self.strand2,
         )
+
+    @classmethod
+    def from_bed6(
+        cls, bed1: Bed6, bed2: Bed6, name: str | None = None, score: int | None = None
+    ) -> "BedPE":
+        return cls(
+            refname1=bed1.refname,
+            start1=bed1.start,
+            end1=bed1.end,
+            refname2=bed2.refname,
+            start2=bed2.start,
+            end2=bed2.end,
+            name=name,
+            score=score,
+            strand1=bed1.strand,
+            strand2=bed2.strand,
+        )

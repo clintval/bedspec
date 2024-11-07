@@ -286,3 +286,39 @@ def test_bed12_validation() -> None:
         ValueError, match="The last defined block's end must be equal to the BED end!"
     ):
         make_bed12(block_count=2, block_sizes=[1, 1], block_starts=[0, 4])
+
+
+def test_make_bedpe_from_pair_of_bed6() -> None:
+    """Test that we can make a BedPE record from two Bed6 records."""
+    bed1 = Bed6(
+        refname="chr1",
+        start=1,
+        end=2,
+        name="bed1",
+        score=1,
+        strand=BedStrand.Positive,
+    )
+
+    bed2 = Bed6(
+        refname="chr2",
+        start=3,
+        end=4,
+        name="bed2",
+        score=2,
+        strand=BedStrand.Negative,
+    )
+
+    expected = BedPE(
+        refname1="chr1",
+        start1=1,
+        end1=2,
+        refname2="chr2",
+        start2=3,
+        end2=4,
+        name="bed3",
+        score=3,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
+    )
+
+    assert BedPE.from_bed6(bed1, bed2, name="bed3", score=3) == expected
