@@ -40,6 +40,7 @@ class BedReader(TsvStructReader[BedType]):
 
     @staticmethod
     def _build_union(*types: type) -> type | UnionType:
+        """Build a singular type or a union type if multiple types are provided."""
         if len(types) == 1:
             return types[0]
         union: UnionType | type = types[0]
