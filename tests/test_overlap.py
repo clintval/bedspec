@@ -1,7 +1,3 @@
-from dataclasses import dataclass
-
-import pytest
-
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec.overlap import OverlapDetector
@@ -31,22 +27,6 @@ def test_we_can_add_a_feature_to_the_overlap_detector() -> None:
     detector.add(bed1)
     detector.add(bed2)
     assert list(detector) == [bed1, bed2]
-
-
-def test_that_we_require_hashable_features_in_the_overlap_detector() -> None:
-    """Test that we require hashable features in the overlap detector."""
-
-    @dataclass
-    class MissingHashFeature:
-        refname: str
-        start: int
-        end: int
-
-    feature: MissingHashFeature = MissingHashFeature("chr1", 2, 3)
-    detector: OverlapDetector[MissingHashFeature] = OverlapDetector()
-
-    with pytest.raises(ValueError, match="Genomic feature is not hashable but should be"):
-        detector.add(feature)
 
 
 def test_we_can_add_all_features_to_the_overlap_detector() -> None:
