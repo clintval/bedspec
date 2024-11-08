@@ -54,12 +54,16 @@ def test_bed_writer_can_write_all_bed_types(bed: BedLike, expected: str, tmp_pat
 def test_bed_writer_can_be_closed(tmp_path: Path) -> None:
     """Test that we can close a BED writer."""
     path: Path = tmp_path / "test.bed"
-    writer = BedWriter(open(path, "w"), Bed3)
-    writer.write(Bed3(refname="chr1", start=1, end=2))
-    writer.close()
-
-    with pytest.raises(ValueError, match="I/O operation on closed file"):
+    handle = open(path, "w")
+    try:
+        writer = BedWriter(handle, Bed3)
         writer.write(Bed3(refname="chr1", start=1, end=2))
+        writer.close()
+
+        with pytest.raises(ValueError, match="I/O operation on closed file"):
+            writer.write(Bed3(refname="chr1", start=1, end=2))
+    finally:
+        handle.close()
 
 
 def test_bed_writer_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
