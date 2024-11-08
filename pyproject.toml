@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bedspec"
-version = "0.2.0"
+version = "0.3.0"
 description = "An HTS-specs compliant BED toolkit."
 authors = ["Clint Valentine <valentine.clint@gmail.com>"]
 license = "MIT"
@@ -14,8 +14,10 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: File Formats",
@@ -25,25 +27,20 @@ classifiers = [
     "Typing :: Typed",
 ]
 include = ["CONTRIBUTING.md", "LICENSE"]
-packages = [
-    { include = "bedspec" },    
-    { include = "cgranges" },
-]
+packages = [{ include = "bedspec" }, { include = "cgranges" }]
 
 [tool.poetry.dependencies]
-python = "^3.11.0"
-msgspec = "^0.18"
+python = "^3.10.0,<4.0.0"
+typeline = "^0.3"
 typing-extensions = "^4.12"
 
 [tool.poetry.dev-dependencies]
-# TODO: satisfy basedpyright warnings and errors and add to CI?
 basedpyright = "^1.21"
 mypy = "^1.13"
 pytest = "^8.3"
 pytest-cov = "^5.0"
-# TODO: get doctests to work and also run on the README?
-pytest-doctestplus = "^1.2.1"
-ruff = "0.7.1"
+pytest-doctestplus = "^1.2"
+ruff = "^0.7"
 
 [tool.poetry.build]
 script = "build.py"
@@ -69,8 +66,14 @@ fix-all.sequence    = [
 check-lock   = "poetry check --lock"
 check-format = "ruff format --check --diff"
 check-lint   = "ruff check"
-check-tests  = "pytest"
-check-typing = "mypy"
+check-tests  = "pytest --doctest-glob='*.md'"
+
+_check-mypy    = "mypy"
+_check-pyright = "basedpyright"
+check-typing.sequence = [
+    "_check-mypy",
+    "_check-pyright"
+]
 
 check-all.ignore_fail = true
 check-all.sequence    = [
@@ -90,6 +93,35 @@ fix-and-check-all.sequence    = [
 [tool.coverage.run]
 omit = ["cgranges/*"]
 
+[[tool.mypy.overrides]]
+module = "Cython.Build"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "setuptools"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+addopts    = [
+    "--color=yes",
+    "--cov-fail-under=80",
+    "--cov-report=term-missing",
+    "--cov",
+    "--cov=typeline",
+    "--doctest-modules",
+    "--doctest-plus",
+    "--import-mode=importlib",
+    "--ignore=build.py",
+    "--ignore=cgranges/",
+]
+doctest_plus = "enabled"
+doctest_optionflags = [
+    "ELLIPSIS",
+    "IGNORE_EXCEPTION_DETAIL",
+    "NORMALIZE_WHITESPACE",
+]
+
 [tool.mypy]
 files                       = ["build.py", "bedspec/", "tests/"]
 strict_optional             = false
@@ -108,26 +140,15 @@ warn_unused_configs         = true
 warn_unused_ignores         = true
 enable_error_code           = "ignore-without-code"
 
-[[tool.mypy.overrides]]
-module = "Cython.Build"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "setuptools"
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-minversion = "7.4"
-addopts    = [
-    "--color=yes",
-    "--import-mode=importlib",
-    "--cov"
-]
+[tool.pyright]
+include = ["bedspec/"]
+reportAny = false
+pythonVersion = "3.10"
 
 [tool.ruff]
 include        = ["build.py", "bedspec/**", "tests/**"]
 line-length    = 100
-target-version = "py311"
+target-version = "py310"
 output-format  = "full"
 preview        = true
 
@@ -138,7 +159,7 @@ select    = [
     "B",     # bugbear
     "D",     # pydocstyle (docstrings. We have the "google" convention enabled)
     "D204",  # Blank line between class docstring and first (__init__) method
-    "D213",  # Summary line should be located on the line after opening quotes
+    "D212",  # summary line should be located on the same line as opening quotes
     "E",     # pycodestyle errors
     "F",     # pyflakes
     "I",     # isort
@@ -149,11 +170,14 @@ select    = [
 ignore    = [
     "E203",
     "E701",
-    "D212",  # summary line should be located on the same line as opening quotes
+    "D213",  # Summary line should be located on the line after opening quote
     "D100",  # missing docstring in public module
     "D104",  # missing docstring in public package
 ]
 unfixable = ["B"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.ruff.lint.isort]
 force-single-line = true
@@ -177,6 +201,7 @@ body = """
 conventional_commits = true
 commit_parsers = [
     { message = "^.+!:*", group = "Breaking"},
+    { message = "^security*", group = "Security"},
     { message = "^feat*", group = "Features"},
     { message = "^fix*", group = "Bug Fixes"},
     { message = "^docs*", group = "Documentation"},

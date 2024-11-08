@@ -13,9 +13,9 @@ from bedspec import BedGraph
 from bedspec import BedLike
 from bedspec import BedPE
 from bedspec import BedStrand
-from bedspec import GenomicSpan
 from bedspec import PairBed
 from bedspec import PointBed
+from bedspec import ReferenceSpan
 from bedspec import SimpleBed
 from bedspec import Stranded
 from bedspec._bedspec import DataclassInstance
@@ -83,11 +83,11 @@ def test_all_bed_types_are_dataclasses(bed_type: type[BedLike]) -> None:
 
 
 def test_locatable_structural_type() -> None:
-    """Test that the GenomicSpan structural type is set correctly."""
-    span: GenomicSpan = Bed6(
+    """Test that the ReferenceSpan structural type is set correctly."""
+    span: ReferenceSpan = Bed6(
         refname="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive
     )
-    assert isinstance(span, GenomicSpan)
+    assert isinstance(span, ReferenceSpan)
 
 
 def test_stranded_structural_type() -> None:
@@ -152,7 +152,7 @@ def test_point_bed_types_have_a_territory() -> None:
 
 def test_point_bed_types_are_length_1() -> None:
     """Test that a point BED has a length of 1."""
-    assert Bed2(refname="chr1", start=1).length == 1
+    assert len(Bed2(refname="chr1", start=1)) == 1
 
 
 def test_simple_bed_types_have_a_territory() -> None:
@@ -169,9 +169,9 @@ def test_simple_bed_types_have_a_territory() -> None:
 
 def test_simple_bed_types_have_length() -> None:
     """Test that a simple BED has the right length."""
-    assert Bed3(refname="chr1", start=1, end=2).length == 1
-    assert Bed3(refname="chr1", start=1, end=3).length == 2
-    assert Bed3(refname="chr1", start=1, end=4).length == 3
+    assert len(Bed3(refname="chr1", start=1, end=2)) == 1
+    assert len(Bed3(refname="chr1", start=1, end=3)) == 2
+    assert len(Bed3(refname="chr1", start=1, end=4)) == 3
 
 
 def test_simple_bed_validates_start_and_end() -> None:
@@ -246,6 +246,22 @@ def test_bed12_validation() -> None:
             block_count=block_count,
             block_sizes=block_sizes,
             block_starts=block_starts,
+        )
+
+    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
+        Bed12(
+            refname="chr1",
+            start=2,
+            end=1,
+            name="bed12",
+            score=2,
+            strand=BedStrand.Positive,
+            thick_start=None,
+            thick_end=None,
+            item_rgb=BedColor(101, 2, 32),
+            block_count=None,
+            block_sizes=None,
+            block_starts=None,
         )
 
     with pytest.raises(
