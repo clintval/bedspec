@@ -13,7 +13,7 @@ class BedWriter(TsvStructWriter[BedType]):
 
     @override
     def _encode(self, item: Any) -> Any:
-        """A callback for over_readriding the encoding of builtin types and custom types."""
+        """A callback for overriding the encoding of builtin types and custom types."""
         if item is None:
             return "."
         if isinstance(item, (list, set, tuple)):
