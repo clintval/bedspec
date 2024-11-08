@@ -13,9 +13,9 @@ from bedspec import BedGraph
 from bedspec import BedLike
 from bedspec import BedPE
 from bedspec import BedStrand
-from bedspec import GenomicSpan
 from bedspec import PairBed
 from bedspec import PointBed
+from bedspec import ReferenceSpan
 from bedspec import SimpleBed
 from bedspec import Stranded
 from bedspec._bedspec import DataclassInstance
@@ -83,11 +83,11 @@ def test_all_bed_types_are_dataclasses(bed_type: type[BedLike]) -> None:
 
 
 def test_locatable_structural_type() -> None:
-    """Test that the GenomicSpan structural type is set correctly."""
-    span: GenomicSpan = Bed6(
+    """Test that the ReferenceSpan structural type is set correctly."""
+    span: ReferenceSpan = Bed6(
         refname="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive
     )
-    assert isinstance(span, GenomicSpan)
+    assert isinstance(span, ReferenceSpan)
 
 
 def test_stranded_structural_type() -> None:

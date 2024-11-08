@@ -5,16 +5,23 @@ from collections.abc import Iterator
 from dataclasses import Field
 from dataclasses import dataclass
 from dataclasses import field
-from dataclasses import fields
-from enum import StrEnum
+from enum import Enum
 from enum import unique
 from typing import Any
 from typing import ClassVar
 from typing import Protocol
+from typing import TypeVar
 from typing import final
 from typing import runtime_checkable
 
+from typing_extensions import Self
 from typing_extensions import override
+
+COMMENT_PREFIXES: set[str] = {"#", "browser", "track"}
+"""The set of BED comment prefixes that this library supports."""
+
+MISSING_FIELD: str = "."
+"""The string used to indicate a missing field in a BED record."""
 
 
 @runtime_checkable
@@ -25,7 +32,7 @@ class DataclassInstance(Protocol):
 
 
 @unique
-class BedStrand(StrEnum):
+class BedStrand(str, Enum):
     """BED strands for forward and reverse orientations."""
 
     Positive = "+"
@@ -36,11 +43,19 @@ class BedStrand(StrEnum):
 
     def opposite(self) -> "BedStrand":
         """Return the opposite BED strand."""
-        return BedStrand.Negative if self is BedStrand.Positive else BedStrand.Positive
+        if self is BedStrand.Positive:
+            return BedStrand.Negative
+        else:
+            return BedStrand.Positive
+
+    @override
+    def __str__(self) -> str:
+        """Return this strand as a string."""
+        return self.value
 
 
 @runtime_checkable
-class GenomicSpan(Protocol):
+class ReferenceSpan(Protocol):
     """A structural protocol for 0-based half-open objects located on a reference sequence."""
 
     refname: str
@@ -65,32 +80,26 @@ class Stranded(Protocol):
 class BedLike(ABC, DataclassInstance):
     """An abstract base class for all types of BED records."""
 
-    def __new__(cls, *_: object, **__: object) -> "BedLike":
-        if not dataclasses.is_dataclass(cls):
-            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
-        instance: BedLike = object.__new__(cls)
-        return instance
-
     @abstractmethod
-    def territory(self) -> Iterator[GenomicSpan]:
+    def territory(self) -> Iterator[ReferenceSpan]:
         """Return intervals that describe the territory of this BED record."""
 
 
-def header(bed: BedLike | type[BedLike]) -> list[str]:
-    """Return the list of field names for this BED record."""
-    return [field.name for field in fields(bed)]
+BedType = TypeVar("BedType", bound=BedLike)
+"""A type variable for any kind of BED record type."""
 
 
-def types(bed: BedLike | type[BedLike]) -> list[type | str | Any]:
-    """Return the list of field types for this BED record."""
-    return [field.type for field in fields(bed)]
-
-
+@dataclass(frozen=True)
 class PointBed(BedLike, ABC):
     """An abstract class for a BED record that describes a 0-based 1-length point."""
 
     refname: str
     start: int
+
+    def __init_subclass__(cls) -> None:
+        if not dataclasses.is_dataclass(cls):
+            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+        return super().__init_subclass__()
 
     @final
     @property
@@ -99,17 +108,23 @@ class PointBed(BedLike, ABC):
         return 1
 
     @override
-    def territory(self) -> Iterator[GenomicSpan]:
+    def territory(self) -> Iterator[ReferenceSpan]:
         """Return the territory of a single point BED record which is 1-length."""
         yield Bed3(refname=self.refname, start=self.start, end=self.start + 1)
 
 
-class SimpleBed(BedLike, GenomicSpan, ABC):
+@dataclass(frozen=True)
+class SimpleBed(BedLike, ReferenceSpan, ABC):
     """An abstract class for a BED record that describes a contiguous linear interval."""
 
     refname: str
     start: int
     end: int
+
+    def __init_subclass__(cls) -> None:
+        if not dataclasses.is_dataclass(cls):
+            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+        return super().__init_subclass__()
 
     def __post_init__(self) -> None:
         """Validate this linear BED record."""
@@ -123,11 +138,12 @@ class SimpleBed(BedLike, GenomicSpan, ABC):
         return self.end - self.start
 
     @override
-    def territory(self) -> Iterator[GenomicSpan]:
+    def territory(self) -> Iterator[ReferenceSpan]:
         """Return the territory of a linear BED record which is just itself."""
         yield self
 
 
+@dataclass(frozen=True)
 class PairBed(BedLike, ABC):
     """An abstract base class for a BED record that describes a pair of linear linear intervals."""
 
@@ -137,6 +153,11 @@ class PairBed(BedLike, ABC):
     refname2: str
     start2: int
     end2: int
+
+    def __init_subclass__(cls) -> None:
+        if not dataclasses.is_dataclass(cls):
+            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+        return super().__init_subclass__()
 
     def __post_init__(self) -> None:
         """Validate this pair of BED records."""
@@ -155,7 +176,8 @@ class PairBed(BedLike, ABC):
         """The second of the two intervals."""
         return Bed3(refname=self.refname2, start=self.start2, end=self.end2)
 
-    def territory(self) -> Iterator[GenomicSpan]:
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
         """Return the territory of this BED record which are two intervals."""
         yield self.bed1
         yield self.bed2
@@ -175,7 +197,7 @@ class BedColor:
             raise ValueError(f"RGB color values must be in the range [0, 255] but found: {self}")
 
     @classmethod
-    def from_string(cls, string: str) -> "BedColor":
+    def from_string(cls, string: str) -> Self:
         """Build a BED color instance from a string."""
         try:
             r, g, b = map(int, string.split(","))
@@ -183,6 +205,7 @@ class BedColor:
             raise ValueError(f"Invalid string '{string}'. Expected 'int,int,int'!") from error
         return cls(r, g, b)
 
+    @override
     def __str__(self) -> str:
         """Return a comma-delimited string representation of this BED color."""
         return f"{self.r},{self.g},{self.b}"
@@ -252,8 +275,8 @@ class Bed12(SimpleBed, Named, Stranded):
     thick_end: int | None = field(kw_only=True)
     item_rgb: BedColor | None = field(kw_only=True)
     block_count: int | None = field(kw_only=True)
-    block_sizes: list[int] = field(kw_only=True)
-    block_starts: list[int] = field(kw_only=True)
+    block_sizes: list[int] | None = field(kw_only=True)
+    block_starts: list[int] | None = field(kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate this BED12 record."""
@@ -306,6 +329,7 @@ class BedPE(PairBed, Named):
     strand2: BedStrand | None = field(kw_only=True)
 
     @property
+    @override
     def bed1(self) -> Bed6:
         """The first of the two intervals as a BED6 record."""
         return Bed6(
@@ -318,6 +342,7 @@ class BedPE(PairBed, Named):
         )
 
     @property
+    @override
     def bed2(self) -> Bed6:
         """The second of the two intervals as a BED6 record."""
         return Bed6(
@@ -332,7 +357,7 @@ class BedPE(PairBed, Named):
     @classmethod
     def from_bed6(
         cls, bed1: Bed6, bed2: Bed6, name: str | None = None, score: int | None = None
-    ) -> "BedPE":
+    ) -> Self:
         return cls(
             refname1=bed1.refname,
             start1=bed1.start,
