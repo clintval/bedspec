@@ -89,7 +89,7 @@ BedType = TypeVar("BedType", bound=BedLike)
 """A type variable for any kind of BED record type."""
 
 
-@dataclass(frozen=True)
+@dataclass
 class PointBed(BedLike, ABC):
     """An abstract class for a BED record that describes a 0-based 1-length point."""
 
@@ -112,7 +112,7 @@ class PointBed(BedLike, ABC):
         yield Bed3(refname=self.refname, start=self.start, end=self.start + 1)
 
 
-@dataclass(frozen=True)
+@dataclass
 class SimpleBed(BedLike, ReferenceSpan, ABC):
     """An abstract class for a BED record that describes a contiguous linear interval."""
 
@@ -141,7 +141,7 @@ class SimpleBed(BedLike, ReferenceSpan, ABC):
         yield self
 
 
-@dataclass(frozen=True)
+@dataclass
 class PairBed(BedLike, ABC):
     """An abstract base class for a BED record that describes a pair of linear linear intervals."""
 
@@ -181,7 +181,7 @@ class PairBed(BedLike, ABC):
         yield self.bed2
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class BedColor:
     """The color of a BED record in red, green, and blue color values."""
 
@@ -209,7 +209,7 @@ class BedColor:
         return f"{self.r},{self.g},{self.b}"
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed2(PointBed):
     """A BED2 record that describes a single 0-based 1-length point."""
 
@@ -217,7 +217,7 @@ class Bed2(PointBed):
     start: int
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed3(SimpleBed):
     """A BED3 record that describes a contiguous linear interval."""
 
@@ -226,7 +226,7 @@ class Bed3(SimpleBed):
     end: int = field(kw_only=True)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed4(SimpleBed):
     """A BED4 record that describes a contiguous linear interval."""
 
@@ -236,7 +236,7 @@ class Bed4(SimpleBed):
     name: str | None = field(kw_only=True)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed5(SimpleBed, Named):
     """A BED5 record that describes a contiguous linear interval."""
 
@@ -247,7 +247,7 @@ class Bed5(SimpleBed, Named):
     score: int | None = field(kw_only=True)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed6(SimpleBed, Named, Stranded):
     """A BED6 record that describes a contiguous linear interval."""
 
@@ -259,7 +259,7 @@ class Bed6(SimpleBed, Named, Stranded):
     strand: BedStrand | None = field(kw_only=True)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class Bed12(SimpleBed, Named, Stranded):
     """A BED12 record that describes a contiguous linear interval."""
 
@@ -278,7 +278,7 @@ class Bed12(SimpleBed, Named, Stranded):
 
     def __post_init__(self) -> None:
         """Validate this BED12 record."""
-        super().__post_init__()
+        super(Bed12, self).__post_init__()
         if (self.thick_start is None) != (self.thick_end is None):
             raise ValueError("thick_start and thick_end must both be None or both be set!")
         if self.block_count is None:
@@ -301,7 +301,7 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("The last defined block's end must be equal to the BED end!")
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class BedGraph(SimpleBed):
     """A bedGraph feature for continuous-valued data."""
 
@@ -311,7 +311,7 @@ class BedGraph(SimpleBed):
     value: float = field(kw_only=True)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, slots=True)
 class BedPE(PairBed, Named):
     """A BED record that describes a pair of BED records as per the bedtools spec."""
 

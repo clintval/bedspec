@@ -248,6 +248,22 @@ def test_bed12_validation() -> None:
             block_starts=block_starts,
         )
 
+    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
+        Bed12(
+            refname="chr1",
+            start=2,
+            end=1,
+            name="bed12",
+            score=2,
+            strand=BedStrand.Positive,
+            thick_start=None,
+            thick_end=None,
+            item_rgb=BedColor(101, 2, 32),
+            block_count=None,
+            block_sizes=None,
+            block_starts=None,
+        )
+
     with pytest.raises(
         ValueError, match="thick_start and thick_end must both be None or both be set!"
     ):
