@@ -36,26 +36,22 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
         self._refname_to_tree: dict[Refname, cr.cgranges] = defaultdict(cr.cgranges)  # type: ignore[attr-defined,name-defined]  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         self._refname_to_is_indexed: dict[Refname, bool] = defaultdict(lambda: False)
         if features is not None:
-            self.add_all(features)
+            self.add(*features)
 
     @override
     def __iter__(self) -> Iterator[ReferenceSpanType]:
         """Iterate over the features in the overlap detector."""
         return chain(*self._refname_to_features.values())
 
-    def add(self, feature: ReferenceSpanType) -> None:
+    def add(self, *features: ReferenceSpanType) -> None:
         """Add a feature to this overlap detector."""
-        refname: Refname = feature.refname
-        feature_idx: int = len(self._refname_to_features[refname])
-
-        self._refname_to_features[refname].append(feature)
-        self._refname_to_tree[refname].add(refname, feature.start, feature.end, feature_idx)  # pyright: ignore[reportUnknownMemberType]
-        self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
-
-    def add_all(self, features: Iterable[ReferenceSpanType]) -> None:
-        """Adds one or more features to this overlap detector."""
         for feature in features:
-            self.add(feature)
+            refname: Refname = feature.refname
+            feature_idx: int = len(self._refname_to_features[refname])
+
+            self._refname_to_features[refname].append(feature)
+            self._refname_to_tree[refname].add(refname, feature.start, feature.end, feature_idx)  # pyright: ignore[reportUnknownMemberType]
+            self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
 
     def overlapping(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features for a given query feature."""

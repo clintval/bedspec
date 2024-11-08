@@ -102,8 +102,7 @@ class PointBed(BedLike, ABC):
         return super().__init_subclass__()
 
     @final
-    @property
-    def length(self) -> int:
+    def __len__(self) -> int:
         """The length of this record."""
         return 1
 
@@ -132,8 +131,7 @@ class SimpleBed(BedLike, ReferenceSpan, ABC):
             raise ValueError("start must be greater than 0 and less than end!")
 
     @final
-    @property
-    def length(self) -> int:
+    def __len__(self) -> int:
         """The length of this record."""
         return self.end - self.start
 

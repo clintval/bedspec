@@ -152,7 +152,7 @@ def test_point_bed_types_have_a_territory() -> None:
 
 def test_point_bed_types_are_length_1() -> None:
     """Test that a point BED has a length of 1."""
-    assert Bed2(refname="chr1", start=1).length == 1
+    assert len(Bed2(refname="chr1", start=1)) == 1
 
 
 def test_simple_bed_types_have_a_territory() -> None:
@@ -169,9 +169,9 @@ def test_simple_bed_types_have_a_territory() -> None:
 
 def test_simple_bed_types_have_length() -> None:
     """Test that a simple BED has the right length."""
-    assert Bed3(refname="chr1", start=1, end=2).length == 1
-    assert Bed3(refname="chr1", start=1, end=3).length == 2
-    assert Bed3(refname="chr1", start=1, end=4).length == 3
+    assert len(Bed3(refname="chr1", start=1, end=2)) == 1
+    assert len(Bed3(refname="chr1", start=1, end=3)) == 2
+    assert len(Bed3(refname="chr1", start=1, end=4)) == 3
 
 
 def test_simple_bed_validates_start_and_end() -> None:

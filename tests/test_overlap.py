@@ -34,7 +34,8 @@ def test_we_can_add_all_features_to_the_overlap_detector() -> None:
     bed1 = Bed3(refname="chr1", start=1, end=2)
     bed2 = Bed4(refname="chr2", start=4, end=5, name="Clint Valentine")
     detector: OverlapDetector[Bed3 | Bed4] = OverlapDetector()
-    detector.add_all([bed1, bed2])
+    beds: list[Bed3 | Bed4] = [bed1, bed2]
+    detector.add(*beds)
     assert list(detector) == [bed1, bed2]
 
 
