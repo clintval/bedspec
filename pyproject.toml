@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bedspec"
-version = "0.3.0"
+version = "0.4.0"
 description = "An HTS-specs compliant BED toolkit."
 authors = ["Clint Valentine <valentine.clint@gmail.com>"]
 license = "MIT"
@@ -31,7 +31,7 @@ packages = [{ include = "bedspec" }, { include = "cgranges" }]
 
 [tool.poetry.dependencies]
 python = "^3.10.0,<4.0.0"
-typeline = "^0.3"
+typeline = "^0.4"
 typing-extensions = "^4.12"
 
 [tool.poetry.dev-dependencies]
