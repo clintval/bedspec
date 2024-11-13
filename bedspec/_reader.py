@@ -48,8 +48,8 @@ class BedReader(TsvRecordReader[BedType]):
             color = BedColor.from_string(item)
             return f'{{"r":{color.r},"g":{color.g},"b":{color.b}}}'
 
-        type_args: tuple[type, ...] = get_args(field_type)
         is_union: bool = isinstance(field_type, UnionType)
+        type_args: tuple[type, ...] = get_args(field_type)
         is_optional: bool = is_union and NoneType in type_args
 
         if is_optional:
