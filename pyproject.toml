@@ -31,7 +31,7 @@ packages = [{ include = "bedspec" }, { include = "cgranges" }]
 
 [tool.poetry.dependencies]
 python = "^3.10.0,<4.0.0"
-typeline = "^0.4"
+typeline = "^0.6"
 typing-extensions = "^4.12"
 
 [tool.poetry.dev-dependencies]
@@ -177,7 +177,7 @@ ignore    = [
 unfixable = ["B"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 13
 
 [tool.ruff.lint.isort]
 force-single-line = true

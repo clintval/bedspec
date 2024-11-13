@@ -1,25 +1,23 @@
-import json
-from dataclasses import asdict as as_dict
 from io import TextIOWrapper
 from pathlib import Path
 from types import NoneType
 from types import UnionType
 from typing import Any
-from typing import cast
 from typing import get_args
 from typing import get_origin
 
-from typeline import TsvStructReader
+from typeline import TsvRecordReader
 from typing_extensions import Self
 from typing_extensions import override
 
+from bedspec._bedspec import COMMENT_PREFIXES
 from bedspec._bedspec import MISSING_FIELD
 from bedspec._bedspec import BedColor
 from bedspec._bedspec import BedStrand
 from bedspec._bedspec import BedType
 
 
-class BedReader(TsvStructReader[BedType]):
+class BedReader(TsvRecordReader[BedType]):
     """A reader of BED records."""
 
     @override
@@ -28,47 +26,49 @@ class BedReader(TsvStructReader[BedType]):
         handle: TextIOWrapper,
         record_type: type[BedType],
         /,
-        has_header: bool = False,
+        header: bool = False,
+        comment_prefixes: set[str] = COMMENT_PREFIXES,
     ):
-        """Initialize the BED reader."""
-        super().__init__(handle, record_type, has_header=has_header)
+        """Instantiate a new BED reader.
 
-    @property
-    @override
-    def comment_prefixes(self) -> set[str]:
-        return {"#", "browser", "track"}
-
-    @staticmethod
-    def _build_union(*types: type) -> type | UnionType:
-        """Build a singular type or a union type if multiple types are provided."""
-        if len(types) == 1:
-            return types[0]
-        union: UnionType | type = types[0]
-        for t in types[1:]:
-            union |= t
-        return cast(UnionType, union)
+        Args:
+            handle: a file-like object to read delimited data from.
+            record_type: the type of BED record we will be writing.
+            header: whether we expect the first line to be a header or not.
+            comment_prefixes: skip lines that have any of these string prefixes.
+        """
+        super().__init__(handle, record_type, header=header, comment_prefixes=comment_prefixes)
 
     @override
-    def _decode(self, field_type: type[Any] | str | Any, item: Any) -> Any:
-        """A callback for overriding the decoding of builtin types and custom types."""
-        type_args: tuple[type, ...] = get_args(field_type)
-        type_origin: type | None = get_origin(field_type)
-        is_union: bool = isinstance(field_type, UnionType)
-
-        if item == MISSING_FIELD and NoneType in type_args:
-            return None
-        elif field_type is BedColor or BedColor in type_args:
-            if item == "0":
-                return None
-            return json.dumps(as_dict(BedColor.from_string(cast(str, item))))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-        elif field_type is BedStrand or BedStrand in type_args:
+    def _decode(self, field_type: type[Any] | str | Any, item: str) -> str:
+        """A callback for overriding the string formatting of builtin and custom types."""
+        if field_type is BedStrand:
             return f'"{item}"'
-        elif type_origin in (frozenset, list, tuple, set):
-            stripped: str = item.rstrip(",")
-            return f"[{stripped}]"
-        elif is_union and len(type_args) >= 2 and NoneType in type_args:
-            other_types: set[type] = set(type_args) - {NoneType}
-            return self._decode(self._build_union(*other_types), item)
+        elif field_type is BedColor:
+            color = BedColor.from_string(item)
+            return f'{{"r":{color.r},"g":{color.g},"b":{color.b}}}'
+
+        is_union: bool = isinstance(field_type, UnionType)
+        type_args: tuple[type, ...] = get_args(field_type)
+        is_optional: bool = is_union and NoneType in type_args
+
+        if is_optional:
+            if item == MISSING_FIELD:
+                return "null"
+            elif type_args.count(BedStrand) == 1:
+                return f'"{item}"'
+            elif type_args.count(BedColor) == 1:
+                if item == "0":
+                    return "null"
+                else:
+                    color = BedColor.from_string(item)
+                    return f'{{"r":{color.r},"g":{color.g},"b":{color.b}}}'
+
+        type_origin: type | None = get_origin(field_type)
+
+        if type_origin in (frozenset, list, set, tuple):
+            return f"[{item.rstrip(',')}]"
+
         return super()._decode(field_type, item=item)
 
     @classmethod
@@ -78,8 +78,17 @@ class BedReader(TsvStructReader[BedType]):
         path: Path | str,
         record_type: type[BedType],
         /,
-        has_header: bool = False,
+        header: bool = False,
+        comment_prefixes: set[str] = COMMENT_PREFIXES,
     ) -> Self:
-        """Construct a BED reader from a file path."""
-        reader = cls(Path(path).open("r"), record_type, has_header=has_header)
+        """Construct a BED reader from a file path.
+
+        Args:
+            path: the path to the file to read delimited data from.
+            record_type: the type of the object we will be writing.
+            header: whether we expect the first line to be a header or not.
+            comment_prefixes: skip lines that have any of these string prefixes.
+        """
+        handle = Path(path).open("r")
+        reader = cls(handle, record_type, header=header, comment_prefixes=comment_prefixes)
         return reader

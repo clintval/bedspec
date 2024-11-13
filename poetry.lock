@@ -2,13 +2,13 @@
 
 [[package]]
 name = "basedpyright"
-version = "1.21.0"
+version = "1.21.1"
 description = "static type checking for Python (but based)"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "basedpyright-1.21.0-py3-none-any.whl", hash = "sha256:48902c476d6301c556df6eeae9acf1e34b176b14f8702ad5c770f4e6a747018a"},
-    {file = "basedpyright-1.21.0.tar.gz", hash = "sha256:e3a9f5b89acc7f23d5a10d95ea6056b2247fcd15b8b248ad44c560c85c39d5e3"},
+    {file = "basedpyright-1.21.1-py3-none-any.whl", hash = "sha256:e4c30c84d5fe0f33ba2f7bd5b20019aa6f031ef4c5032705b4960dad52066667"},
+    {file = "basedpyright-1.21.1.tar.gz", hash = "sha256:c27e5921768db2141360889978678152a685fe1c6ff95652b2157240a5fd575c"},
 ]
 
 [package.dependencies]
@@ -373,13 +373,13 @@ files = [
 
 [[package]]
 name = "setuptools"
-version = "75.4.0"
+version = "75.5.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "setuptools-75.4.0-py3-none-any.whl", hash = "sha256:b3c5d862f98500b06ffdf7cc4499b48c46c317d8d56cb30b5c8bce4d88f5c216"},
-    {file = "setuptools-75.4.0.tar.gz", hash = "sha256:1dc484f5cf56fd3fe7216d7b8df820802e7246cfb534a1db2aa64f14fcb9cdcb"},
+    {file = "setuptools-75.5.0-py3-none-any.whl", hash = "sha256:87cb777c3b96d638ca02031192d40390e0ad97737e27b6b4fa831bea86f2f829"},
+    {file = "setuptools-75.5.0.tar.gz", hash = "sha256:5c4ccb41111392671f02bb5f8436dfc5a9a7185e80500531b133f5775c4163ef"},
 ]
 
 [package.extras]
@@ -404,13 +404,13 @@ files = [
 
 [[package]]
 name = "typeline"
-version = "0.4.0"
+version = "0.6.0"
 description = "Write dataclasses to delimited text formats and read them back again."
 optional = false
 python-versions = "<4.0.0,>=3.10.0"
 files = [
-    {file = "typeline-0.4.0-py3-none-any.whl", hash = "sha256:e73741958898e5ed201be23284d4f7cd41e1651ef23938ad92a6b908d744413a"},
-    {file = "typeline-0.4.0.tar.gz", hash = "sha256:8a74a482122a1f3fb2a72f9f6b4c7c64a1063964fec51f70d1d6b8b09d82a427"},
+    {file = "typeline-0.6.0-py3-none-any.whl", hash = "sha256:4858991e6176de4e312ff7287034ee725ec2aa93c9540c2308dbd07fea30b206"},
+    {file = "typeline-0.6.0.tar.gz", hash = "sha256:1996f3dec1ce493c2b2bd7ceeea1034163927208e44f8df23543742d4afcc819"},
 ]
 
 [package.dependencies]
@@ -431,4 +431,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10.0,<4.0.0"
-content-hash = "d9681a87ec8118c3aeccb82bbb501b358aa5fc17c2e6affa4f8426e810fb32fc"
+content-hash = "3797582e391a081fb3fbb5b0c9bbfb93236a7472091e2f2d4b4ebc1bdc0057db"
