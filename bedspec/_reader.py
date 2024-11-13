@@ -42,15 +42,11 @@ class BedReader(TsvRecordReader[BedType]):
     @override
     def _decode(self, field_type: type[Any] | str | Any, item: str) -> str:
         """A callback for overriding the string formatting of builtin and custom types."""
-        # TODO: figure out how to use BedColor.from_string without pyright complaining.
         if field_type is BedStrand:
             return f'"{item}"'
         elif field_type is BedColor:
-            try:
-                r, g, b = item.split(",")
-            except ValueError as exception:
-                raise ValueError(f"Invalid string '{item}'. Expected 'int,int,int'!") from exception
-            return f'{{"r":{r},"g":{g},"b":{b}}}'
+            color = BedColor.from_string(item)
+            return f'{{"r":{color.r},"g":{color.g},"b":{color.b}}}'
 
         type_args: tuple[type, ...] = get_args(field_type)
         is_union: bool = isinstance(field_type, UnionType)
@@ -59,19 +55,14 @@ class BedReader(TsvRecordReader[BedType]):
         if is_optional:
             if item == MISSING_FIELD:
                 return "null"
-            elif BedStrand in type_args:
+            elif type_args.count(BedStrand) == 1:
                 return f'"{item}"'
-            elif BedColor in type_args:
+            elif type_args.count(BedColor) == 1:
                 if item == "0":
                     return "null"
                 else:
-                    try:
-                        r, g, b = item.split(",")
-                    except ValueError as exception:
-                        raise ValueError(
-                            f"Invalid string '{item}'. Expected 'int,int,int'!"
-                        ) from exception
-                    return f'{{"r":{r},"g":{g},"b":{b}}}'
+                    color = BedColor.from_string(item)
+                    return f'{{"r":{color.r},"g":{color.g},"b":{color.b}}}'
 
         type_origin: type | None = get_origin(field_type)
 
