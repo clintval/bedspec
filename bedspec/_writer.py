@@ -1,6 +1,6 @@
 from typing import Any
 
-from typeline import TsvStructWriter
+from typeline import TsvRecordWriter
 from typing_extensions import override
 
 from bedspec._bedspec import COMMENT_PREFIXES
@@ -8,17 +8,17 @@ from bedspec._bedspec import BedColor
 from bedspec._bedspec import BedType
 
 
-class BedWriter(TsvStructWriter[BedType]):
-    """A writer of BED records."""
+class BedWriter(TsvRecordWriter[BedType]):
+    """A writer for writing dataclasses into BED text data."""
 
     @override
     def _encode(self, item: Any) -> Any:
         """A callback for overriding the encoding of builtin types and custom types."""
         if item is None:
             return "."
-        if isinstance(item, (list, set, tuple)):
+        elif isinstance(item, (frozenset, list, set, tuple)):
             return ",".join(map(str, item))  # pyright: ignore[reportUnknownArgumentType]
-        if isinstance(item, BedColor):
+        elif isinstance(item, BedColor):
             return str(item)
         return super()._encode(item=item)
 
