@@ -27,10 +27,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 include = ["CONTRIBUTING.md", "LICENSE"]
-packages = [{ include = "bedspec" }, { include = "cgranges" }]
+packages = [{ include = "bedspec" }]
 
 [tool.poetry.dependencies]
 python = "^3.10.0,<4.0.0"
+superintervals = "^0.2.2"
 typeline = "^0.6"
 typing-extensions = "^4.12"
 
@@ -42,12 +43,8 @@ pytest-cov = "^5.0"
 pytest-doctestplus = "^1.2"
 ruff = "^0.7"
 
-[tool.poetry.build]
-script = "build.py"
-generate-setup-file = true
-
 [build-system]
-requires = ["poetry-core>=1.8", "setuptools>=70.1.1", "Cython>=3.0.10"]
+requires = ["poetry-core>=1.8"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe]
@@ -90,17 +87,6 @@ fix-and-check-all.sequence    = [
     "check-all"
 ]
 
-[tool.coverage.run]
-omit = ["cgranges/*"]
-
-[[tool.mypy.overrides]]
-module = "Cython.Build"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "setuptools"
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 minversion = "7.4"
 addopts    = [
@@ -112,8 +98,6 @@ addopts    = [
     "--doctest-modules",
     "--doctest-plus",
     "--import-mode=importlib",
-    "--ignore=build.py",
-    "--ignore=cgranges/",
 ]
 doctest_plus = "enabled"
 doctest_optionflags = [
@@ -123,7 +107,7 @@ doctest_optionflags = [
 ]
 
 [tool.mypy]
-files                       = ["build.py", "bedspec/", "tests/"]
+files                       = ["bedspec/", "tests/"]
 strict_optional             = false
 strict_equality             = true
 check_untyped_defs          = true
@@ -146,7 +130,7 @@ reportAny = false
 pythonVersion = "3.10"
 
 [tool.ruff]
-include        = ["build.py", "bedspec/**", "tests/**"]
+include        = ["bedspec/**", "tests/**"]
 line-length    = 100
 target-version = "py310"
 output-format  = "full"
