@@ -181,7 +181,7 @@ class PairBed(BedLike, ABC):
         yield self.bed2
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class BedColor:
     """The color of a BED record in red, green, and blue color values."""
 
@@ -209,7 +209,7 @@ class BedColor:
         return f"{self.r},{self.g},{self.b}"
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed2(PointBed):
     """A BED2 record that describes a single 0-based 1-length point."""
 
@@ -217,7 +217,7 @@ class Bed2(PointBed):
     start: int
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed3(SimpleBed):
     """A BED3 record that describes a contiguous linear interval."""
 
@@ -226,7 +226,7 @@ class Bed3(SimpleBed):
     end: int = field(kw_only=True)
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed4(SimpleBed):
     """A BED4 record that describes a contiguous linear interval."""
 
@@ -236,7 +236,7 @@ class Bed4(SimpleBed):
     name: str | None = field(kw_only=True)
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed5(SimpleBed, Named):
     """A BED5 record that describes a contiguous linear interval."""
 
@@ -247,7 +247,7 @@ class Bed5(SimpleBed, Named):
     score: int | None = field(kw_only=True)
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed6(SimpleBed, Named, Stranded):
     """A BED6 record that describes a contiguous linear interval."""
 
@@ -259,7 +259,7 @@ class Bed6(SimpleBed, Named, Stranded):
     strand: BedStrand | None = field(kw_only=True)
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class Bed12(SimpleBed, Named, Stranded):
     """A BED12 record that describes a contiguous linear interval."""
 
@@ -301,7 +301,7 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("The last defined block's end must be equal to the BED end!")
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class BedGraph(SimpleBed):
     """A bedGraph feature for continuous-valued data."""
 
@@ -311,7 +311,7 @@ class BedGraph(SimpleBed):
     value: float = field(kw_only=True)
 
 
-@dataclass(eq=True, slots=True)
+@dataclass(slots=True, unsafe_hash=True)
 class BedPE(PairBed, Named):
     """A BED record that describes a pair of BED records as per the bedtools spec."""
 
