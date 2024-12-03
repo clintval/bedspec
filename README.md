@@ -107,7 +107,7 @@ For example, to create a custom BED3+1 class:
 >>> 
 >>> from bedspec import SimpleBed
 >>> 
->>> @dataclass
+>>> @dataclass(slots=True, unsafe_hash=True)
 ... class Bed3Plus1(SimpleBed):
 ...     refname: str
 ...     start: int
