@@ -6,7 +6,7 @@ from typing import Any
 from typing import get_args
 from typing import get_origin
 
-from typeline import TsvRecordReader
+from typeline import TsvReader
 from typing_extensions import Self
 from typing_extensions import override
 
@@ -17,7 +17,7 @@ from bedspec._bedspec import BedStrand
 from bedspec._bedspec import BedType
 
 
-class BedReader(TsvRecordReader[BedType]):
+class BedReader(TsvReader[BedType]):
     """A reader of BED records."""
 
     @override
