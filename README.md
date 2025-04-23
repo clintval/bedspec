@@ -107,12 +107,28 @@ For example, to create a custom BED3+1 class:
 >>> 
 >>> from bedspec import SimpleBed
 >>> 
->>> @dataclass(slots=True, unsafe_hash=True)
+>>> @dataclass
 ... class Bed3Plus1(SimpleBed):
 ...     refname: str
 ...     start: int
 ...     end: int
 ...     my_custom_field: float | None
+
+```
+
+You can also inherit and extend a pre-existing BED class:
+
+```pycon
+>>> from dataclasses import dataclass
+>>>
+>>> from bedspec import Bed3
+>>>
+>>> @dataclass
+... class Bed3Plus1(Bed3):
+...     my_custom_field: float | None
+>>>
+>>> Bed3Plus1(refname="chr1", start=2, end=3, my_custom_field=0.1)
+Bed3Plus1(refname='chr1', start=2, end=3, my_custom_field=0.1)
 
 ```
 
