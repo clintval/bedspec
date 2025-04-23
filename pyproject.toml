@@ -1,13 +1,18 @@
-[tool.poetry]
+[project]
 name = "bedspec"
-version = "0.6.0"
-description = "An HTS-specs compliant BED toolkit."
-authors = ["Clint Valentine <valentine.clint@gmail.com>"]
+version = "0.7.0"
+description =  "An HTS-specs compliant BED toolkit."
+authors = [{ name = "Clint Valentine", email = "valentine.clint@gmail.com" }]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/clintval/bedspec"
-repository = "https://github.com/clintval/bedspec"
 keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
+include = ["CONTRIBUTING.md", "LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "superintervals >=0.2.10",
+    "typeline >=0.11",
+    "typing-extensions >=4.12",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -20,28 +25,32 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: File Formats",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Software Development :: Documentation",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-include = ["CONTRIBUTING.md", "LICENSE"]
-packages = [{ include = "bedspec" }]
 
-[tool.poetry.dependencies]
-python = "^3.10.0,<4.0.0"
-superintervals = "^0.2.2"
-typeline = "^0.6"
-typing-extensions = "^4.12"
+[project.urls]
+"homepage" = "https://github.com/clintval/bedspec"
+"repository" = "https://github.com/clintval/bedspec"
+"Bug Tracker" = "https://github.com/clintval/bedspec/issues"
 
-[tool.poetry.dev-dependencies]
-basedpyright = "^1.21"
-mypy = "^1.13"
+[tool.poetry]
+requires-poetry = ">=2.0"
+
+[tool.poetry.requires-plugins]
+poethepoet = ">=0.33.0"
+
+[tool.poetry.group.dev.dependencies]
+basedpyright = "^1.28"
+mypy = "^1.15"
 pytest = "^8.3"
-pytest-cov = "^5.0"
-pytest-doctestplus = "^1.2"
-ruff = "^0.7"
+pytest-cov = "^6.0"
+pytest-doctestplus = "^1.4"
+ruff = "^0.11"
 
 [build-system]
 requires = ["poetry-core>=1.8"]
@@ -54,7 +63,7 @@ poetry_command = "task"
 fix-format = "ruff format"
 fix-lint   = "ruff check --fix"
 
-fix-all.ignore_fail = true
+fix-all.ignore_fail = "return_non_zero"
 fix-all.sequence    = [
     "fix-format",
     "fix-lint"
@@ -72,7 +81,7 @@ check-typing.sequence = [
     "_check-pyright"
 ]
 
-check-all.ignore_fail = true
+check-all.ignore_fail = "return_non_zero"
 check-all.sequence    = [
     "check-lock",
     "check-format",
@@ -81,7 +90,7 @@ check-all.sequence    = [
     "check-typing"
 ]
 
-fix-and-check-all.ignore_fail = true
+fix-and-check-all.ignore_fail = "return_non_zero"
 fix-and-check-all.sequence    = [
     "fix-all",
     "check-all"
@@ -108,7 +117,7 @@ doctest_optionflags = [
 
 [tool.mypy]
 files                       = ["bedspec/", "tests/"]
-strict_optional             = false
+strict_optional             = true
 strict_equality             = true
 check_untyped_defs          = true
 disallow_incomplete_defs    = true
@@ -122,11 +131,15 @@ warn_return_any             = true
 warn_unreachable            = true
 warn_unused_configs         = true
 warn_unused_ignores         = true
-enable_error_code           = "ignore-without-code"
+enable_error_code           = [
+    "ignore-without-code",
+    "possibly-undefined",
+]
 
 [tool.pyright]
 include = ["bedspec/"]
 reportAny = false
+reportExplicitAny = false
 pythonVersion = "3.10"
 
 [tool.ruff]
@@ -138,27 +151,30 @@ preview        = true
 
 [tool.ruff.lint]
 select    = [
-    "ARG",   # Unused arguments
-    "C901",  # McCabe complexity
-    "B",     # bugbear
-    "D",     # pydocstyle (docstrings. We have the "google" convention enabled)
-    "D204",  # Blank line between class docstring and first (__init__) method
-    "D212",  # summary line should be located on the same line as opening quotes
-    "E",     # pycodestyle errors
-    "F",     # pyflakes
-    "I",     # isort
-    "N",     # PEP8 naming
-    "W",     # pycodestyle warnings
-    "Q"      # flake8-quotes
+    "ARG",    # Unused arguments
+    "C901",   # McCabe complexity
+    "B",      # bugbear
+    "D",      # pydocstyle (docstrings. We have the "google" convention enabled)
+    "D204",   # Blank line between class docstring and first (__init__) method
+    "D213",   # Summary line should be located on the line after opening quotes
+    "E",      # pycodestyle errors
+    "LOG",    # flake8-logging
+    "LOG015", # (preview rule) Prohibit calls to the root logger
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # PEP8 naming
+    "W",      # pycodestyle warnings
+    "Q",      # flake8-quotes
 ]
 ignore    = [
     "E203",
     "E701",
-    "D213",  # Summary line should be located on the line after opening quote
+    "D213",  # summary line should be located on the line after opening quote
     "D100",  # missing docstring in public module
     "D104",  # missing docstring in public package
 ]
 unfixable = ["B"]
+preview = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 13

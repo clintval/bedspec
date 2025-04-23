@@ -1,6 +1,6 @@
 from typing import Any
 
-from typeline import TsvRecordWriter
+from typeline import TsvWriter
 from typing_extensions import override
 
 from bedspec._bedspec import COMMENT_PREFIXES
@@ -8,7 +8,7 @@ from bedspec._bedspec import BedColor
 from bedspec._bedspec import BedType
 
 
-class BedWriter(TsvRecordWriter[BedType]):
+class BedWriter(TsvWriter[BedType]):
     """A writer for writing dataclasses into BED text data."""
 
     @override
