@@ -538,13 +538,14 @@ files = [
 
 [[package]]
 name = "typeline"
-version = "0.11.0"
+version = "0.13.0"
 description = "Write dataclasses to delimited text formats and read them back again."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "typeline-0.11.0.tar.gz", hash = "sha256:a8e3f6ac130dde590e8172f6d92c45badbc04fc1aa5cf47b92f8e8632f2fc6a4"},
+    {file = "typeline-0.13.0-py3-none-any.whl", hash = "sha256:e7e875b6a2693c795a450d45392b7a0432b77bfa8864bb840f914dd321a7071a"},
+    {file = "typeline-0.13.0.tar.gz", hash = "sha256:6179d675e34f3afabcea1f223b96ea1c5a5bc8123a5ee1320232e69c75f219e4"},
 ]
 
 [package.dependencies]
@@ -566,4 +567,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "0df9035451571688b62c57665d8d92620dd2f585d5ea5a1e478cc514fa4fd4a9"
+content-hash = "3cbfb14567f0e44135ca96df72d1d6116ee762e2e3562581fb2ddd336a348e01"
