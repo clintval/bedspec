@@ -37,7 +37,7 @@ pip install bedspec
 >>> 
 >>> temp_file = NamedTemporaryFile(mode="w+t", suffix=".txt")
 >>>
->>> with BedWriter.from_path(temp_file.name, Bed3) as writer:
+>>> with BedWriter.from_path[Bed3](temp_file.name) as writer:
 ...     writer.write(bed)
 
 ```

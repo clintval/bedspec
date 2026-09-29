@@ -1,4 +1,4 @@
-from io import TextIOWrapper
+from typing import TextIO
 
 from typeline import TsvWriter
 from typeline import WriterOptions
@@ -15,19 +15,16 @@ class BedWriter(TsvWriter[BedType]):
     """A writer for writing dataclasses into BED text data."""
 
     @override
-    def __init__(
-        self, handle: TextIOWrapper, record_type: type[BedType], /, **options: Unpack[WriterOptions]
-    ) -> None:
+    def __init__(self, handle: TextIO, /, **options: Unpack[WriterOptions]) -> None:
         """Instantiate a new BED writer.
 
         Args:
             handle: a file-like object to write delimited data to.
-            record_type: the type of BED record we will be writing.
             options: the options of the writer, with BED defaults for any not given.
         """
         _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
-        super().__init__(handle, record_type, **options)
+        super().__init__(handle, **options)
 
     def write_comment(self, comment: str) -> None:
         """Write a comment to the BED output."""

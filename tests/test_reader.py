@@ -16,7 +16,7 @@ def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
     bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
 
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle, Bed3)
+        writer: BedWriter = BedWriter[Bed3](handle)
         writer.write(bed)
 
     assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
@@ -33,7 +33,7 @@ def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
     bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
 
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle, Bed3)
+        writer: BedWriter = BedWriter[Bed3](handle)
         writer.write_comment("track\nthis-is-fine")
         writer.write_comment("browser is mario's enemy?")
         writer.write_comment("hello mom!")
@@ -93,7 +93,7 @@ def test_we_can_roundtrip_a_bed_record_with_complex_types(tmp_path: Path) -> Non
         block_starts=[0, 6],
     )
 
-    with BedWriter.from_path(tmp_path / "test.bed", Bed12) as writer:
+    with BedWriter.from_path[Bed12](tmp_path / "test.bed") as writer:
         writer.write(bed12)
 
     expected: str = "chr1\t2\t10\tbed12\t2\t+\t3\t4\t101,2,32\t2\t1,2\t0,6\n"

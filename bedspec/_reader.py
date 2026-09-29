@@ -1,4 +1,4 @@
-from io import TextIOWrapper
+from typing import TextIO
 
 from typeline import ReaderOptions
 from typeline import TsvReader
@@ -15,7 +15,7 @@ class BedReader(TsvReader[BedType]):
     """A reader of BED records."""
 
     @override
-    def __init__(self, handle: TextIOWrapper, /, **options: Unpack[ReaderOptions]) -> None:
+    def __init__(self, handle: TextIO, /, **options: Unpack[ReaderOptions]) -> None:
         """Instantiate a new BED reader.
 
         Args:
