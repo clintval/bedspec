@@ -10,6 +10,9 @@ from bedspec._bedspec import MISSING_FIELD
 from bedspec._bedspec import BedType
 from bedspec._codecs import BED_CODECS
 
+BED_COMMENT_PREFIXES: tuple[str, ...] = ("#", *sorted(COMMENT_PREFIXES - {"#"}))
+"""The BED comment prefixes, with the one added to comment lines that have none first."""
+
 
 class BedWriter(TsvWriter[BedType]):
     """A writer for writing dataclasses into BED text data."""
@@ -24,10 +27,5 @@ class BedWriter(TsvWriter[BedType]):
         """
         _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
+        _ = options.setdefault("comment_prefixes", BED_COMMENT_PREFIXES)
         super().__init__(handle, **options)
-
-    def write_comment(self, comment: str) -> None:
-        """Write a comment to the BED output."""
-        for line in comment.splitlines():
-            prefix = "" if any(line.startswith(prefix) for prefix in COMMENT_PREFIXES) else "# "
-            _ = self._handle.write(f"{prefix}{line}\n")

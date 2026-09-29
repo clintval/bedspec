@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from typeline import Comment
+
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed5
@@ -128,3 +130,20 @@ def test_we_can_roundtrip_a_bed_record_without_a_color(tmp_path: Path) -> None:
 
     with BedReader.from_path[Bed12](tmp_path / "test.bed") as reader:
         assert list(reader) == [bed12]
+
+
+def test_bed_reader_hands_comments_to_on_comment(tmp_path: Path) -> None:
+    """Test that the BED reader hands each comment line, with its line number, to on_comment."""
+    (tmp_path / "test.bed").write_text(
+        "track name=test\n# made by a tool\nchr1\t1\t2\nbrowser hide all\n"
+    )
+
+    comments: list[Comment] = []
+    with BedReader.from_path[Bed3](tmp_path / "test.bed", on_comment=comments.append) as reader:
+        assert list(reader) == [Bed3(refname="chr1", start=1, end=2)]
+
+    assert comments == [
+        Comment(line_number=1, text="track name=test"),
+        Comment(line_number=2, text="# made by a tool"),
+        Comment(line_number=4, text="browser hide all"),
+    ]
