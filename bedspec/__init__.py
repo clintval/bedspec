@@ -1,10 +1,15 @@
 from ._bedspec import MISSING_FIELD
 from ._bedspec import Bed2
 from ._bedspec import Bed3
+from ._bedspec import Bed3N
 from ._bedspec import Bed4
+from ._bedspec import Bed4N
 from ._bedspec import Bed5
+from ._bedspec import Bed5N
 from ._bedspec import Bed6
+from ._bedspec import Bed6N
 from ._bedspec import Bed12
+from ._bedspec import Bed12N
 from ._bedspec import BedColor
 from ._bedspec import BedGraph
 from ._bedspec import BedLike
@@ -24,10 +29,15 @@ __all__ = [
     "MISSING_FIELD",
     "Bed2",
     "Bed3",
+    "Bed3N",
     "Bed4",
+    "Bed4N",
     "Bed5",
+    "Bed5N",
     "Bed6",
+    "Bed6N",
     "Bed12",
+    "Bed12N",
     "BedColor",
     "BedGraph",
     "BedLike",

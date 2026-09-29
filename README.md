@@ -70,6 +70,21 @@ This package provides builtin classes for the following BED formats:
 
 ```
 
+For BED files with extra columns (BEDn+m), use `Bed3N`, `Bed4N`, `Bed5N`, `Bed6N`, or `Bed12N`.
+Each is its BED type plus an `extra` field that keeps any further columns as text.
+
+```pycon
+>>> from bedspec import Bed6N
+>>>
+>>> _ = open(temp_file.name, "w").write("chr1\t5\t9\tpeak\t7\t-\t3.2\t0.01\n")
+>>>
+>>> with BedReader.from_path[Bed6N](temp_file.name) as reader:
+...     for bed in reader:
+...         print(bed.name, bed.extra)
+peak ('3.2', '0.01')
+
+```
+
 ### Overlap Detection
 
 Use a fast overlap detector for any collection of interval types, including third-party:

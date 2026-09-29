@@ -14,6 +14,7 @@ from typing import TypeVar
 from typing import final
 from typing import runtime_checkable
 
+from typeline import ExtraColumns
 from typing_extensions import Self
 from typing_extensions import override
 
@@ -299,6 +300,41 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("All sizes in block_size must be greater than or equal to one!")
             if (self.start + self.block_starts[-1] + self.block_sizes[-1]) != self.end:
                 raise ValueError("The last defined block's end must be equal to the BED end!")
+
+
+@dataclass(slots=True, unsafe_hash=True)
+class Bed3N(Bed3):
+    """A BED3+N record: a BED3 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, unsafe_hash=True)
+class Bed4N(Bed4):
+    """A BED4+N record: a BED4 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, unsafe_hash=True)
+class Bed5N(Bed5):
+    """A BED5+N record: a BED5 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, unsafe_hash=True)
+class Bed6N(Bed6):
+    """A BED6+N record: a BED6 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, unsafe_hash=True)
+class Bed12N(Bed12):
+    """A BED12+N record: a BED12 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
 
 
 @dataclass(slots=True, unsafe_hash=True)
