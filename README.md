@@ -78,13 +78,25 @@ This package provides builtin classes for the following BED formats:
 >>> from bedspec import Bed4
 >>> from bedspec import Bed5
 >>> from bedspec import Bed6
+>>> from bedspec import Bed9
 >>> from bedspec import Bed12
 >>> from bedspec import BedGraph
 >>> from bedspec import BedPE
 
 ```
 
-For BED files with extra columns (BEDn+m), use `Bed3N`, `Bed4N`, `Bed5N`, `Bed6N`, or `Bed12N`.
+It also provides the ENCODE peak formats:
+
+```pycon
+>>> from bedspec import BroadPeak
+>>> from bedspec import GappedPeak
+>>> from bedspec import NarrowPeak
+
+```
+
+ENCODE writes -1 for a p-value, q-value, or summit that is not given, and so do these types.
+
+For BED files with extra columns (BEDn+m), use `Bed3N`, `Bed4N`, `Bed5N`, `Bed6N`, `Bed9N`, or `Bed12N`.
 Each is its BED type plus an `extra` field that keeps any further columns as text.
 
 ```pycon
