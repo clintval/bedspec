@@ -10,7 +10,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "superintervals >=1.0",
-    "typeline @ git+https://github.com/clintval/typeline.git@b9690f4be94ba824a462d51d22274d8a01b31238",
+    "typeline >=1.0",
     "typing-extensions >=4.12",
 ]
 classifiers = [
@@ -54,10 +54,6 @@ dev = [
 requires      = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-# typeline is pinned to a commit until its next release.
-allow-direct-references = true
-
 [tool.hatch.build.targets.sdist]
 only-include = ["bedspec", "tests", "typings", "README.md", "CONTRIBUTING.md", "LICENSE"]
 
@@ -66,6 +62,8 @@ only-include = ["bedspec", "tests", "typings", "README.md", "CONTRIBUTING.md", "
 # caught before it can be locked. Must stay >= the Dependabot `cooldown` in
 # .github/dependabot.yml, or Dependabot will propose versions that can't lock.
 exclude-newer = "1 week"
+# typeline is released alongside bedspec, so its new releases are allowed right away.
+exclude-newer-package = { typeline = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"

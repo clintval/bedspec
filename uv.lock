@@ -10,6 +10,9 @@ resolution-markers = [
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P1W"
 
+[options.exclude-newer-package]
+typeline = false
+
 [[package]]
 name = "ast-serialize"
 version = "0.11.2"
@@ -111,7 +114,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "superintervals", specifier = ">=1.0" },
-    { name = "typeline", git = "https://github.com/clintval/typeline.git?rev=b9690f4be94ba824a462d51d22274d8a01b31238" },
+    { name = "typeline", specifier = ">=1.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
@@ -815,11 +818,15 @@ wheels = [
 
 [[package]]
 name = "typeline"
-version = "0.13.0"
-source = { git = "https://github.com/clintval/typeline.git?rev=b9690f4be94ba824a462d51d22274d8a01b31238#b9690f4be94ba824a462d51d22274d8a01b31238" }
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "msgspec" },
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7a/a8/697e1846262caa5644d377e3b95084d13108a33793fdba3353a89f7f863f/typeline-1.0.0.tar.gz", hash = "sha256:809f25828eb7e08986178eae7a7e3c6448df6c96c2c813fac39d8e4a02feb622", size = 33226, upload-time = "2026-09-29T21:24:10.067Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/51/1375bbb8093abdd167e9575889457286665d84dfab4b7fdff435617f7a21/typeline-1.0.0-py3-none-any.whl", hash = "sha256:373483b1af16def78d140c5a7a3e3fd1d16613f240fa2ce2bee5ce3b33743cd1", size = 18418, upload-time = "2026-09-29T21:24:08.779Z" },
 ]
 
 [[package]]
