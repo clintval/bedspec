@@ -121,3 +121,19 @@ def test_we_can_add_to_the_overlap_detector_after_and_before_queries() -> None:
     detector.add(Bed3("chr1", start=5, end=6))
 
     assert detector.overlaps(Bed3("chr1", start=5, end=6))
+
+
+def test_half_open_features_that_abut_do_not_overlap() -> None:
+    """Test that half-open features which share only an endpoint do not overlap."""
+    bed = Bed3(refname="chr1", start=10, end=20)
+    detector: OverlapDetector[Bed3] = OverlapDetector([bed])
+    assert not detector.overlaps(Bed3(refname="chr1", start=5, end=10))
+    assert not detector.overlaps(Bed3(refname="chr1", start=20, end=25))
+    assert list(detector.overlapping(Bed3(refname="chr1", start=9, end=11))) == [bed]
+    assert list(detector.overlapping(Bed3(refname="chr1", start=19, end=21))) == [bed]
+
+
+def test_querying_an_unknown_reference_finds_nothing() -> None:
+    """Test that querying a reference sequence with no features returns no overlaps."""
+    detector: OverlapDetector[Bed3] = OverlapDetector([Bed3(refname="chr1", start=10, end=20)])
+    assert list(detector.overlapping(Bed3(refname="chr2", start=10, end=20))) == []
