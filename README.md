@@ -32,6 +32,17 @@ pip install bedspec
 Records are checked against the BED spec when they are built.
 A feature may start where it ends, as an insertion does.
 
+Records are immutable and hashable.
+Use `dataclasses.replace` to build a changed copy, which is checked like any other record:
+
+```pycon
+>>> from dataclasses import replace
+>>>
+>>> replace(bed, end=10)
+Bed3(refname='chr1', start=2, end=10)
+
+```
+
 ### Writing
 
 ```pycon
@@ -119,6 +130,7 @@ A zero-length feature overlaps the features that hold either base beside it.
 ### Custom BED Types
 
 To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).
+Custom BED records must be frozen dataclasses too.
 
 For example, to create a custom BED3+1 class:
 
@@ -127,7 +139,7 @@ For example, to create a custom BED3+1 class:
 >>> 
 >>> from bedspec import SimpleBed
 >>> 
->>> @dataclass
+>>> @dataclass(frozen=True)
 ... class Bed3Plus1(SimpleBed):
 ...     refname: str
 ...     start: int
@@ -143,7 +155,7 @@ You can also inherit and extend a pre-existing BED class:
 >>>
 >>> from bedspec import Bed3
 >>>
->>> @dataclass
+>>> @dataclass(frozen=True)
 ... class Bed3Plus1(Bed3):
 ...     my_custom_field: float | None
 >>>

@@ -91,8 +91,8 @@ def test_we_can_roundtrip_a_bed_record_with_complex_types(tmp_path: Path) -> Non
         thick_end=4,
         item_rgb=BedColor(101, 2, 32),
         block_count=2,
-        block_sizes=[1, 2],
-        block_starts=[0, 6],
+        block_sizes=(1, 2),
+        block_starts=(0, 6),
     )
 
     with BedWriter.from_path[Bed12](tmp_path / "test.bed") as writer:
@@ -118,8 +118,8 @@ def test_we_can_roundtrip_a_bed_record_without_a_color(tmp_path: Path) -> None:
         thick_end=4,
         item_rgb=None,
         block_count=2,
-        block_sizes=[1, 2],
-        block_starts=[0, 6],
+        block_sizes=(1, 2),
+        block_starts=(0, 6),
     )
 
     with BedWriter.from_path[Bed12](tmp_path / "test.bed") as writer:
