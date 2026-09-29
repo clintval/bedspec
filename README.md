@@ -47,7 +47,7 @@ pip install bedspec
 ```pycon
 >>> from bedspec import BedReader
 >>> 
->>> with BedReader.from_path(temp_file.name, Bed3) as reader:
+>>> with BedReader.from_path[Bed3](temp_file.name) as reader:
 ...     for bed in reader:
 ...         print(bed)
 Bed3(refname='chr1', start=2, end=8)

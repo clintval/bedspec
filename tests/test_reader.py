@@ -21,10 +21,10 @@ def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
 
     assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
 
-    reader = BedReader.from_path(tmp_path / "test.bed", Bed3)
+    reader = BedReader.from_path[Bed3](tmp_path / "test.bed")
     assert list(reader) == [bed]
 
-    reader = BedReader.from_path(str(tmp_path / "test.bed"), Bed3)
+    reader = BedReader.from_path[Bed3](str(tmp_path / "test.bed"))
     assert list(reader) == [bed]
 
 
@@ -43,7 +43,7 @@ def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
         writer.write_comment("hello dad!")
 
     with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader(handle, Bed3)) == [bed]
+        assert list(BedReader[Bed3](handle)) == [bed]
 
 
 def test_bed_reader_can_read_optional_string_types(tmp_path: Path) -> None:
@@ -53,7 +53,7 @@ def test_bed_reader_can_read_optional_string_types(tmp_path: Path) -> None:
     (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
     with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader(handle, Bed4)) == [bed]
+        assert list(BedReader[Bed4](handle)) == [bed]
 
 
 def test_bed_reader_can_read_optional_other_types(tmp_path: Path) -> None:
@@ -63,7 +63,7 @@ def test_bed_reader_can_read_optional_other_types(tmp_path: Path) -> None:
     (tmp_path / "test.bed").write_text(f"chr1\t1\t2\tfoo\t{MISSING_FIELD}\n")
 
     with open(tmp_path / "test.bed", "r") as handle:
-        assert list(BedReader(handle, Bed5)) == [bed]
+        assert list(BedReader[Bed5](handle)) == [bed]
 
 
 def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
@@ -72,7 +72,7 @@ def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
 
     (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
-    with BedReader(open(tmp_path / "test.bed"), Bed4) as reader:
+    with BedReader[Bed4](open(tmp_path / "test.bed")) as reader:
         assert list(reader) == [bed]
 
 
@@ -99,5 +99,5 @@ def test_we_can_roundtrip_a_bed_record_with_complex_types(tmp_path: Path) -> Non
     expected: str = "chr1\t2\t10\tbed12\t2\t+\t3\t4\t101,2,32\t2\t1,2\t0,6\n"
     assert Path(tmp_path / "test.bed").read_text() == expected
 
-    with BedReader.from_path(tmp_path / "test.bed", Bed12) as reader:
+    with BedReader.from_path[Bed12](tmp_path / "test.bed") as reader:
         assert list(reader) == [bed12]
