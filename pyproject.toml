@@ -10,7 +10,7 @@ include = ["CONTRIBUTING.md", "LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "superintervals >=1.0",
-    "typeline @ git+https://github.com/clintval/typeline.git@8266750ce59d7c1e33e3c1d37ca0f87fac11e2c2",
+    "typeline @ git+https://github.com/clintval/typeline.git@b9690f4be94ba824a462d51d22274d8a01b31238",
     "typing-extensions >=4.12",
 ]
 classifiers = [
