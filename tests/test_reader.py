@@ -2,6 +2,7 @@ from pathlib import Path
 
 from typeline import Comment
 
+from bedspec import MISSING_FIELD
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed5
@@ -10,7 +11,6 @@ from bedspec import BedColor
 from bedspec import BedReader
 from bedspec import BedStrand
 from bedspec import BedWriter
-from bedspec._bedspec import MISSING_FIELD
 
 
 def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:

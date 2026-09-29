@@ -1,3 +1,4 @@
+from ._bedspec import MISSING_FIELD
 from ._bedspec import Bed2
 from ._bedspec import Bed3
 from ._bedspec import Bed4
@@ -20,6 +21,7 @@ from ._reader import BedReader
 from ._writer import BedWriter
 
 __all__ = [
+    "MISSING_FIELD",
     "Bed2",
     "Bed3",
     "Bed4",
