@@ -6,9 +6,7 @@ from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
 
-from superintervals import (  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
-    IntervalMap,  # pyright: ignore[reportUnknownVariableType]
-)
+from superintervals import IntervalMap  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
 from typing_extensions import override
 
 from bedspec._bedspec import ReferenceSpan

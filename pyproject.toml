@@ -42,15 +42,15 @@ classifiers = [
 requires-poetry = ">=2.0"
 
 [tool.poetry.requires-plugins]
-poethepoet = ">=0.33.0"
+poethepoet = ">=0.48.0"
 
 [tool.poetry.group.dev.dependencies]
-basedpyright = "^1.28"
-mypy = "^1.15"
-pytest = "^9.0"
-pytest-cov = "^6.0"
-pytest-doctestplus = "^1.4"
-ruff = "^0.11"
+basedpyright = "^1.40"
+mypy = "^2.3"
+pytest = "^9.1"
+pytest-cov = "^7.1"
+pytest-doctestplus = "^1.7"
+ruff = "^0.16"
 
 [build-system]
 requires = ["poetry-core>=1.8"]
