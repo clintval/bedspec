@@ -6,7 +6,7 @@ from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
 
-from superintervals import IntervalMap  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
+from superintervals import IntervalMap
 from typing_extensions import override
 
 from bedspec._bedspec import ReferenceSpan
@@ -17,7 +17,7 @@ ReferenceSpanType = TypeVar("ReferenceSpanType", bound=ReferenceSpan)
 Refname: TypeAlias = str
 """A type alias for a reference sequence name string."""
 
-IntervalTree: TypeAlias = IntervalMap  # pyright: ignore[reportUnknownVariableType]
+IntervalTree: TypeAlias = IntervalMap
 """A type alias for the untyped interval map."""
 
 
@@ -36,7 +36,7 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
 
     def __init__(self, features: Iterable[ReferenceSpanType] | None = None) -> None:
         self._refname_to_features: dict[Refname, list[ReferenceSpanType]] = defaultdict(list)
-        self._refname_to_tree: dict[Refname, IntervalTree] = defaultdict(IntervalTree)  # pyright: ignore[reportUnknownArgumentType]
+        self._refname_to_tree: dict[Refname, IntervalTree] = defaultdict(IntervalTree)
         self._refname_to_is_indexed: dict[Refname, bool] = defaultdict(lambda: False)
         if features is not None:
             self.add(*features)
@@ -53,22 +53,22 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             feature_index: int = len(self._refname_to_features[refname])
 
             self._refname_to_features[refname].append(feature)
-            self._refname_to_tree[refname].add(feature.start, feature.end - 1, feature_index)  # pyright: ignore[reportUnknownMemberType]
+            self._refname_to_tree[refname].add(feature.start, feature.end - 1, feature_index)
             self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
 
     def overlapping(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features for a given query feature."""
         refname: Refname = feature.refname
 
-        if refname not in self._refname_to_tree:  # pyright: ignore[reportUnknownMemberType]
+        if refname not in self._refname_to_tree:
             return
 
         if not self._refname_to_is_indexed[refname]:
-            self._refname_to_tree[refname].build()  # pyright: ignore[reportUnknownMemberType]
+            self._refname_to_tree[refname].build()
             self._refname_to_is_indexed[refname] = True
 
         index: int
-        for index in self._refname_to_tree[refname].search_values(feature.start, feature.end - 1):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        for index in self._refname_to_tree[refname].search_values(feature.start, feature.end - 1):
             yield self._refname_to_features[refname][index]
 
     def overlaps(self, feature: ReferenceSpan) -> bool:

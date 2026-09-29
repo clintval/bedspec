@@ -117,6 +117,7 @@ doctest_optionflags = [
 
 [tool.mypy]
 files                       = ["bedspec/", "tests/"]
+mypy_path                   = "typings"
 strict_optional             = true
 strict_equality             = true
 check_untyped_defs          = true
@@ -138,6 +139,7 @@ enable_error_code           = [
 
 [tool.pyright]
 include = ["bedspec/"]
+stubPath = "typings"
 reportAny = false
 reportExplicitAny = false
 pythonVersion = "3.11"
