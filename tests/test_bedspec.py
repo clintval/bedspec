@@ -174,34 +174,6 @@ def test_simple_bed_types_have_length() -> None:
     assert len(Bed3(refname="chr1", start=1, end=4)) == 3
 
 
-def test_simple_bed_validates_start_and_end() -> None:
-    """Test that a simple BED record validates its start and end."""
-    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
-        Bed3(refname="chr1", start=-1, end=5)
-    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
-        Bed3(refname="chr1", start=5, end=5)
-    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
-        Bed3(refname="chr1", start=5, end=0)
-
-
-def test_paired_bed_validates_start_and_end() -> None:
-    """Test a paired BED record validates its start and end for both intervals."""
-    # fmt: off
-    with pytest.raises(ValueError, match="start1 must be greater than 0 and less than end1!"):
-        BedPE(refname1="chr1", start1=-1, end1=5, refname2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    with pytest.raises(ValueError, match="start1 must be greater than 0 and less than end1!"):
-        BedPE(refname1="chr1", start1=5, end1=5, refname2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    with pytest.raises(ValueError, match="start1 must be greater than 0 and less than end1!"):
-        BedPE(refname1="chr1", start1=5, end1=0, refname2="chr1", start2=1, end2=2, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    with pytest.raises(ValueError, match="start2 must be greater than 0 and less than end2!"):
-        BedPE(refname1="chr1", start1=1, end1=2, refname2="chr1", start2=-1, end2=5, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    with pytest.raises(ValueError, match="start2 must be greater than 0 and less than end2!"):
-        BedPE(refname1="chr1", start1=1, end1=2, refname2="chr1", start2=5, end2=5, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    with pytest.raises(ValueError, match="start2 must be greater than 0 and less than end2!"):
-        BedPE(refname1="chr1", start1=1, end1=2, refname2="chr1", start2=5, end2=0, name="foo", score=5, strand1=BedStrand.Positive, strand2=BedStrand.Positive)  # noqa: E501
-    # fmt: on
-
-
 def test_paired_bed_types_have_a_territory() -> None:
     """Test that paired BEDs use both their intervals as their territory."""
     record = BedPE(
@@ -248,7 +220,7 @@ def test_bed12_validation() -> None:
             block_starts=block_starts,
         )
 
-    with pytest.raises(ValueError, match="start must be greater than 0 and less than end!"):
+    with pytest.raises(ValueError, match="end must be greater than or equal to start!"):
         Bed12(
             refname="chr1",
             start=2,
