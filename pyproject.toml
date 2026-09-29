@@ -7,10 +7,10 @@ license = "MIT"
 readme = "README.md"
 keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
 include = ["CONTRIBUTING.md", "LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "superintervals >=1.0",
-    "typeline @ git+https://github.com/clintval/typeline.git@f67d5fb62f61665501db1168cf6f9857545dbd6e",
+    "typeline @ git+https://github.com/clintval/typeline.git@207a89d47b3f0ca4037e63d00d325f44f56115d7",
     "typing-extensions >=4.12",
 ]
 classifiers = [
@@ -22,10 +22,10 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: File Formats",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Software Development :: Documentation",
@@ -140,12 +140,12 @@ enable_error_code           = [
 include = ["bedspec/"]
 reportAny = false
 reportExplicitAny = false
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 
 [tool.ruff]
 include        = ["bedspec/**", "tests/**"]
 line-length    = 100
-target-version = "py310"
+target-version = "py311"
 output-format  = "full"
 preview        = true
 

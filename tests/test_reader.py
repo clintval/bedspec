@@ -101,3 +101,30 @@ def test_we_can_roundtrip_a_bed_record_with_complex_types(tmp_path: Path) -> Non
 
     with BedReader.from_path[Bed12](tmp_path / "test.bed") as reader:
         assert list(reader) == [bed12]
+
+
+def test_we_can_roundtrip_a_bed_record_without_a_color(tmp_path: Path) -> None:
+    """Test that a BED record without a color is written with a 0 color and read back as None."""
+    bed12: Bed12 = Bed12(
+        refname="chr1",
+        start=2,
+        end=10,
+        name="bed12",
+        score=2,
+        strand=BedStrand.Positive,
+        thick_start=3,
+        thick_end=4,
+        item_rgb=None,
+        block_count=2,
+        block_sizes=[1, 2],
+        block_starts=[0, 6],
+    )
+
+    with BedWriter.from_path[Bed12](tmp_path / "test.bed") as writer:
+        writer.write(bed12)
+
+    expected: str = "chr1\t2\t10\tbed12\t2\t+\t3\t4\t0\t2\t1,2\t0,6\n"
+    assert Path(tmp_path / "test.bed").read_text() == expected
+
+    with BedReader.from_path[Bed12](tmp_path / "test.bed") as reader:
+        assert list(reader) == [bed12]
