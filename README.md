@@ -2,10 +2,10 @@
 
 [![PyPi Release](https://badge.fury.io/py/bedspec.svg)](https://badge.fury.io/py/bedspec)
 [![CI](https://github.com/clintval/bedspec/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/clintval/bedspec/actions/workflows/tests.yml?query=branch%3Amain)
-[![Python Versions](https://img.shields.io/badge/python-3.10_|_3.11_|_3.12_|_3.13-blue)](https://github.com/clintval/typeline)
+[![Python Versions](https://img.shields.io/badge/python-3.11_|_3.12_|_3.13_|_3.14-blue)](https://github.com/clintval/typeline)
 [![basedpyright](https://img.shields.io/badge/basedpyright-checked-42b983)](https://docs.basedpyright.com/latest/)
 [![mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
-[![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://docs.astral.sh/uv/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://docs.astral.sh/ruff/)
 
 An HTS-specs compliant BED toolkit.
@@ -37,7 +37,7 @@ pip install bedspec
 >>> 
 >>> temp_file = NamedTemporaryFile(mode="w+t", suffix=".txt")
 >>>
->>> with BedWriter.from_path(temp_file.name, Bed3) as writer:
+>>> with BedWriter.from_path[Bed3](temp_file.name) as writer:
 ...     writer.write(bed)
 
 ```
@@ -47,7 +47,7 @@ pip install bedspec
 ```pycon
 >>> from bedspec import BedReader
 >>> 
->>> with BedReader.from_path(temp_file.name, Bed3) as reader:
+>>> with BedReader.from_path[Bed3](temp_file.name) as reader:
 ...     for bed in reader:
 ...         print(bed)
 Bed3(refname='chr1', start=2, end=8)
@@ -67,6 +67,21 @@ This package provides builtin classes for the following BED formats:
 >>> from bedspec import Bed12
 >>> from bedspec import BedGraph
 >>> from bedspec import BedPE
+
+```
+
+For BED files with extra columns (BEDn+m), use `Bed3N`, `Bed4N`, `Bed5N`, `Bed6N`, or `Bed12N`.
+Each is its BED type plus an `extra` field that keeps any further columns as text.
+
+```pycon
+>>> from bedspec import Bed6N
+>>>
+>>> _ = open(temp_file.name, "w").write("chr1\t5\t9\tpeak\t7\t-\t3.2\t0.01\n")
+>>>
+>>> with BedReader.from_path[Bed6N](temp_file.name) as reader:
+...     for bed in reader:
+...         print(bed.name, bed.extra)
+peak ('3.2', '0.01')
 
 ```
 

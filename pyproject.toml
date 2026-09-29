@@ -6,11 +6,11 @@ authors = [{ name = "Clint Valentine", email = "valentine.clint@gmail.com" }]
 license = "MIT"
 readme = "README.md"
 keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
-include = ["CONTRIBUTING.md", "LICENSE"]
-requires-python = ">=3.10"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
 dependencies = [
     "superintervals >=1.0",
-    "typeline >=0.13",
+    "typeline >=1.1",
     "typing-extensions >=4.12",
 ]
 classifiers = [
@@ -22,10 +22,10 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: File Formats",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Software Development :: Documentation",
@@ -38,26 +38,32 @@ classifiers = [
 "repository" = "https://github.com/clintval/bedspec"
 "Bug Tracker" = "https://github.com/clintval/bedspec/issues"
 
-[tool.poetry]
-requires-poetry = ">=2.0"
-
-[tool.poetry.requires-plugins]
-poethepoet = ">=0.33.0"
-
-[tool.poetry.group.dev.dependencies]
-basedpyright = "^1.28"
-mypy = "^1.15"
-pytest = "^9.0"
-pytest-cov = "^6.0"
-pytest-doctestplus = "^1.4"
-ruff = "^0.11"
+[dependency-groups]
+dev = [
+    "basedpyright ~=1.40",
+    "mypy ~=2.3",
+    "poethepoet ~=0.48",
+    "pytest ~=9.1",
+    "pytest-cov ~=7.1",
+    "pytest-doctestplus ~=1.7",
+    "ruff ~=0.16",
+    "validate-pyproject[all] ~=0.26",
+]
 
 [build-system]
-requires = ["poetry-core>=1.8"]
-build-backend = "poetry.core.masonry.api"
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poe]
-poetry_command = "task"
+[tool.hatch.build.targets.sdist]
+only-include = ["bedspec", "tests", "typings", "README.md", "CONTRIBUTING.md", "LICENSE"]
+
+[tool.uv]
+# Ignore releases younger than a week, so a compromised publish has time to be
+# caught before it can be locked. Must stay >= the Dependabot `cooldown` in
+# .github/dependabot.yml, or Dependabot will propose versions that can't lock.
+exclude-newer = "1 week"
+# typeline is released alongside bedspec, so its new releases are allowed right away.
+exclude-newer-package = { typeline = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"
@@ -69,7 +75,8 @@ fix-all.sequence    = [
     "fix-lint"
 ]
 
-check-lock   = "poetry check --lock"
+check-lock      = "uv lock --check"
+check-pyproject = "validate-pyproject pyproject.toml"
 check-format = "ruff format --check --diff"
 check-lint   = "ruff check"
 check-tests  = "pytest --doctest-glob='*.md'"
@@ -84,6 +91,7 @@ check-typing.sequence = [
 check-all.ignore_fail = "return_non_zero"
 check-all.sequence    = [
     "check-lock",
+    "check-pyproject",
     "check-format",
     "check-lint",
     "check-tests",
@@ -117,6 +125,7 @@ doctest_optionflags = [
 
 [tool.mypy]
 files                       = ["bedspec/", "tests/"]
+mypy_path                   = "typings"
 strict_optional             = true
 strict_equality             = true
 check_untyped_defs          = true
@@ -138,14 +147,15 @@ enable_error_code           = [
 
 [tool.pyright]
 include = ["bedspec/"]
+stubPath = "typings"
 reportAny = false
 reportExplicitAny = false
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 
 [tool.ruff]
 include        = ["bedspec/**", "tests/**"]
 line-length    = 100
-target-version = "py310"
+target-version = "py311"
 output-format  = "full"
 preview        = true
 

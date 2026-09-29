@@ -45,7 +45,7 @@ from bedspec import BedWriter
 def test_bed_writer_can_write_all_bed_types(bed: BedLike, expected: str, tmp_path: Path) -> None:
     """Test that the BED writer can write all BED types."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle, type(bed))
+        writer = BedWriter[type(bed)](handle)  # type: ignore[misc, operator]
         writer.write(bed)
 
     assert Path(tmp_path / "test.bed").read_text() == expected
@@ -56,7 +56,7 @@ def test_bed_writer_can_be_closed(tmp_path: Path) -> None:
     path: Path = tmp_path / "test.bed"
     handle = open(path, "w")
     try:
-        writer = BedWriter(handle, Bed3)
+        writer = BedWriter[Bed3](handle)
         writer.write(Bed3(refname="chr1", start=1, end=2))
         writer.close()
 
@@ -70,12 +70,12 @@ def test_bed_writer_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
     """Test that the BED write can write BED records from a path if it is typed."""
     bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
 
-    with BedWriter.from_path(tmp_path / "test1.bed", Bed3) as writer:
+    with BedWriter.from_path[Bed3](tmp_path / "test1.bed") as writer:
         writer.write(bed)
 
     assert (tmp_path / "test1.bed").read_text() == "chr1\t1\t2\n"
 
-    with BedWriter.from_path(str(tmp_path / "test2.bed"), Bed3) as writer:
+    with BedWriter.from_path[Bed3](str(tmp_path / "test2.bed")) as writer:
         writer.write(bed)
 
     assert (tmp_path / "test2.bed").read_text() == "chr1\t1\t2\n"
@@ -84,7 +84,7 @@ def test_bed_writer_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
 def test_bed_writer_remembers_the_type_it_will_write(tmp_path: Path) -> None:
     """Test that the BED writer remembers the type it can only write."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter(handle, Bed2)
+        writer: BedWriter = BedWriter[Bed2](handle)
         writer.write(Bed2(refname="chr1", start=1))
         with pytest.raises(
             ValueError,
@@ -96,7 +96,7 @@ def test_bed_writer_remembers_the_type_it_will_write(tmp_path: Path) -> None:
 def test_bed_writer_remembers_the_type_it_will_write_generic(tmp_path: Path) -> None:
     """Test that the generically parameterized BED writer remembers the type it can only write."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter(handle, Bed2)
+        writer = BedWriter[Bed2](handle)
         writer.write(Bed2("chr1", 1))
         with pytest.raises(
             ValueError,
@@ -108,7 +108,7 @@ def test_bed_writer_remembers_the_type_it_will_write_generic(tmp_path: Path) -> 
 def test_bed_writer_write_comment_with_prefix_pound_symbol(tmp_path: Path) -> None:
     """Test that we can write comments that have a leading pound symbol."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter(handle, Bed2)
+        writer = BedWriter[Bed2](handle)
         writer.write_comment("# hello mom!")
         writer.write(Bed2(refname="chr1", start=1))
         writer.write_comment("# hello\ndad!")
@@ -121,7 +121,7 @@ def test_bed_writer_write_comment_with_prefix_pound_symbol(tmp_path: Path) -> No
 def test_bed_writer_write_comment_without_prefix_pound_symbol(tmp_path: Path) -> None:
     """Test that we can write comments that do not have a leading pound symbol."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer = BedWriter(handle, Bed2)
+        writer = BedWriter[Bed2](handle)
         writer.write_comment("track this-is-fine")
         writer.write_comment("browser is mario's enemy?")
         writer.write_comment("hello\nmom!")
@@ -144,7 +144,7 @@ def test_bed_writer_write_comment_without_prefix_pound_symbol(tmp_path: Path) ->
 
 def test_bed_writer_can_be_used_as_context_manager(tmp_path: Path) -> None:
     """Test that the BED writer can be used as a context manager."""
-    with BedWriter(open(tmp_path / "test.bed", "w"), Bed2) as handle:
+    with BedWriter[Bed2](open(tmp_path / "test.bed", "w")) as handle:
         handle.write(Bed2(refname="chr1", start=1))
         handle.write(Bed2(refname="chr2", start=2))
 
