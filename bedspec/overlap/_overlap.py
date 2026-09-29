@@ -7,7 +7,7 @@ from typing import TypeAlias
 from typing import TypeVar
 
 from superintervals import (  # type: ignore[import-untyped]  # pyright: ignore[reportMissingTypeStubs]
-    IntervalSet,  # pyright: ignore[reportUnknownVariableType]
+    IntervalMap,  # pyright: ignore[reportUnknownVariableType]
 )
 from typing_extensions import override
 
@@ -19,8 +19,8 @@ ReferenceSpanType = TypeVar("ReferenceSpanType", bound=ReferenceSpan)
 Refname: TypeAlias = str
 """A type alias for a reference sequence name string."""
 
-IntervalTree: TypeAlias = IntervalSet  # pyright: ignore[reportUnknownVariableType]
-"""A type alias for the untyped interval set."""
+IntervalTree: TypeAlias = IntervalMap  # pyright: ignore[reportUnknownVariableType]
+"""A type alias for the untyped interval map."""
 
 
 class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
@@ -62,11 +62,15 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
         """Yields all the overlapping features for a given query feature."""
         refname: Refname = feature.refname
 
-        if refname in self._refname_to_tree.keys() and not self._refname_to_is_indexed[refname]:  # pyright: ignore[reportUnknownMemberType]
-            self._refname_to_tree[refname].index()  # pyright: ignore[reportUnknownMemberType]
+        if refname not in self._refname_to_tree:  # pyright: ignore[reportUnknownMemberType]
+            return
+
+        if not self._refname_to_is_indexed[refname]:
+            self._refname_to_tree[refname].build()  # pyright: ignore[reportUnknownMemberType]
+            self._refname_to_is_indexed[refname] = True
 
         index: int
-        for index in self._refname_to_tree[refname].find_overlaps(feature.start, feature.end - 1):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        for index in self._refname_to_tree[refname].search_values(feature.start, feature.end - 1):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             yield self._refname_to_features[refname][index]
 
     def overlaps(self, feature: ReferenceSpan) -> bool:
