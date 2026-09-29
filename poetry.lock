@@ -553,8 +553,8 @@ typing-extensions = ">=4.12"
 [package.source]
 type = "git"
 url = "https://github.com/clintval/typeline.git"
-reference = "2bd641cdea492eadd82774a6657b9c91f0ba6176"
-resolved_reference = "2bd641cdea492eadd82774a6657b9c91f0ba6176"
+reference = "f67d5fb62f61665501db1168cf6f9857545dbd6e"
+resolved_reference = "f67d5fb62f61665501db1168cf6f9857545dbd6e"
 
 [[package]]
 name = "typing-extensions"
@@ -571,4 +571,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "f3128968f26d494a34fbe8d9e8b5864f024bbc7b3a5734ae69138fe5487ed9ca"
+content-hash = "501b06793522ba5fd3d1d1b6797cd2146454fcbbd3d0721c4d5a8fdb5db72b17"
