@@ -8,6 +8,8 @@ from ._bedspec import Bed5
 from ._bedspec import Bed5N
 from ._bedspec import Bed6
 from ._bedspec import Bed6N
+from ._bedspec import Bed9
+from ._bedspec import Bed9N
 from ._bedspec import Bed12
 from ._bedspec import Bed12N
 from ._bedspec import BedColor
@@ -16,7 +18,10 @@ from ._bedspec import BedLike
 from ._bedspec import BedPE
 from ._bedspec import BedStrand
 from ._bedspec import BedType
+from ._bedspec import BroadPeak
+from ._bedspec import GappedPeak
 from ._bedspec import Named
+from ._bedspec import NarrowPeak
 from ._bedspec import PairBed
 from ._bedspec import PointBed
 from ._bedspec import ReferenceSpan
@@ -36,6 +41,8 @@ __all__ = [
     "Bed5N",
     "Bed6",
     "Bed6N",
+    "Bed9",
+    "Bed9N",
     "Bed12",
     "Bed12N",
     "BedColor",
@@ -44,6 +51,9 @@ __all__ = [
     "BedPE",
     "BedStrand",
     "BedType",
+    "BroadPeak",
+    "GappedPeak",
+    "NarrowPeak",
     "Named",
     "PairBed",
     "PointBed",

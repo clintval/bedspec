@@ -41,6 +41,17 @@ def _check_name(name: str | None) -> None:
         raise ValueError("name must be 1 to 255 characters long!")
 
 
+def _check_thick(start: int, end: int, thick_start: int | None, thick_end: int | None) -> None:
+    """Check that a thick part is given whole or not at all, and sits within its feature."""
+    if (thick_start is None) != (thick_end is None):
+        raise ValueError("thick_start and thick_end must both be None or both be set!")
+    if thick_start is not None and thick_end is not None:
+        if not start <= thick_start <= thick_end <= end:
+            raise ValueError(
+                "thick_start and thick_end must satisfy start <= thick_start <= thick_end <= end!"
+            )
+
+
 def _check_score(score: int | None) -> None:
     """Check that a score, if given, is between 0 and 1000."""
     if score is not None and not 0 <= score <= 1000:
@@ -313,6 +324,29 @@ class Bed6(SimpleBed, Named, Stranded):
 
 
 @dataclass(slots=True, frozen=True)
+class Bed9(SimpleBed, Named, Stranded):
+    """A BED9 record that describes a contiguous linear interval with a thick part and a color."""
+
+    refname: str
+    start: int = field(kw_only=True)
+    end: int = field(kw_only=True)
+    name: str | None = field(kw_only=True)
+    score: int | None = field(kw_only=True)
+    strand: BedStrand | None = field(kw_only=True)
+    thick_start: int | None = field(kw_only=True)
+    thick_end: int | None = field(kw_only=True)
+    item_rgb: BedColor | None = field(kw_only=True)
+
+    @override
+    def __post_init__(self) -> None:
+        """Validate this BED9 record."""
+        super(Bed9, self).__post_init__()
+        _check_name(self.name)
+        _check_score(self.score)
+        _check_thick(self.start, self.end, self.thick_start, self.thick_end)
+
+
+@dataclass(slots=True, frozen=True)
 class Bed12(SimpleBed, Named, Stranded):
     """A BED12 record that describes a contiguous linear interval."""
 
@@ -334,14 +368,7 @@ class Bed12(SimpleBed, Named, Stranded):
         super(Bed12, self).__post_init__()
         _check_name(self.name)
         _check_score(self.score)
-        if (self.thick_start is None) != (self.thick_end is None):
-            raise ValueError("thick_start and thick_end must both be None or both be set!")
-        if self.thick_start is not None and self.thick_end is not None:
-            if not self.start <= self.thick_start <= self.thick_end <= self.end:
-                raise ValueError(
-                    "thick_start and thick_end must satisfy"
-                    + " start <= thick_start <= thick_end <= end!"
-                )
+        _check_thick(self.start, self.end, self.thick_start, self.thick_end)
         if self.block_count is None:
             if self.block_sizes is not None or self.block_starts is not None:
                 raise ValueError("block_count, block_sizes, block_starts must all be set or unset!")
@@ -398,10 +425,78 @@ class Bed6N(Bed6):
 
 
 @dataclass(slots=True, frozen=True)
+class Bed9N(Bed9):
+    """A BED9+N record: a BED9 record followed by any number of extra columns, kept as text."""
+
+    extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, frozen=True)
 class Bed12N(Bed12):
     """A BED12+N record: a BED12 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
+
+
+@dataclass(slots=True, frozen=True)
+class NarrowPeak(Bed6):
+    """An ENCODE narrowPeak (BED6+4) record of a peak with a summit.
+
+    ENCODE writes -1 for a p-value, q-value, or summit that is not given.
+    """
+
+    signal_value: float = field(kw_only=True)
+    """The overall enrichment of the peak."""
+
+    p_value: float = field(kw_only=True)
+    """The -log10 p-value of the peak, or -1."""
+
+    q_value: float = field(kw_only=True)
+    """The -log10 q-value of the peak, or -1."""
+
+    peak: int = field(kw_only=True)
+    """The summit, as a 0-based offset from start, or -1."""
+
+    @override
+    def __post_init__(self) -> None:
+        """Validate this narrowPeak record."""
+        super(NarrowPeak, self).__post_init__()
+        if self.peak != -1 and not 0 <= self.peak < self.end - self.start:
+            raise ValueError("peak must be -1 or an offset within the feature!")
+
+
+@dataclass(slots=True, frozen=True)
+class BroadPeak(Bed6):
+    """An ENCODE broadPeak (BED6+3) record of a broad region of enrichment.
+
+    ENCODE writes -1 for a p-value or q-value that is not given.
+    """
+
+    signal_value: float = field(kw_only=True)
+    """The overall enrichment of the region."""
+
+    p_value: float = field(kw_only=True)
+    """The -log10 p-value of the region, or -1."""
+
+    q_value: float = field(kw_only=True)
+    """The -log10 q-value of the region, or -1."""
+
+
+@dataclass(slots=True, frozen=True)
+class GappedPeak(Bed12):
+    """An ENCODE gappedPeak (BED12+3) record of a peak made of blocks.
+
+    ENCODE writes -1 for a p-value or q-value that is not given.
+    """
+
+    signal_value: float = field(kw_only=True)
+    """The overall enrichment of the peak."""
+
+    p_value: float = field(kw_only=True)
+    """The -log10 p-value of the peak, or -1."""
+
+    q_value: float = field(kw_only=True)
+    """The -log10 q-value of the peak, or -1."""
 
 
 @dataclass(slots=True, frozen=True)
