@@ -69,6 +69,20 @@ Bed3(refname='chr1', start=2, end=8)
 
 ```
 
+### Compressed BED
+
+A path ending in `.gz` is written compressed, and a compressed file is read by its contents.
+
+```pycon
+>>> with BedWriter.from_path[Bed3](f"{temp_file.name}.gz") as writer:
+...     writer.write(bed)
+>>>
+>>> with BedReader.from_path[Bed3](f"{temp_file.name}.gz") as reader:
+...     print(list(reader))
+[Bed3(refname='chr1', start=2, end=8)]
+
+```
+
 ### BED Types
 
 This package provides builtin classes for the following BED formats:
