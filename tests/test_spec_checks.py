@@ -58,15 +58,15 @@ def test_zero_length_pairs_are_allowed() -> None:
 def test_start_must_not_be_negative() -> None:
     """Test that every kind of record refuses a negative start."""
     with pytest.raises(ValueError, match="start must be greater than or equal to 0!"):
-        Bed2(refname="chr1", start=-1)
+        _ = Bed2(refname="chr1", start=-1)
     with pytest.raises(ValueError, match="start must be greater than or equal to 0!"):
-        Bed3(refname="chr1", start=-1, end=5)
+        _ = Bed3(refname="chr1", start=-1, end=5)
 
 
 def test_end_must_not_come_before_start() -> None:
     """Test that a record refuses an end before its start."""
     with pytest.raises(ValueError, match="end must be greater than or equal to start!"):
-        Bed3(refname="chr1", start=5, end=4)
+        _ = Bed3(refname="chr1", start=5, end=4)
 
 
 @pytest.mark.parametrize(
@@ -83,7 +83,7 @@ def test_pairs_check_both_intervals(
 ) -> None:
     """Test that a pair checks the start and end of both its intervals."""
     with pytest.raises(ValueError, match=message):
-        BedPE(
+        _ = BedPE(
             refname1="chr1",
             start1=start1,
             end1=end1,
@@ -100,20 +100,20 @@ def test_pairs_check_both_intervals(
 def test_refname_must_not_be_empty() -> None:
     """Test that a record refuses an empty reference sequence name."""
     with pytest.raises(ValueError, match="refname must not be empty!"):
-        Bed3(refname="", start=1, end=2)
+        _ = Bed3(refname="", start=1, end=2)
     with pytest.raises(ValueError, match="refname must not be empty!"):
-        Bed2(refname="", start=1)
+        _ = Bed2(refname="", start=1)
 
 
 @pytest.mark.parametrize("name", ["", "x" * 256])
 def test_name_must_be_1_to_255_characters(name: str) -> None:
     """Test that a record refuses a name that is empty or longer than 255 characters."""
     with pytest.raises(ValueError, match="name must be 1 to 255 characters long!"):
-        Bed4(refname="chr1", start=1, end=2, name=name)
+        _ = Bed4(refname="chr1", start=1, end=2, name=name)
     with pytest.raises(ValueError, match="name must be 1 to 255 characters long!"):
-        Bed6(refname="chr1", start=1, end=2, name=name, score=None, strand=None)
+        _ = Bed6(refname="chr1", start=1, end=2, name=name, score=None, strand=None)
     with pytest.raises(ValueError, match="name must be 1 to 255 characters long!"):
-        bed12(name=name)
+        _ = bed12(name=name)
 
 
 def test_names_at_the_limits_are_allowed() -> None:
@@ -127,11 +127,11 @@ def test_names_at_the_limits_are_allowed() -> None:
 def test_score_must_be_between_0_and_1000(score: int) -> None:
     """Test that a record refuses a score outside 0 to 1000."""
     with pytest.raises(ValueError, match="score must be between 0 and 1000!"):
-        Bed5(refname="chr1", start=1, end=2, name=None, score=score)
+        _ = Bed5(refname="chr1", start=1, end=2, name=None, score=score)
     with pytest.raises(ValueError, match="score must be between 0 and 1000!"):
-        Bed6(refname="chr1", start=1, end=2, name=None, score=score, strand=None)
+        _ = Bed6(refname="chr1", start=1, end=2, name=None, score=score, strand=None)
     with pytest.raises(ValueError, match="score must be between 0 and 1000!"):
-        bed12(score=score)
+        _ = bed12(score=score)
 
 
 @pytest.mark.parametrize("score", [0, 1000, None])
@@ -150,7 +150,7 @@ def test_bed12_thick_bounds_must_sit_within_the_feature(thick_start: int, thick_
         ValueError,
         match="thick_start and thick_end must satisfy start <= thick_start <= thick_end <= end!",
     ):
-        bed12(thick_start=thick_start, thick_end=thick_end)
+        _ = bed12(thick_start=thick_start, thick_end=thick_end)
 
 
 def test_bed12_may_have_no_thick_part() -> None:
@@ -171,7 +171,7 @@ def test_bed12_blocks_must_ascend_without_overlapping(
 ) -> None:
     """Test that the blocks of a BED12 record must ascend and must not overlap."""
     with pytest.raises(ValueError, match="Blocks must be in ascending order and must not overlap!"):
-        bed12(block_count=len(block_sizes), block_sizes=block_sizes, block_starts=block_starts)
+        _ = bed12(block_count=len(block_sizes), block_sizes=block_sizes, block_starts=block_starts)
 
 
 def test_bed12_blocks_may_touch() -> None:

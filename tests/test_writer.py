@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -84,7 +85,7 @@ def test_bed_writer_can_write_bed_records_from_a_path(tmp_path: Path) -> None:
 def test_bed_writer_remembers_the_type_it_will_write(tmp_path: Path) -> None:
     """Test that the BED writer remembers the type it can only write."""
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter[Bed2](handle)
+        writer: BedWriter[Any] = BedWriter[Bed2](handle)
         writer.write(Bed2(refname="chr1", start=1))
         with pytest.raises(
             ValueError,
@@ -102,7 +103,7 @@ def test_bed_writer_remembers_the_type_it_will_write_generic(tmp_path: Path) -> 
             ValueError,
             match="Expected Bed2 but found Bed3!",
         ):
-            writer.write(Bed3(refname="chr1", start=1, end=2))  # type: ignore[arg-type]
+            writer.write(Bed3(refname="chr1", start=1, end=2))  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
 
 def test_bed_writer_write_comment_with_prefix_pound_symbol(tmp_path: Path) -> None:

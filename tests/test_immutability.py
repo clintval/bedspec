@@ -32,14 +32,14 @@ def test_records_cannot_be_changed() -> None:
     """Test that a record's fields cannot be changed after it is built."""
     record = Bed3(refname="chr1", start=1, end=2)
     with pytest.raises(FrozenInstanceError):
-        record.start = 5  # type: ignore[misc]
+        record.start = 5  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_colors_cannot_be_changed() -> None:
     """Test that a color's values cannot be changed after it is built."""
     color = BedColor(1, 2, 3)
     with pytest.raises(FrozenInstanceError):
-        color.r = 5  # type: ignore[misc]
+        color.r = 5  # type: ignore[misc]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_replace_builds_a_checked_copy() -> None:
@@ -47,7 +47,7 @@ def test_replace_builds_a_checked_copy() -> None:
     record = Bed3(refname="chr1", start=1, end=2)
     assert replace(record, end=9) == Bed3(refname="chr1", start=1, end=9)
     with pytest.raises(ValueError, match="end must be greater than or equal to start!"):
-        replace(record, end=0)
+        _ = replace(record, end=0)
 
 
 def test_bed12_records_can_be_hashed() -> None:
