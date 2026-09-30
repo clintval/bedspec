@@ -7,9 +7,9 @@ import pybgzf
 from pybgzf import Columns
 from pybgzf import IndexFormat
 from typeline import Comment
+from typeline import SubscriptableClassmethod
 from typeline import TsvWriter
 from typeline import WriterOptions
-from typeline._binding import SubscriptableClassmethod
 from typing_extensions import Self
 from typing_extensions import Unpack
 from typing_extensions import override

@@ -90,9 +90,9 @@ Ask for a tabix or CSI index to have one written beside the file, with features 
 Query an indexed file on disk with the same operations as the [overlap detector](#overlap-detection):
 
 ```pycon
->>> from bedspec.overlap import IndexedOverlapDetector
+>>> from bedspec.overlap import TabixDetector
 >>>
->>> with IndexedOverlapDetector[Bed3](f"{temp_file.name}.gz") as detector:
+>>> with TabixDetector[Bed3](f"{temp_file.name}.gz") as detector:
 ...     print(list(detector.enclosing(Bed3("chr1", start=7, end=8))))
 [Bed3(refname='chr1', start=2, end=8), Bed3(refname='chr1', start=6, end=9)]
 

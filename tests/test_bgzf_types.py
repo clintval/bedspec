@@ -41,8 +41,8 @@ from bedspec import NarrowPeak
 from bedspec import PairBed
 from bedspec import PointBed
 from bedspec import SimpleBed
-from bedspec.overlap import IndexedOverlapDetector
-from bedspec.overlap import OverlapDetector
+from bedspec.overlap import TabixDetector
+from bedspec.overlap import TreeDetector
 
 Fields = dict[str, Any]
 """The fields of a record, by name."""
@@ -201,9 +201,7 @@ def plain_text(record_type: type[Any], records: list[Any]) -> str:
 def oracle(record_type: type[Any], records: list[Any]) -> Callable[[str, Bed6, bool], Counter[Any]]:
     """Return what the in-memory overlap detector finds for a method, query, and strandedness."""
     if issubclass(record_type, PointBed):
-        detector = OverlapDetector([
-            Bed3(r.refname, start=r.start, end=r.start + 1) for r in records
-        ])
+        detector = TreeDetector([Bed3(r.refname, start=r.start, end=r.start + 1) for r in records])
 
         def found(method: str, query: Bed6, stranded: bool) -> Counter[Any]:
             spans = getattr(detector, method)(query, stranded=stranded)
@@ -211,7 +209,7 @@ def oracle(record_type: type[Any], records: list[Any]) -> Callable[[str, Bed6, b
 
         return found
 
-    in_memory = OverlapDetector(records)
+    in_memory = TreeDetector(records)
     return lambda method, query, stranded: Counter(
         getattr(in_memory, method)(query, stranded=stranded)
     )
@@ -261,7 +259,7 @@ def write_indexed(
 
 
 def assert_queries_agree(
-    detector: IndexedOverlapDetector[Any], expected: Callable[[str, Bed6, bool], Counter[Any]]
+    detector: TabixDetector[Any], expected: Callable[[str, Bed6, bool], Counter[Any]]
 ) -> None:
     """Assert that random queries find what the in-memory overlap detector finds."""
     rng = random.Random(0)
@@ -288,7 +286,7 @@ def test_every_bed_type_round_trips_and_is_queried(
     with BedReader.from_path[record_type](path) as reader:
         assert list(reader) == records
     assert gzip.decompress(path.read_bytes()).decode() == plain_text(record_type, records)
-    with IndexedOverlapDetector[record_type](path, threads=threads) as detector:  # type: ignore[valid-type]
+    with TabixDetector[record_type](path, threads=threads) as detector:  # type: ignore[valid-type]
         assert_queries_agree(detector, oracle(record_type, records))
 
 
@@ -316,7 +314,7 @@ def test_every_bed_type_is_indexed_as_tabix_indexes_it(
             assert lines == tabix_lines(TABIX, path, query.refname, query.start, end), query
 
     reference = path.parent / "tabix" / f"{path.name}{INDEX_SUFFIXES[index]}"
-    with IndexedOverlapDetector[record_type](path, index_path=reference) as detector:  # type: ignore[valid-type]
+    with TabixDetector[record_type](path, index_path=reference) as detector:  # type: ignore[valid-type]
         assert_queries_agree(detector, oracle(record_type, records))
 
 

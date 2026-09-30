@@ -6,7 +6,7 @@ from pybgzf import IndexFormat
 from bedspec import Bed3
 from bedspec import BedPE
 from bedspec import BedWriter
-from bedspec.overlap import IndexedOverlapDetector
+from bedspec.overlap import TabixDetector
 
 
 def write_sorted(path: Path, records: list[Bed3], index: IndexFormat) -> None:
@@ -22,7 +22,7 @@ def test_zero_length_features_overlap_the_bases_beside_them(tmp_path: Path) -> N
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [insertion], IndexFormat.TBI)
 
-    with IndexedOverlapDetector[Bed3](path) as detector:
+    with TabixDetector[Bed3](path) as detector:
         assert list(detector.overlapping(Bed3("chr1", start=4, end=5))) == [insertion]
         assert list(detector.overlapping(Bed3("chr1", start=5, end=6))) == [insertion]
         assert list(detector.overlapping(Bed3("chr1", start=5, end=5))) == [insertion]
@@ -35,7 +35,7 @@ def test_a_zero_length_feature_at_the_start_of_a_reference_is_never_found(tmp_pa
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [Bed3("chr1", start=0, end=0)], IndexFormat.TBI)
 
-    with IndexedOverlapDetector[Bed3](path) as detector:
+    with TabixDetector[Bed3](path) as detector:
         assert not detector.overlaps(Bed3("chr1", start=0, end=1))
 
 
@@ -46,7 +46,7 @@ def test_an_index_path_and_threads_may_be_given(tmp_path: Path) -> None:
     write_sorted(path, [bed], IndexFormat.CSI)
     index_path = (tmp_path / "features.bed.gz.csi").rename(tmp_path / "elsewhere.csi")
 
-    with IndexedOverlapDetector[Bed3](path, index_path=index_path, threads=2) as detector:
+    with TabixDetector[Bed3](path, index_path=index_path, threads=2) as detector:
         assert list(detector.overlapping(bed)) == [bed]
 
 
@@ -55,7 +55,7 @@ def test_the_file_is_closed_when_the_context_ends(tmp_path: Path) -> None:
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [Bed3("chr1", start=1, end=5)], IndexFormat.TBI)
 
-    with IndexedOverlapDetector[Bed3](path) as detector:
+    with TabixDetector[Bed3](path) as detector:
         assert not detector.closed
     assert detector.closed
 
@@ -65,8 +65,8 @@ def test_a_record_type_is_required(tmp_path: Path) -> None:
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [Bed3("chr1", start=1, end=5)], IndexFormat.TBI)
 
-    with pytest.raises(TypeError, match=r"IndexedOverlapDetector\[Bed3\]"):
-        with IndexedOverlapDetector(path):
+    with pytest.raises(TypeError, match=r"TabixDetector\[Bed3\]"):
+        with TabixDetector(path):
             pass
 
 
@@ -76,5 +76,5 @@ def test_a_paired_bed_cannot_be_queried(tmp_path: Path) -> None:
     write_sorted(path, [Bed3("chr1", start=1, end=5)], IndexFormat.TBI)
 
     with pytest.raises(TypeError, match="BedPE"):
-        with IndexedOverlapDetector[BedPE](path):  # type: ignore[type-var]  # pyright: ignore[reportInvalidTypeArguments]
+        with TabixDetector[BedPE](path):  # type: ignore[type-var]  # pyright: ignore[reportInvalidTypeArguments]
             pass

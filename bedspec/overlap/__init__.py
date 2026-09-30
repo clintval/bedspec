@@ -1,7 +1,7 @@
-from ._indexed import IndexedOverlapDetector
+from ._indexed import TabixDetector
 from ._overlap import TreeDetector
 
 __all__ = [
-    "IndexedOverlapDetector",
+    "TabixDetector",
     "TreeDetector",
 ]

@@ -25,14 +25,14 @@ IntervalBedType = TypeVar("IntervalBedType", bound=PointBed | SimpleBed)
 """A type variable for a BED record type that describes one interval."""
 
 
-class IndexedOverlapDetector(
-    AbstractContextManager["IndexedOverlapDetector[IntervalBedType]"], Generic[IntervalBedType]
+class TabixDetector(
+    AbstractContextManager["TabixDetector[IntervalBedType]"], Generic[IntervalBedType]
 ):
     """Detects overlaps with the features of a BGZF BED file, read through its tabix or CSI index.
 
-    Queries are answered exactly as `OverlapDetector` answers them, reading only the parts of the
+    Queries are answered exactly as `TreeDetector` answers them, reading only the parts of the
     file the index points to, and features are read as the record type the detector is
-    subscripted with, e.g. `IndexedOverlapDetector[Bed6](path)`.
+    subscripted with, e.g. `TabixDetector[Bed6](path)`.
     A zero-length feature at the start of a reference is never found, since tabix never returns
     it.
 
