@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from functools import cached_property
@@ -14,6 +15,7 @@ from pybgzf import IndexedReader
 from typing_extensions import Self
 from typing_extensions import override
 
+from bedspec._bedspec import BedStrand
 from bedspec._bedspec import PointBed
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
@@ -88,21 +90,14 @@ class TabixDetector(
     def overlapping(
         self, feature: ReferenceSpan, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
-        """Yields all the overlapping features for a given query feature."""
-        strand = _strand(feature)
-        if stranded and strand is None:
-            return
+        """Yields all the features with any span of their territory overlapping the query."""
         start, end = _closed(feature)
-        lines = self._reader.query(feature.refname, max(start - 1, 0), end + 2)
-        text = StringIO("".join(f"{line}\n" for line in lines))
-        for record in BedReader[self._record_type](text):  # type: ignore[name-defined]
-            span = next(record.territory())
+
+        def touches(span: ReferenceSpan) -> bool:
             found_start, found_end = _closed(span)
-            if found_start > end or found_end < start:
-                continue
-            if stranded and _strand(record) is not strand:
-                continue
-            yield record
+            return found_start <= end and found_end >= start
+
+        return self._matching(feature, touches, stranded=stranded, every=False)
 
     def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
@@ -111,17 +106,50 @@ class TabixDetector(
     def enclosing(
         self, feature: ReferenceSpan, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
-        """Yields all the overlapping features that completely enclose the given query feature."""
-        for overlap in self.overlapping(feature, stranded=stranded):
-            span = next(overlap.territory())
-            if feature.start >= span.start and feature.end <= span.end:
-                yield overlap
+        """Yields all the features with any span of their territory enclosing the query."""
+
+        def encloses(span: ReferenceSpan) -> bool:
+            return span.start <= feature.start and feature.end <= span.end
+
+        return self._matching(feature, encloses, stranded=stranded, every=False)
 
     def enclosed_by(
         self, feature: ReferenceSpan, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
-        """Yields all the overlapping features that are enclosed by the given query feature."""
-        for overlap in self.overlapping(feature, stranded=stranded):
-            span = next(overlap.territory())
-            if feature.start <= span.start and feature.end >= span.end:
-                yield overlap
+        """Yields all the features with every span of their territory enclosed by the query."""
+
+        def is_enclosed(span: ReferenceSpan) -> bool:
+            return feature.start <= span.start and span.end <= feature.end
+
+        return self._matching(feature, is_enclosed, stranded=stranded, every=True)
+
+    def _matching(
+        self,
+        feature: ReferenceSpan,
+        test: Callable[[ReferenceSpan], bool],
+        *,
+        stranded: bool,
+        every: bool,
+    ) -> Iterator[IntervalBedType]:
+        """Yield the features near a query whose spans pass a test, any or every one of them."""
+        strand = _strand(feature)
+        if stranded and strand is None:
+            return
+        start, end = _closed(feature)
+        lines = self._reader.query(feature.refname, max(start - 1, 0), end + 2)
+        text = StringIO("".join(f"{line}\n" for line in lines))
+        for record in BedReader[self._record_type](text):  # type: ignore[name-defined]
+            passed = (
+                span.refname == feature.refname
+                and test(span)
+                and (not stranded or _span_strand(span, record) is strand)
+                for span in record.territory()
+            )
+            if all(passed) if every else any(passed):
+                yield record
+
+
+def _span_strand(span: ReferenceSpan, record: Any) -> BedStrand | None:
+    """Return the strand of a span of a record's territory, or the record's if it has none."""
+    strand = _strand(span)
+    return _strand(record) if strand is None else strand

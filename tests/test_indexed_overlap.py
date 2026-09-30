@@ -1,12 +1,40 @@
+from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from pybgzf import IndexFormat
+from typing_extensions import override
 
 from bedspec import Bed3
+from bedspec import Bed6
 from bedspec import BedPE
+from bedspec import BedStrand
 from bedspec import BedWriter
+from bedspec import ReferenceSpan
 from bedspec.overlap import TabixDetector
+
+
+@dataclass(frozen=True)
+class Blocked(Bed3):
+    """A BED3 whose territory is only its first and last ten bases."""
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield the first and last ten bases of this feature."""
+        yield Bed3(self.refname, start=self.start, end=self.start + 10)
+        yield Bed3(self.refname, start=self.end - 10, end=self.end)
+
+
+@dataclass(frozen=True)
+class Blocked6(Bed6):
+    """A BED6 whose territory is only its first and last ten bases, without a strand."""
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield the first and last ten bases of this feature."""
+        yield Bed3(self.refname, start=self.start, end=self.start + 10)
+        yield Bed3(self.refname, start=self.end - 10, end=self.end)
 
 
 def write_sorted(path: Path, records: list[Bed3], index: IndexFormat) -> None:
@@ -79,3 +107,50 @@ def test_a_paired_bed_cannot_be_queried(tmp_path: Path) -> None:
     with pytest.raises(TypeError, match="BedPE"):
         with TabixDetector[BedPE](path):  # type: ignore[type-var]  # pyright: ignore[reportInvalidTypeArguments]
             pass
+
+
+def test_every_span_of_a_territory_is_found_and_the_gap_between_them_is_not(
+    tmp_path: Path,
+) -> None:
+    """Test that a query of any span of a feature's territory finds it, and a gap does not."""
+    blocked = Blocked("chr1", start=0, end=100)
+    path = tmp_path / "features.bed.gz"
+    with BedWriter.from_path[Blocked](path, index=IndexFormat.TBI) as writer:
+        writer.write(blocked)
+
+    with TabixDetector[Blocked](path) as detector:
+        assert list(detector.overlapping(Bed3("chr1", start=5, end=6))) == [blocked]
+        assert list(detector.overlapping(Bed3("chr1", start=95, end=96))) == [blocked]
+        assert list(detector.overlapping(Bed3("chr1", start=0, end=100))) == [blocked]
+        assert list(detector.overlapping(Bed3("chr1", start=40, end=60))) == []
+        assert list(detector.enclosing(Bed3("chr1", start=92, end=98))) == [blocked]
+        assert list(detector.enclosing(Bed3("chr1", start=5, end=95))) == []
+
+
+def test_a_feature_is_enclosed_only_when_every_span_of_its_territory_is(tmp_path: Path) -> None:
+    """Test that enclosed_by needs every span of a feature's territory inside the query."""
+    blocked = Blocked("chr1", start=0, end=100)
+    path = tmp_path / "features.bed.gz"
+    with BedWriter.from_path[Blocked](path, index=IndexFormat.TBI) as writer:
+        writer.write(blocked)
+
+    with TabixDetector[Blocked](path) as detector:
+        assert list(detector.enclosed_by(Bed3("chr1", start=0, end=20))) == []
+        assert list(detector.enclosed_by(Bed3("chr1", start=80, end=100))) == []
+        assert list(detector.enclosed_by(Bed3("chr1", start=0, end=100))) == [blocked]
+
+
+def test_a_span_without_a_strand_takes_the_strand_of_its_feature(tmp_path: Path) -> None:
+    """Test that a stranded query compares a strandless span with its feature's strand."""
+    blocked = Blocked6("chr1", start=0, end=100, name="a", score=0, strand=BedStrand.Positive)
+    path = tmp_path / "features.bed.gz"
+    with BedWriter.from_path[Blocked6](path, index=IndexFormat.TBI) as writer:
+        writer.write(blocked)
+
+    same = Bed6("chr1", start=95, end=96, name="q", score=0, strand=BedStrand.Positive)
+    other = Bed6("chr1", start=95, end=96, name="q", score=0, strand=BedStrand.Negative)
+    with TabixDetector[Blocked6](path) as detector:
+        assert list(detector.overlapping(same, stranded=True)) == [blocked]
+        assert list(detector.overlapping(other, stranded=True)) == []
+        whole = Bed6("chr1", start=0, end=100, name="q", score=0, strand=BedStrand.Positive)
+        assert list(detector.enclosed_by(whole, stranded=True)) == [blocked]
