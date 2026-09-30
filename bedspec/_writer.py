@@ -1,3 +1,4 @@
+import warnings
 from inspect import unwrap
 from io import StringIO
 from pathlib import Path
@@ -45,6 +46,18 @@ class BedWriter(TsvWriter[BedType]):
         _ = options.setdefault("quoting", False)
         super().__init__(handle, **options)
         self._indexed: bool = False
+
+    @override
+    def write(self, record: BedType) -> None:
+        """Write a record, warning when it is indexed where no index query can return it."""
+        if self._indexed and getattr(record, "end", None) == 0:
+            warnings.warn(
+                "A zero-length feature at the start of a reference is never returned by an index"
+                + f" query: {record!r}",
+                UserWarning,
+                stacklevel=2,
+            )
+        super().write(record)
 
     @override
     def write_comment(self, comment: str | Comment) -> None:

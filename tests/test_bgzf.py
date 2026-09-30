@@ -1,5 +1,6 @@
 import bz2
 import gzip
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -278,3 +279,38 @@ def test_an_index_accepts_records_that_start_together(
     assert (tmp_path / f"test.bed.gz{suffix}").is_file()
     with IndexedReader(path) as reader:
         assert len(list(reader.query("chr1", 5, 6))) == 2
+
+
+@pytest.mark.parametrize("index", list(IndexFormat))
+def test_indexing_a_zero_length_feature_at_the_start_of_a_reference_warns(
+    index: IndexFormat, tmp_path: Path
+) -> None:
+    """Test that indexing a zero-length feature at position 0 warns, since no query finds it."""
+    feature = Bed3(refname="chr1", start=0, end=0)
+
+    with (
+        BedWriter.from_path[Bed3](tmp_path / "test.bed.gz", index=index) as writer,
+        pytest.warns(UserWarning, match="never returned by an index query"),
+    ):
+        writer.write(feature)
+
+
+@pytest.mark.parametrize(
+    "index,feature",
+    [
+        (None, Bed3(refname="chr1", start=0, end=0)),
+        (IndexFormat.TBI, Bed3(refname="chr1", start=5, end=5)),
+        (IndexFormat.TBI, Bed3(refname="chr1", start=0, end=1)),
+        (IndexFormat.TBI, Bed2(refname="chr1", start=0)),
+    ],
+)
+def test_features_an_index_can_find_are_written_without_a_warning(
+    index: IndexFormat | None, feature: Bed2 | Bed3, tmp_path: Path
+) -> None:
+    """Test that only a zero-length feature at position 0 of an indexed file warns."""
+    with (
+        warnings.catch_warnings(),
+        BedWriter.from_path[type(feature)](tmp_path / "test.bed.gz", index=index) as writer,
+    ):
+        warnings.simplefilter("error")
+        writer.write(feature)

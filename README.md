@@ -98,6 +98,8 @@ Query an indexed file on disk with the same operations as the [overlap detector]
 
 ```
 
+No index query returns a zero-length feature at the start of a reference, so writing one to an indexed file warns.
+
 ### BED Types
 
 This package provides builtin classes for the following BED formats:

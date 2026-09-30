@@ -33,7 +33,8 @@ def test_zero_length_features_overlap_the_bases_beside_them(tmp_path: Path) -> N
 def test_a_zero_length_feature_at_the_start_of_a_reference_is_never_found(tmp_path: Path) -> None:
     """Test that a zero-length feature at position 0 is not found, as tabix never returns it."""
     path = tmp_path / "features.bed.gz"
-    write_sorted(path, [Bed3("chr1", start=0, end=0)], IndexFormat.TBI)
+    with pytest.warns(UserWarning, match="never returned by an index query"):
+        write_sorted(path, [Bed3("chr1", start=0, end=0)], IndexFormat.TBI)
 
     with TabixDetector[Bed3](path) as detector:
         assert not detector.overlaps(Bed3("chr1", start=0, end=1))
