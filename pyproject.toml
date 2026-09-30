@@ -60,8 +60,8 @@ only-include = ["bedspec", "tests", "typings", "README.md", "CONTRIBUTING.md", "
 # caught before it can be locked. Must stay >= the Dependabot `cooldown` in
 # .github/dependabot.yml, or Dependabot will propose versions that can't lock.
 exclude-newer = "1 week"
-# typeline is released alongside bedspec, so its new releases are allowed right away.
-exclude-newer-package = { typeline = false }
+# superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
+exclude-newer-package = { superintervals = false, typeline = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"
