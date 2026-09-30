@@ -139,6 +139,24 @@ The overlap detector supports the following operations:
 
 A zero-length feature overlaps the features that hold either base beside it.
 
+Each operation takes `stranded=True` to find only features on the same strand as the query.
+For the opposite strand, flip the query's strand with `dataclasses.replace`:
+
+```pycon
+>>> from dataclasses import replace
+>>> from bedspec import Bed6, BedStrand
+>>>
+>>> plus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Positive)
+>>> minus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Negative)
+>>> stranded = OverlapDetector[Bed6]([plus, minus])
+>>>
+>>> list(stranded.overlapping(plus, stranded=True)) == [plus]
+True
+>>> list(stranded.overlapping(replace(plus, strand=plus.strand.opposite()), stranded=True)) == [minus]
+True
+
+```
+
 ### Custom BED Types
 
 To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).

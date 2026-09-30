@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from collections.abc import Iterator
 from itertools import chain
+from typing import Any
 from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
@@ -9,6 +10,7 @@ from typing import TypeVar
 from superintervals import IntervalMap
 from typing_extensions import override
 
+from bedspec._bedspec import BedStrand
 from bedspec._bedspec import ReferenceSpan
 
 ReferenceSpanType = TypeVar("ReferenceSpanType", bound=ReferenceSpan)
@@ -19,6 +21,12 @@ Refname: TypeAlias = str
 
 IntervalTree: TypeAlias = IntervalMap
 """A type alias for the untyped interval map."""
+
+
+def _strand(feature: Any) -> BedStrand | None:
+    """Return the strand of a feature, or None if it has none."""
+    strand: BedStrand | None = getattr(feature, "strand", None)
+    return strand
 
 
 def _closed(feature: ReferenceSpan) -> tuple[int, int]:
@@ -39,6 +47,9 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
       * `end`: A 0-based half-open end position
 
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
+
+    Every query may be limited to features on the same strand as the query with `stranded=True`.
+    A feature without a strand never matches a stranded query.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
     """
@@ -65,7 +76,9 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             self._refname_to_tree[refname].add(*_closed(feature), feature_index)
             self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
 
-    def overlapping(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
+    def overlapping(
+        self, feature: ReferenceSpan, *, stranded: bool = False
+    ) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features for a given query feature."""
         refname: Refname = feature.refname
 
@@ -76,22 +89,36 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             self._refname_to_tree[refname].build()
             self._refname_to_is_indexed[refname] = True
 
-        index: int
-        for index in self._refname_to_tree[refname].search_values(*_closed(feature)):
-            yield self._refname_to_features[refname][index]
+        features = self._refname_to_features[refname]
+        indices: list[int] = self._refname_to_tree[refname].search_values(*_closed(feature))
+        if not stranded:
+            for index in indices:
+                yield features[index]
+            return
 
-    def overlaps(self, feature: ReferenceSpan) -> bool:
+        strand = _strand(feature)
+        if strand is None:
+            return
+        for index in indices:
+            if _strand(features[index]) is strand:
+                yield features[index]
+
+    def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
-        return next(self.overlapping(feature), None) is not None
+        return next(self.overlapping(feature, stranded=stranded), None) is not None
 
-    def enclosing(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
+    def enclosing(
+        self, feature: ReferenceSpan, *, stranded: bool = False
+    ) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features that completely enclose the given query feature."""
-        for overlap in self.overlapping(feature):
+        for overlap in self.overlapping(feature, stranded=stranded):
             if feature.start >= overlap.start and feature.end <= overlap.end:
                 yield overlap
 
-    def enclosed_by(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
+    def enclosed_by(
+        self, feature: ReferenceSpan, *, stranded: bool = False
+    ) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features that are enclosed by the given query feature."""
-        for overlap in self.overlapping(feature):
+        for overlap in self.overlapping(feature, stranded=stranded):
             if feature.start <= overlap.start and feature.end >= overlap.end:
                 yield overlap
