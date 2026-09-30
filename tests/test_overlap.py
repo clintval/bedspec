@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import replace
 from random import Random
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,6 +14,7 @@ from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed6
+from bedspec import BedLike
 from bedspec import BedPE
 from bedspec import BedStrand
 from bedspec import ReferenceSpan
@@ -65,6 +67,19 @@ class Hollow(Bed3):
     def territory(self) -> Iterator[ReferenceSpan]:
         """Yield no spans."""
         yield from ()
+
+
+@dataclass(frozen=True)
+class Multi(BedLike):
+    """A record of any spans on any references, with a strand of its own."""
+
+    parts: tuple[Bed3 | Bed6, ...]
+    strand: BedStrand | None
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield the parts of this record."""
+        yield from self.parts
 
 
 @dataclass
@@ -529,3 +544,116 @@ def test_adding_a_feature_without_spans_is_refused() -> None:
 
     assert list(detector) == []
     assert not detector.overlaps(Bed3(refname="chr1", start=0, end=100))
+
+
+STRANDS = (BedStrand.Positive, BedStrand.Negative, None)
+
+
+def random_span(rng: Random) -> Bed3 | Bed6:
+    """Return a short, possibly zero-length, span on a random strand, or on none."""
+    refname, start = rng.choice(("chr1", "chr2")), rng.randrange(60)
+    end = start + rng.choice((0, 0, 1, 2, 5, 15))
+    if rng.random() < 0.4:
+        return Bed3(refname=refname, start=start, end=end)
+    strand = rng.choice(STRANDS)
+    return Bed6(refname=refname, start=start, end=end, name=None, score=None, strand=strand)
+
+
+def random_feature(rng: Random) -> Bed2 | Bed3 | Bed6 | BedPE | Multi:
+    """Return a random span, point, pair, blocked record, or record of one to three spans."""
+    kind = rng.randrange(5)
+    start = rng.randrange(60)
+    if kind == 0:
+        return random_span(rng)
+    if kind == 1:
+        return Bed2(refname=rng.choice(("chr1", "chr2")), start=start)
+    if kind == 2:
+        return Blocked(refname=rng.choice(("chr1", "chr2")), start=start, end=start + 10)
+    if kind == 3:
+        return Multi(
+            tuple(random_span(rng) for _ in range(rng.randrange(1, 4))), rng.choice(STRANDS)
+        )
+    first, second = random_span(rng), random_span(rng)
+    return BedPE(
+        refname1=first.refname,
+        start1=first.start,
+        end1=first.end,
+        refname2=second.refname,
+        start2=second.start,
+        end2=second.end,
+        name=None,
+        score=None,
+        strand1=rng.choice(STRANDS),
+        strand2=rng.choice(STRANDS),
+    )
+
+
+def random_query(rng: Random) -> Bed6:
+    """Return a possibly zero-length query on one of three references, on a strand or none."""
+    refname, start = rng.choice(("chr1", "chr2", "chr3")), rng.randrange(70)
+    end = start + rng.choice((0, 0, 1, 3, 10, 30, 80))
+    strand = rng.choice(STRANDS)
+    return Bed6(refname=refname, start=start, end=end, name=None, score=None, strand=strand)
+
+
+def closed(span: ReferenceSpan) -> tuple[int, int]:
+    """Return the closed interval of bases a span covers, or flanks if it is zero-length."""
+    if span.start == span.end:
+        return max(span.start - 1, 0), span.start
+    return span.start, span.end - 1
+
+
+def span_strand(span: ReferenceSpan, feature: Any) -> BedStrand | None:
+    """Return the strand of a span, or of its feature if the span has none."""
+    strand: BedStrand | None = getattr(span, "strand", None) or getattr(feature, "strand", None)
+    return strand
+
+
+def expected(features: list[Any], query: Bed6, stranded: bool) -> dict[str, list[Any]]:
+    """Return the features each query method should find, by checking every span of each."""
+    found: dict[str, list[Any]] = {"overlapping": [], "enclosing": [], "enclosed_by": []}
+    start, end = closed(query)
+    for feature in features:
+        every = list(feature.territory()) if isinstance(feature, BedLike) else [feature]
+        spans = [
+            span
+            for span in every
+            if span.refname == query.refname
+            and (
+                not stranded
+                or query.strand is not None
+                and span_strand(span, feature) is query.strand
+            )
+        ]
+        if any(closed(span)[0] <= end and start <= closed(span)[1] for span in spans):
+            found["overlapping"].append(feature)
+        if any(span.start <= query.start and query.end <= span.end for span in spans):
+            found["enclosing"].append(feature)
+        if len(spans) == len(every) and all(
+            query.start <= span.start and span.end <= query.end for span in spans
+        ):
+            found["enclosed_by"].append(feature)
+    return found
+
+
+def test_queries_agree_with_checking_every_span_of_random_features() -> None:
+    """Test that every query agrees with checking every span of random features, in batches."""
+    rng = Random(42)
+    for _ in range(300):
+        detector: TreeDetector[Any] = TreeDetector()
+        added: list[Any] = []
+        for _ in range(rng.randrange(1, 4)):
+            batch = [random_feature(rng) for _ in range(rng.randrange(8))]
+            if added and rng.random() < 0.2:
+                batch.append(rng.choice(added))
+            detector.add(*batch)
+            added.extend(batch)
+            assert list(map(id, detector)) == list(map(id, added))
+            for _ in range(10):
+                query = random_query(rng)
+                for stranded in (False, True):
+                    found = expected(added, query, stranded)
+                    for method, features in found.items():
+                        result = getattr(detector, method)(query, stranded=stranded)
+                        assert Counter(map(id, result)) == Counter(map(id, features))
+                    assert detector.overlaps(query, stranded=stranded) is bool(found["overlapping"])
