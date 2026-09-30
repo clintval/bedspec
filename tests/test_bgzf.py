@@ -106,6 +106,34 @@ def test_threads_need_a_bgzf_path(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
 
 
+def test_an_index_path_needs_a_bgzf_path(tmp_path: Path) -> None:
+    """Test that an index path is refused, before any file is made, unless the path is BGZF."""
+    with pytest.raises(ValueError, match=r"\.gz or \.bgz"):
+        _ = BedWriter.from_path[Bed3](
+            tmp_path / "test.bed", index=IndexFormat.TBI, index_path=tmp_path / "test.tbi"
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_index_path_needs_an_index(tmp_path: Path) -> None:
+    """Test that an index path without an index is refused, before any file is made."""
+    with pytest.raises(ValueError, match="index_path needs an index"):
+        _ = BedWriter.from_path[Bed3](tmp_path / "test.bed.gz", index_path=tmp_path / "test.tbi")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_index_is_written_to_an_index_path(tmp_path: Path) -> None:
+    """Test that an index may be written anywhere, and found there."""
+    path = tmp_path / "test.bed.gz"
+    index_path = tmp_path / "elsewhere.tbi"
+    with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI, index_path=index_path) as writer:
+        writer.write(BEDS[0])
+
+    assert sorted(tmp_path.iterdir()) == [index_path, path]
+    with IndexedReader(path, index_path=index_path) as reader:
+        assert list(reader.query("chr1", 0, 10)) == ["chr1\t1\t5"]
+
+
 def test_a_paired_bed_cannot_be_indexed(tmp_path: Path) -> None:
     """Test that an index of BEDPE is refused, before any file is made."""
     with pytest.raises(ValueError, match="BedPE"):

@@ -78,6 +78,7 @@ class BedWriter(TsvWriter[BedType]):
         /,
         *,
         index: IndexFormat | None = None,
+        index_path: Path | str | None = None,
         threads: int = 1,
         **options: Unpack[WriterOptions],
     ) -> Self:
@@ -93,20 +94,26 @@ class BedWriter(TsvWriter[BedType]):
         Args:
             path: the path to the file to write BED to.
             index: the kind of index to write beside a BGZF file, or None to write none.
+            index_path: where to write the index, instead of beside the file; required when the
+                file is not a regular file, such as a FIFO.
             threads: the number of threads compressing a BGZF file.
             options: the options of the writer, with BED defaults for any not given.
         """
         path = Path(path).expanduser()
         if path.suffix not in BGZF_SUFFIXES:
-            if index is not None or threads != 1:
+            if index is not None or index_path is not None or threads != 1:
                 raise ValueError(
                     f"An index and threads need a BGZF path ending in .gz or .bgz, not: {path}"
                 )
             plain: Self = unwrap(super().from_path)(cls, path, **options)
             return plain
+        if index is None and index_path is not None:
+            raise ValueError(f"An index_path needs an index, but none was asked for: {index_path}")
         _ = cls(StringIO(), **options)
         columns = cls._index_columns() if index is not None else None
-        handle = pybgzf.open_writer(path, columns=columns, index=index, newline="", threads=threads)
+        handle = pybgzf.open_writer(
+            path, columns=columns, index=index, index_path=index_path, newline="", threads=threads
+        )
         if index is not None:
             # Hand each line to the indexer as it is written, so a record out of order fails there.
             handle.reconfigure(write_through=True)
