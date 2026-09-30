@@ -132,12 +132,12 @@ Use a fast overlap detector for any collection of interval types, including thir
 
 ```pycon
 >>> from bedspec import Bed3, Bed4
->>> from bedspec.overlap import OverlapDetector
+>>> from bedspec.overlap import TreeDetector
 >>>
 >>> bed1 = Bed3("chr1", start=1, end=4)
 >>> bed2 = Bed3("chr1", start=5, end=9)
 >>> 
->>> detector = OverlapDetector[Bed3]([bed1, bed2])
+>>> detector = TreeDetector[Bed3]([bed1, bed2])
 >>> 
 >>> my_feature = Bed4("chr1", start=2, end=3, name="hi-mom")
 >>> detector.overlaps(my_feature)
@@ -163,7 +163,7 @@ For the opposite strand, flip the query's strand with `dataclasses.replace`:
 >>>
 >>> plus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Positive)
 >>> minus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Negative)
->>> stranded = OverlapDetector[Bed6]([plus, minus])
+>>> stranded = TreeDetector[Bed6]([plus, minus])
 >>>
 >>> list(stranded.overlapping(plus, stranded=True)) == [plus]
 True

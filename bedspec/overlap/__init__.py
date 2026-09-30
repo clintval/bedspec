@@ -1,5 +1,5 @@
-from ._overlap import OverlapDetector
+from ._overlap import TreeDetector
 
 __all__ = [
-    "OverlapDetector",
+    "TreeDetector",
 ]

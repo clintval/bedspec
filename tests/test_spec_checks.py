@@ -10,7 +10,7 @@ from bedspec import Bed6
 from bedspec import Bed12
 from bedspec import BedPE
 from bedspec import BedStrand
-from bedspec.overlap import OverlapDetector
+from bedspec.overlap import TreeDetector
 
 
 def bed12(**fields: Any) -> Bed12:
@@ -185,7 +185,7 @@ def test_overlap_detector_finds_zero_length_features_by_their_flanking_bases() -
     right = Bed3(refname="chr1", start=5, end=9)
     away = Bed3(refname="chr1", start=6, end=9)
     insertion = Bed3(refname="chr1", start=5, end=5)
-    detector: OverlapDetector[Bed3] = OverlapDetector([left, right, away])
+    detector: TreeDetector[Bed3] = TreeDetector([left, right, away])
     assert set(detector.overlapping(insertion)) == {left, right}
     assert set(detector.enclosing(insertion)) == {left, right}
 
@@ -194,7 +194,7 @@ def test_overlap_detector_holds_zero_length_features() -> None:
     """Test that zero-length features can be added and found."""
     insertion = Bed3(refname="chr1", start=5, end=5)
     at_start = Bed3(refname="chr1", start=0, end=0)
-    detector: OverlapDetector[Bed3] = OverlapDetector([insertion, at_start])
+    detector: TreeDetector[Bed3] = TreeDetector([insertion, at_start])
     assert set(detector.overlapping(Bed3(refname="chr1", start=4, end=5))) == {insertion}
     assert set(detector.overlapping(Bed3(refname="chr1", start=5, end=6))) == {insertion}
     assert set(detector.overlapping(Bed3(refname="chr1", start=6, end=9))) == set()

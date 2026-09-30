@@ -36,7 +36,7 @@ def _closed(feature: ReferenceSpan) -> tuple[int, int]:
     return feature.start, feature.end - 1
 
 
-class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
+class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
     The overlap detector may be built with any feature-like Python object that has the following

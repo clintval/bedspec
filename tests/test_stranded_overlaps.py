@@ -3,7 +3,7 @@ from dataclasses import replace
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
-from bedspec.overlap import OverlapDetector
+from bedspec.overlap import TreeDetector
 
 PLUS = Bed6(refname="chr1", start=1, end=9, name="plus", score=None, strand=BedStrand.Positive)
 MINUS = Bed6(refname="chr1", start=1, end=9, name="minus", score=None, strand=BedStrand.Negative)
@@ -12,9 +12,9 @@ BED3 = Bed3(refname="chr1", start=1, end=9)
 QUERY = Bed6(refname="chr1", start=2, end=3, name=None, score=None, strand=BedStrand.Positive)
 
 
-def detector() -> OverlapDetector[Bed3 | Bed6]:
+def detector() -> TreeDetector[Bed3 | Bed6]:
     """Build a detector holding a feature on each strand, one without a strand, and a BED3."""
-    return OverlapDetector([PLUS, MINUS, UNSTRANDED, BED3])
+    return TreeDetector([PLUS, MINUS, UNSTRANDED, BED3])
 
 
 def test_strands_are_ignored_by_default() -> None:
