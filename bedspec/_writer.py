@@ -27,5 +27,6 @@ class BedWriter(TsvWriter[BedType]):
         """
         _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
+        _ = options.setdefault("quoting", False)
         _ = options.setdefault("comment_prefixes", BED_COMMENT_PREFIXES)
         super().__init__(handle, **options)

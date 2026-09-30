@@ -26,4 +26,5 @@ class BedReader(TsvReader[BedType]):
         _ = options.setdefault("comment_prefixes", COMMENT_PREFIXES)
         _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
+        _ = options.setdefault("quoting", False)
         super().__init__(handle, **options)
