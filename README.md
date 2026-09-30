@@ -69,19 +69,36 @@ Bed3(refname='chr1', start=2, end=8)
 
 ```
 
-### Compressed BED
+### Compressed and Indexed BED
 
-A path ending in `.gz` is written compressed, and a compressed file is read by its contents.
+A path ending in `.gz` or `.bgz` is written as BGZF, which any gzip reader can read, and a compressed file is read by its contents.
+Ask for a tabix or CSI index to have one written beside the file, with features sorted by reference and start.
 
 ```pycon
->>> with BedWriter.from_path[Bed3](f"{temp_file.name}.gz") as writer:
-...     writer.write(bed)
+>>> from pybgzf import IndexFormat
+>>>
+>>> with BedWriter.from_path[Bed3](f"{temp_file.name}.gz", index=IndexFormat.TBI, threads=4) as writer:
+...     writer.write(Bed3("chr1", start=2, end=8))
+...     writer.write(Bed3("chr1", start=6, end=9))
 >>>
 >>> with BedReader.from_path[Bed3](f"{temp_file.name}.gz") as reader:
 ...     print(list(reader))
-[Bed3(refname='chr1', start=2, end=8)]
+[Bed3(refname='chr1', start=2, end=8), Bed3(refname='chr1', start=6, end=9)]
 
 ```
+
+Query an indexed file on disk with the same operations as the [overlap detector](#overlap-detection):
+
+```pycon
+>>> from bedspec.overlap import TabixDetector
+>>>
+>>> with TabixDetector[Bed3](f"{temp_file.name}.gz") as detector:
+...     print(list(detector.enclosing(Bed3("chr1", start=7, end=8))))
+[Bed3(refname='chr1', start=2, end=8), Bed3(refname='chr1', start=6, end=9)]
+
+```
+
+No index query returns a zero-length feature at the start of a reference, so writing one to an indexed file warns.
 
 ### BED Types
 

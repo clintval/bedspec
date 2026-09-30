@@ -11,6 +11,7 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P1W"
 
 [options.exclude-newer-package]
+pybgzf = false
 superintervals = false
 typeline = false
 
@@ -95,6 +96,7 @@ name = "bedspec"
 version = "2.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "pybgzf" },
     { name = "superintervals" },
     { name = "typeline" },
     { name = "typing-extensions" },
@@ -108,14 +110,16 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-doctestplus" },
+    { name = "pytest-timeout" },
     { name = "ruff" },
     { name = "validate-pyproject", extra = ["all"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "pybgzf", specifier = ">=0.1.1" },
     { name = "superintervals", specifier = ">=1.0.2" },
-    { name = "typeline", specifier = ">=2.0" },
+    { name = "typeline", specifier = ">=2.2.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
@@ -127,6 +131,7 @@ dev = [
     { name = "pytest", specifier = "~=9.1" },
     { name = "pytest-cov", specifier = "~=7.1" },
     { name = "pytest-doctestplus", specifier = "~=1.7" },
+    { name = "pytest-timeout", specifier = "~=2.4" },
     { name = "ruff", specifier = "~=0.16" },
     { name = "validate-pyproject", extras = ["all"], specifier = "~=0.26" },
 ]
@@ -614,6 +619,24 @@ wheels = [
 ]
 
 [[package]]
+name = "pybgzf"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b7/d0c19c6b2cabe693315addc98e3f93929b38696c109b1c21e689aa926f13/pybgzf-0.1.1.tar.gz", hash = "sha256:4ff21a23f2dbabd0f953c1091aeb6b086869853859ef841eba0cb0f094ca9cf2", size = 145909, upload-time = "2026-09-30T18:19:17.935Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/63/48/364320e88d7faabd6c29c3c9a75d11a31cf5c45760ca049ed5a7e49d6edc/pybgzf-0.1.1-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:fb618f0713a6fe03778daa1fd559ec3d0c328928206827823814ed89e62d2af4", size = 557563, upload-time = "2026-09-30T18:19:06.913Z" },
+    { url = "https://files.pythonhosted.org/packages/07/c6/eb1266cad3e7a9d6ff944688a03a5a8c540f4fde58765775b49eed54691b/pybgzf-0.1.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:23f8a768cdcbdcc13695c22a36e364831a3c6224f0838c4870ef5ac9188ecfec", size = 532820, upload-time = "2026-09-30T18:19:08.625Z" },
+    { url = "https://files.pythonhosted.org/packages/15/20/bff1574c221b827a816b3b9b8f206fdf79478d2171660e4a99cbcaed8185/pybgzf-0.1.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1aae2b8a6aaf9352d33e4e641dd77583bf211a559cec496b336097d367593d58", size = 613490, upload-time = "2026-09-30T18:19:10.473Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/d4/33a9a1636e89780f6c2c3a868b20bca92649bc53d6a1ccc03d6c0cb67c62/pybgzf-0.1.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:4b52d5dbebe86f86ce3391b9ee15d6700912a50b106895fa6a7668fec2b00a4a", size = 606138, upload-time = "2026-09-30T18:19:11.98Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/16/ac3b1cfb55441e54159d78b1a3294bdc0e63932166a9b28f96b92b30eeb9/pybgzf-0.1.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:575e47e252cf7d3a30f2bef932fd517fbd8aeea1e89be457e0284b62315a84eb", size = 780084, upload-time = "2026-09-30T18:19:13.402Z" },
+    { url = "https://files.pythonhosted.org/packages/06/e1/1acc7e5ae56d494d14d155ef446d3a3fd740370a2fead6753b06a9063ad9/pybgzf-0.1.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:25c3400d4cd8935f0f1fbc6a71a06aab2b3ba4ae116c09485f13dcc933d8a0ee", size = 828068, upload-time = "2026-09-30T18:19:14.9Z" },
+    { url = "https://files.pythonhosted.org/packages/57/24/1a11cafa50dc2b0711b00e275b97d65d3e632f720982830e5a034a85a390/pybgzf-0.1.1-cp311-abi3-win_amd64.whl", hash = "sha256:e82cf94e0285c158a220ad60c3e6f3cf9bf3c25e140d2b648a87a01b0657bf00", size = 453885, upload-time = "2026-09-30T18:19:16.494Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -663,6 +686,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/59/43/6db18218cdfa15bd03cba3292345223925011ba7428e6183da97c6b1dcb1/pytest_doctestplus-1.7.1.tar.gz", hash = "sha256:64ae16dbda66c3db775ef596828d8d7adda09c6f34dd85099c119e4ff8cfe5b6", size = 50286, upload-time = "2026-01-26T22:13:46.54Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/72/8e70c7c3238cba0afa8dbef94a1ce7d88ecd0fab3d8d0da394a1c3964a41/pytest_doctestplus-1.7.1-py3-none-any.whl", hash = "sha256:18c0ff78d7ad08a15f415b153b3c407078c8a8c055ceb9055b5c7be5eb7c80be", size = 25567, upload-time = "2026-01-26T22:13:45.148Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
 ]
 
 [[package]]
@@ -819,15 +854,15 @@ wheels = [
 
 [[package]]
 name = "typeline"
-version = "2.0.0"
+version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "msgspec" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/d3/38d19a467a97461cbe664b9ca3507326641ba4fd60d6a98f323972137d9b/typeline-2.0.0.tar.gz", hash = "sha256:89388118a4d58c93a6770cef9de668e1fceca8b33c3ab06780b4c9e2f7a24451", size = 47530, upload-time = "2026-09-30T01:32:26.578Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/e4/d13ae9601e4ca9db8314623b8669c3d2c012005d5bb1cefdcec8e306f86e/typeline-2.2.0.tar.gz", hash = "sha256:1dd08ed93147f6116af819d500ed2f9582f10a07d32b548073adebe6b4693b05", size = 53717, upload-time = "2026-09-30T16:02:49.342Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/bf/7f11724917d6ba6e976a76d1f244863701fa9bc720447ae700ea361c1cef/typeline-2.0.0-py3-none-any.whl", hash = "sha256:bb9541fc8fb62813e2f719f68caa3c7e6517dd41f422d3e8dec9bbb2b212475f", size = 25002, upload-time = "2026-09-30T01:32:25.019Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/00/51887658432a9ee0cb9072b724807463529f77b316639e75411dd5d2e2c4/typeline-2.2.0-py3-none-any.whl", hash = "sha256:2102e52d2ec0c6a0656bb538753ef38ce6ebe2535c4cb07b0c85a03a06855093", size = 26740, upload-time = "2026-09-30T16:02:48.104Z" },
 ]
 
 [[package]]
