@@ -4,12 +4,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from typeline import TsvReader
+from typeline import TsvWriter
 
 from bedspec import Bed6
 from bedspec import Bed9
 from bedspec import Bed9N
 from bedspec import Bed12
 from bedspec import BedColor
+from bedspec import BedLike
 from bedspec import BedReader
 from bedspec import BedStrand
 from bedspec import BedWriter
@@ -18,12 +21,15 @@ from bedspec import GappedPeak
 from bedspec import NarrowPeak
 
 
-def roundtrip(record: Any, text: str, tmp_path: Path) -> None:
+def roundtrip(record: BedLike, text: str, tmp_path: Path) -> None:
     """Assert that a record is written as the given text and read back as itself."""
-    with BedWriter.from_path[type(record)](tmp_path / "test.bed") as writer:
+    record_type = type(record)
+    writer: TsvWriter[Any] = BedWriter.from_path[record_type](tmp_path / "test.bed")
+    with writer:
         writer.write(record)
     assert (tmp_path / "test.bed").read_text() == text
-    with BedReader.from_path[type(record)](tmp_path / "test.bed") as reader:
+    reader: TsvReader[Any] = BedReader.from_path[record_type](tmp_path / "test.bed")
+    with reader:
         assert list(reader) == [record]
 
 
@@ -46,7 +52,7 @@ def test_bed9_roundtrips(tmp_path: Path) -> None:
 def test_bed9_checks_its_thick_bounds() -> None:
     """Test that a BED9 record checks its thick part like a BED12 record does."""
     with pytest.raises(ValueError, match="thick_start and thick_end must satisfy"):
-        Bed9(
+        _ = Bed9(
             refname="chr1",
             start=2,
             end=10,
@@ -102,7 +108,7 @@ def test_narrow_peak_reads_encode_text() -> None:
 def test_narrow_peak_must_sit_within_the_feature(peak: int) -> None:
     """Test that a narrowPeak's summit must be -1 or an offset within the feature."""
     with pytest.raises(ValueError, match="peak must be -1 or an offset within the feature!"):
-        NarrowPeak(
+        _ = NarrowPeak(
             refname="chr1",
             start=0,
             end=100,
@@ -174,4 +180,4 @@ def test_peaks_check_their_score(peak_type: type[Any]) -> None:
     if peak_type is NarrowPeak:
         values["peak"] = -1
     with pytest.raises(ValueError, match="score must be between 0 and 1000!"):
-        peak_type(refname="chr1", start=0, end=5, name=None, score=1001, strand=None, **values)
+        _ = peak_type(refname="chr1", start=0, end=5, name=None, score=1001, strand=None, **values)

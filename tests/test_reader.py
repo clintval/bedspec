@@ -18,7 +18,7 @@ def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
     bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
 
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter[Bed3](handle)
+        writer = BedWriter[Bed3](handle)
         writer.write(bed)
 
     assert Path(tmp_path / "test.bed").read_text() == "chr1\t1\t2\n"
@@ -35,12 +35,12 @@ def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
     bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
 
     with open(tmp_path / "test.bed", "w") as handle:
-        writer: BedWriter = BedWriter[Bed3](handle)
+        writer = BedWriter[Bed3](handle)
         writer.write_comment("track\nthis-is-fine")
         writer.write_comment("browser is mario's enemy?")
         writer.write_comment("hello mom!")
-        handle.write("\n")  # empty line
-        handle.write("  \n")  # empty line
+        _ = handle.write("\n")  # empty line
+        _ = handle.write("  \n")  # empty line
         writer.write(bed)
         writer.write_comment("hello dad!")
 
@@ -52,7 +52,7 @@ def test_bed_reader_can_read_optional_string_types(tmp_path: Path) -> None:
     """Test that the BED reader can read BED records with optional string types."""
     bed: Bed4 = Bed4(refname="chr1", start=1, end=2, name=None)
 
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+    _ = (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
     with open(tmp_path / "test.bed", "r") as handle:
         assert list(BedReader[Bed4](handle)) == [bed]
@@ -62,7 +62,7 @@ def test_bed_reader_can_read_optional_other_types(tmp_path: Path) -> None:
     """Test that the BED reader can read BED records with optional other types."""
     bed: Bed5 = Bed5(refname="chr1", start=1, end=2, name="foo", score=None)
 
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\tfoo\t{MISSING_FIELD}\n")
+    _ = (tmp_path / "test.bed").write_text(f"chr1\t1\t2\tfoo\t{MISSING_FIELD}\n")
 
     with open(tmp_path / "test.bed", "r") as handle:
         assert list(BedReader[Bed5](handle)) == [bed]
@@ -72,7 +72,7 @@ def test_bed_reader_can_be_used_as_context_manager(tmp_path: Path) -> None:
     """Test that the BED reader can be used as a context manager."""
     bed: Bed4 = Bed4(refname="chr1", start=1, end=2, name=None)
 
-    (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
+    _ = (tmp_path / "test.bed").write_text(f"chr1\t1\t2\t{MISSING_FIELD}\n")
 
     with BedReader[Bed4](open(tmp_path / "test.bed")) as reader:
         assert list(reader) == [bed]
@@ -134,7 +134,7 @@ def test_we_can_roundtrip_a_bed_record_without_a_color(tmp_path: Path) -> None:
 
 def test_bed_reader_hands_comments_to_on_comment(tmp_path: Path) -> None:
     """Test that the BED reader hands each comment line, with its line number, to on_comment."""
-    (tmp_path / "test.bed").write_text(
+    _ = (tmp_path / "test.bed").write_text(
         "track name=test\n# made by a tool\nchr1\t1\t2\nbrowser hide all\n"
     )
 

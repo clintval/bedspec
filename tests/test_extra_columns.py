@@ -38,7 +38,7 @@ def test_extended_bed_types_add_extra_columns_to_their_base(
 
 def test_bed_reader_keeps_extra_columns(tmp_path: Path) -> None:
     """Test that the BED reader keeps any columns past a BED6 record as text."""
-    (tmp_path / "test.bed").write_text(
+    _ = (tmp_path / "test.bed").write_text(
         "track name=peaks\nchr1\t1\t2\tpeak1\t0\t+\n\nchr1\t5\t9\tpeak2\t7\t-\t3.2\t.\n"
     )
 
@@ -60,7 +60,7 @@ def test_bed_reader_keeps_extra_columns(tmp_path: Path) -> None:
 def test_extra_columns_round_trip_through_a_bed_file(tmp_path: Path) -> None:
     """Test that extra columns are written back after the BED columns, unchanged."""
     text = "chr1\t1\t2\tpeak1\t0\t+\nchr1\t5\t9\tpeak2\t7\t-\t3.2\t.\n"
-    (tmp_path / "in.bed").write_text(text)
+    _ = (tmp_path / "in.bed").write_text(text)
 
     with (
         BedReader.from_path[Bed6N](tmp_path / "in.bed") as reader,
