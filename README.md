@@ -29,6 +29,9 @@ pip install bedspec
 
 ```
 
+Records are checked against the BED spec when they are built.
+A feature may start where it ends, as an insertion does.
+
 ### Writing
 
 ```pycon
@@ -110,6 +113,8 @@ The overlap detector supports the following operations:
 - `overlaps`: test if any overlapping features exist
 - `enclosed_by`: return those enclosed by the input feature
 - `enclosing`: return those enclosing the input feature
+
+A zero-length feature overlaps the features that hold either base beside it.
 
 ### Custom BED Types
 

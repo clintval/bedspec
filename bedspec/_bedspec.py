@@ -25,6 +25,28 @@ MISSING_FIELD: str = "."
 """The string used to indicate a missing field in a BED record."""
 
 
+def _check_span(refname: str, start: int, end: int, suffix: str = "") -> None:
+    """Check that a span is named, starts at or after 0, and ends at or after its start."""
+    if not refname:
+        raise ValueError(f"refname{suffix} must not be empty!")
+    if start < 0:
+        raise ValueError(f"start{suffix} must be greater than or equal to 0!")
+    if end < start:
+        raise ValueError(f"end{suffix} must be greater than or equal to start{suffix}!")
+
+
+def _check_name(name: str | None) -> None:
+    """Check that a name, if given, is 1 to 255 characters long."""
+    if name is not None and not 1 <= len(name) <= 255:
+        raise ValueError("name must be 1 to 255 characters long!")
+
+
+def _check_score(score: int | None) -> None:
+    """Check that a score, if given, is between 0 and 1000."""
+    if score is not None and not 0 <= score <= 1000:
+        raise ValueError("score must be between 0 and 1000!")
+
+
 @runtime_checkable
 class DataclassInstance(Protocol):
     """A protocol for objects that are dataclass instances."""
@@ -102,6 +124,13 @@ class PointBed(BedLike, ABC):
             raise TypeError("You must annotate custom BED class definitions with @dataclass!")
         return super().__init_subclass__()
 
+    def __post_init__(self) -> None:
+        """Validate this point BED record."""
+        if not self.refname:
+            raise ValueError("refname must not be empty!")
+        if self.start < 0:
+            raise ValueError("start must be greater than or equal to 0!")
+
     @final
     def __len__(self) -> int:
         """The length of this record."""
@@ -128,8 +157,7 @@ class SimpleBed(BedLike, ReferenceSpan, ABC):
 
     def __post_init__(self) -> None:
         """Validate this linear BED record."""
-        if self.start >= self.end or self.start < 0:
-            raise ValueError("start must be greater than 0 and less than end!")
+        _check_span(self.refname, self.start, self.end)
 
     @final
     def __len__(self) -> int:
@@ -160,10 +188,8 @@ class PairBed(BedLike, ABC):
 
     def __post_init__(self) -> None:
         """Validate this pair of BED records."""
-        if self.start1 >= self.end1 or self.start1 < 0:
-            raise ValueError("start1 must be greater than 0 and less than end1!")
-        if self.start2 >= self.end2 or self.start2 < 0:
-            raise ValueError("start2 must be greater than 0 and less than end2!")
+        _check_span(self.refname1, self.start1, self.end1, suffix="1")
+        _check_span(self.refname2, self.start2, self.end2, suffix="2")
 
     @property
     def bed1(self) -> SimpleBed:
@@ -236,6 +262,12 @@ class Bed4(SimpleBed):
     end: int = field(kw_only=True)
     name: str | None = field(kw_only=True)
 
+    @override
+    def __post_init__(self) -> None:
+        """Validate this BED4 record."""
+        super(Bed4, self).__post_init__()
+        _check_name(self.name)
+
 
 @dataclass(slots=True, unsafe_hash=True)
 class Bed5(SimpleBed, Named):
@@ -246,6 +278,13 @@ class Bed5(SimpleBed, Named):
     end: int = field(kw_only=True)
     name: str | None = field(kw_only=True)
     score: int | None = field(kw_only=True)
+
+    @override
+    def __post_init__(self) -> None:
+        """Validate this BED5 record."""
+        super(Bed5, self).__post_init__()
+        _check_name(self.name)
+        _check_score(self.score)
 
 
 @dataclass(slots=True, unsafe_hash=True)
@@ -258,6 +297,13 @@ class Bed6(SimpleBed, Named, Stranded):
     name: str | None = field(kw_only=True)
     score: int | None = field(kw_only=True)
     strand: BedStrand | None = field(kw_only=True)
+
+    @override
+    def __post_init__(self) -> None:
+        """Validate this BED6 record."""
+        super(Bed6, self).__post_init__()
+        _check_name(self.name)
+        _check_score(self.score)
 
 
 @dataclass(slots=True, unsafe_hash=True)
@@ -280,8 +326,16 @@ class Bed12(SimpleBed, Named, Stranded):
     def __post_init__(self) -> None:
         """Validate this BED12 record."""
         super(Bed12, self).__post_init__()
+        _check_name(self.name)
+        _check_score(self.score)
         if (self.thick_start is None) != (self.thick_end is None):
             raise ValueError("thick_start and thick_end must both be None or both be set!")
+        if self.thick_start is not None and self.thick_end is not None:
+            if not self.start <= self.thick_start <= self.thick_end <= self.end:
+                raise ValueError(
+                    "thick_start and thick_end must satisfy"
+                    + " start <= thick_start <= thick_end <= end!"
+                )
         if self.block_count is None:
             if self.block_sizes is not None or self.block_starts is not None:
                 raise ValueError("block_count, block_sizes, block_starts must all be set or unset!")
@@ -298,6 +352,13 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("block_starts must start with 0!")
             if any(size <= 0 for size in self.block_sizes):
                 raise ValueError("All sizes in block_size must be greater than or equal to one!")
+            if any(
+                start < previous + size
+                for previous, size, start in zip(
+                    self.block_starts, self.block_sizes, self.block_starts[1:], strict=False
+                )
+            ):
+                raise ValueError("Blocks must be in ascending order and must not overlap!")
             if (self.start + self.block_starts[-1] + self.block_sizes[-1]) != self.end:
                 raise ValueError("The last defined block's end must be equal to the BED end!")
 
@@ -363,28 +424,33 @@ class BedPE(PairBed, Named):
     strand2: BedStrand | None = field(kw_only=True)
 
     @property
+    def _bed_score(self) -> int | None:
+        """This pair's score if BED can hold it, since a BEDPE score is not limited to 0-1000."""
+        return self.score if self.score is None or 0 <= self.score <= 1000 else None
+
+    @property
     @override
     def bed1(self) -> Bed6:
-        """The first of the two intervals as a BED6 record."""
+        """The first of the two intervals as a BED6 record, without a score BED can't hold."""
         return Bed6(
             refname=self.refname1,
             start=self.start1,
             end=self.end1,
             name=self.name,
-            score=self.score,
+            score=self._bed_score,
             strand=self.strand1,
         )
 
     @property
     @override
     def bed2(self) -> Bed6:
-        """The second of the two intervals as a BED6 record."""
+        """The second of the two intervals as a BED6 record, without a score BED can't hold."""
         return Bed6(
             refname=self.refname2,
             start=self.start2,
             end=self.end2,
             name=self.name,
-            score=self.score,
+            score=self._bed_score,
             strand=self.strand2,
         )
 

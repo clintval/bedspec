@@ -21,6 +21,13 @@ IntervalTree: TypeAlias = IntervalMap
 """A type alias for the untyped interval map."""
 
 
+def _closed(feature: ReferenceSpan) -> tuple[int, int]:
+    """Return the closed interval of bases a feature covers, or flanks if it is zero-length."""
+    if feature.start == feature.end:
+        return max(feature.start - 1, 0), feature.start
+    return feature.start, feature.end - 1
+
+
 class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
@@ -30,6 +37,8 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
       * `refname`: The reference sequence name
       * `start`: A 0-based start position
       * `end`: A 0-based half-open end position
+
+    A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
     """
@@ -53,7 +62,7 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             feature_index: int = len(self._refname_to_features[refname])
 
             self._refname_to_features[refname].append(feature)
-            self._refname_to_tree[refname].add(feature.start, feature.end - 1, feature_index)
+            self._refname_to_tree[refname].add(*_closed(feature), feature_index)
             self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
 
     def overlapping(self, feature: ReferenceSpan) -> Iterator[ReferenceSpanType]:
@@ -68,7 +77,7 @@ class OverlapDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             self._refname_to_is_indexed[refname] = True
 
         index: int
-        for index in self._refname_to_tree[refname].search_values(feature.start, feature.end - 1):
+        for index in self._refname_to_tree[refname].search_values(*_closed(feature)):
             yield self._refname_to_features[refname][index]
 
     def overlaps(self, feature: ReferenceSpan) -> bool:
