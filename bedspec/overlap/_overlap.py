@@ -1,7 +1,7 @@
-from collections import defaultdict
 from collections.abc import Iterable
 from collections.abc import Iterator
-from itertools import chain
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import Generic
 from typing import TypeAlias
@@ -36,6 +36,14 @@ def _closed(feature: ReferenceSpan) -> tuple[int, int]:
     return feature.start, feature.end - 1
 
 
+@dataclass(slots=True)
+class _RefIndex:
+    """Per-reference interval index state."""
+
+    tree: IntervalTree = field(default_factory=IntervalMap)
+    is_built: bool = False
+
+
 class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
@@ -52,60 +60,88 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     A feature without a strand never matches a stranded query.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
+    The `overlaps()` method is the cheapest way to test for any overlap, short-circuiting on the
+    first hit.
     """
 
     def __init__(self, features: Iterable[ReferenceSpanType] | None = None) -> None:
-        self._refname_to_features: dict[Refname, list[ReferenceSpanType]] = defaultdict(list)
-        self._refname_to_tree: dict[Refname, IntervalTree] = defaultdict(IntervalTree)
-        self._refname_to_is_indexed: dict[Refname, bool] = defaultdict(lambda: False)
+        self._refname_to_index: dict[Refname, _RefIndex] = {}
+        self._changes: int = 0
         if features is not None:
             self.add(*features)
 
     @override
     def __iter__(self) -> Iterator[ReferenceSpanType]:
-        """Iterate over the features in the overlap detector."""
-        return chain(*self._refname_to_features.values())
+        """Iterate over the features by reference, in the order first added, then by start.
+
+        Queries may be made while iterating, but adding features raises a `RuntimeError`.
+        """
+        changes = self._changes
+        trees = [self._built(index) for index in self._refname_to_index.values()]
+        for tree in trees:
+            for i in range(len(tree)):
+                if self._changes != changes:
+                    raise RuntimeError("TreeDetector changed during iteration")
+                yield tree.data_at(i)
 
     def add(self, *features: ReferenceSpanType) -> None:
         """Add a feature to this overlap detector."""
         for feature in features:
-            refname: Refname = feature.refname
-            feature_index: int = len(self._refname_to_features[refname])
+            index = self._refname_to_index.get(feature.refname)
+            if index is None:
+                index = self._refname_to_index[feature.refname] = _RefIndex()
+            index.tree.add(*_closed(feature), feature)
+            index.is_built = False  # mark that this tree needs re-indexing
+            self._changes += 1
 
-            self._refname_to_features[refname].append(feature)
-            self._refname_to_tree[refname].add(*_closed(feature), feature_index)
-            self._refname_to_is_indexed[refname] = False  # mark that this tree needs re-indexing
+    def _tree_for(self, refname: Refname) -> IntervalTree | None:
+        """Return the built interval tree for a reference, or None if it has no features."""
+        index = self._refname_to_index.get(refname)
+        return None if index is None else self._built(index)
+
+    @staticmethod
+    def _built(index: _RefIndex) -> IntervalTree:
+        """Return a reference's interval tree, building it first if features were added."""
+        if not index.is_built:
+            index.tree.build()
+            index.is_built = True
+        return index.tree
 
     def overlapping(
         self, feature: ReferenceSpan, *, stranded: bool = False
     ) -> Iterator[ReferenceSpanType]:
         """Yields all the overlapping features for a given query feature."""
-        refname: Refname = feature.refname
-
-        if refname not in self._refname_to_tree:
+        tree = self._tree_for(feature.refname)
+        if tree is None:
             return
 
-        if not self._refname_to_is_indexed[refname]:
-            self._refname_to_tree[refname].build()
-            self._refname_to_is_indexed[refname] = True
-
-        features = self._refname_to_features[refname]
-        indices: list[int] = self._refname_to_tree[refname].search_values(*_closed(feature))
+        start, end = _closed(feature)
         if not stranded:
-            for index in indices:
-                yield features[index]
+            yield from tree.search_values(start, end)
             return
 
         strand = _strand(feature)
         if strand is None:
             return
-        for index in indices:
-            if _strand(features[index]) is strand:
-                yield features[index]
+        for hit in tree.search_values(start, end):
+            if _strand(hit) is strand:
+                yield hit
 
     def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
-        return next(self.overlapping(feature, stranded=stranded), None) is not None
+        tree = self._tree_for(feature.refname)
+        if tree is None:
+            return False
+
+        start, end = _closed(feature)
+        if not stranded:
+            # NB: superintervals' has_overlaps misses some nested overlaps; being fixed upstream.
+            return next(tree.iter_idxs(start, end), None) is not None
+
+        strand = _strand(feature)
+        if strand is None:
+            return False
+        return any(_strand(hit) is strand for hit in tree.iter_values(start, end))
 
     def enclosing(
         self, feature: ReferenceSpan, *, stranded: bool = False
