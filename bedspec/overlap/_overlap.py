@@ -39,6 +39,7 @@ def _closed(feature: ReferenceSpan) -> tuple[int, int]:
 @dataclass(slots=True)
 class _RefIndex:
     """Per-reference interval index state."""
+
     tree: IntervalTree = field(default_factory=IntervalMap)
     is_built: bool = False
 
@@ -79,7 +80,9 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     def add(self, *features: ReferenceSpanType) -> None:
         """Add a feature to this overlap detector."""
         for feature in features:
-            index = self._refname_to_index.setdefault(feature.refname, _RefIndex())
+            index = self._refname_to_index.get(feature.refname)
+            if index is None:
+                index = self._refname_to_index[feature.refname] = _RefIndex()
             index.tree.add(*_closed(feature), feature)
             index.is_built = False  # mark that this tree needs re-indexing
 
