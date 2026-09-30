@@ -22,9 +22,9 @@ class BedReader(TsvReader[BedType]):
             handle: a file-like object to read delimited data from.
             options: the options of the reader, with BED defaults for any not given.
         """
-        _ = options.setdefault("header", False)
-        _ = options.setdefault("comment_prefixes", COMMENT_PREFIXES)
-        _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
+        _ = options.setdefault("comment_prefixes", COMMENT_PREFIXES)
+        _ = options.setdefault("header", False)
+        _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("quoting", False)
         super().__init__(handle, **options)

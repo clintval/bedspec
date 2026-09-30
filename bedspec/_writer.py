@@ -25,8 +25,8 @@ class BedWriter(TsvWriter[BedType]):
             handle: a file-like object to write delimited data to.
             options: the options of the writer, with BED defaults for any not given.
         """
-        _ = options.setdefault("none_field", MISSING_FIELD)
         _ = options.setdefault("codecs", BED_CODECS)
-        _ = options.setdefault("quoting", False)
         _ = options.setdefault("comment_prefixes", BED_COMMENT_PREFIXES)
+        _ = options.setdefault("none_field", MISSING_FIELD)
+        _ = options.setdefault("quoting", False)
         super().__init__(handle, **options)
