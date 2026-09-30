@@ -187,3 +187,14 @@ def test_adding_while_iterating_raises(refname: str) -> None:
     with pytest.raises(RuntimeError, match="changed during iteration"):
         for _ in detector:
             detector.add(Bed3(refname=refname, start=0, end=1))  # noqa: B909
+
+
+def test_overlaps_finds_a_query_inside_a_long_feature_after_a_nested_one() -> None:
+    """Test that a query inside a long feature, past a shorter one nested in it, overlaps."""
+    long = Bed3(refname="chr1", start=0, end=100)
+    nested = Bed3(refname="chr1", start=10, end=20)
+    detector: TreeDetector[Bed3] = TreeDetector([long, nested])
+    query = Bed3(refname="chr1", start=30, end=40)
+
+    assert list(detector.overlapping(query)) == [long]
+    assert detector.overlaps(query)
