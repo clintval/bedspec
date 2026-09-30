@@ -1,8 +1,10 @@
+import re
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import replace
 from random import Random
+from unittest.mock import MagicMock
 
 import pytest
 from typing_extensions import override
@@ -44,6 +46,27 @@ class Blocked(Bed3):
 BLOCKED = Blocked(refname="chr1", start=10, end=30)
 
 
+@dataclass(frozen=True)
+class Flaky(Bed3):
+    """A record whose territory raises after its first span."""
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield this record, then raise."""
+        yield self
+        raise ValueError("a span of this record is invalid")
+
+
+@dataclass(frozen=True)
+class Hollow(Bed3):
+    """A record whose territory has no spans."""
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield no spans."""
+        yield from ()
+
+
 @dataclass
 class Span:
     """A feature on a reference sequence that is not a BED record."""
@@ -51,6 +74,16 @@ class Span:
     refname: str
     start: int
     end: int
+
+
+@dataclass
+class Region:
+    """A feature on a reference sequence with a text field named territory, not a BED record."""
+
+    refname: str
+    start: int
+    end: int
+    territory: str = "EMEA"
 
 
 def test_overlap_detector_as_iterable() -> None:
@@ -450,3 +483,49 @@ def test_iteration_yields_each_feature_once_in_the_order_added() -> None:
     detector: TreeDetector[Bed2 | Bed3 | BedPE] = TreeDetector(features)
 
     assert list(detector) == features
+
+
+def test_a_feature_with_a_territory_field_is_its_own_span() -> None:
+    """Test that a feature which is not a BED record is its own span, whatever its fields."""
+    region = Region(refname="chr1", start=10, end=20)
+    detector: TreeDetector[Region] = TreeDetector([region])
+
+    assert list(detector) == [region]
+    assert list(detector.overlapping(Bed3(refname="chr1", start=15, end=16))) == [region]
+
+
+def test_a_mock_feature_is_its_own_span() -> None:
+    """Test that a mock with a reference, start, and end is found by them."""
+    mock = MagicMock()
+    mock.refname, mock.start, mock.end = "chr1", 10, 20
+    detector: TreeDetector[MagicMock] = TreeDetector([mock])
+
+    assert list(detector.overlapping(Bed3(refname="chr1", start=15, end=16))) == [mock]
+
+
+def test_adding_a_feature_whose_territory_raises_adds_nothing() -> None:
+    """Test that adding features adds none of them when any feature's territory raises."""
+    bed = Bed3(refname="chr1", start=10, end=20)
+    detector: TreeDetector[Bed3] = TreeDetector([bed])
+    query = Bed3(refname="chr1", start=0, end=100)
+
+    with pytest.raises(ValueError, match="invalid"):
+        detector.add(
+            Bed3(refname="chr1", start=30, end=40), Flaky(refname="chr1", start=50, end=60)
+        )
+
+    assert list(detector) == [bed]
+    assert list(detector.overlapping(query)) == [bed]
+    assert list(detector.enclosed_by(query)) == [bed]
+
+
+def test_adding_a_feature_without_spans_is_refused() -> None:
+    """Test that adding a feature with no spans raises, naming it, and adds nothing."""
+    hollow = Hollow(refname="chr1", start=10, end=20)
+    detector: TreeDetector[Bed3] = TreeDetector()
+
+    with pytest.raises(ValueError, match=re.escape(repr(hollow))):
+        detector.add(Bed3(refname="chr1", start=0, end=5), hollow)
+
+    assert list(detector) == []
+    assert not detector.overlaps(Bed3(refname="chr1", start=0, end=100))
