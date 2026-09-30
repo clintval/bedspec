@@ -30,6 +30,7 @@ pip install bedspec
 ```
 
 Records are checked against the BED spec when they are built.
+BED has no quoting, so text is written and read as it is, and a value holding a tab is refused.
 A feature may start where it ends, as an insertion does.
 
 Records are immutable and hashable.

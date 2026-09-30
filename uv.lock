@@ -114,7 +114,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "superintervals", specifier = ">=1.0" },
-    { name = "typeline", specifier = ">=1.1" },
+    { name = "typeline", specifier = ">=2.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
@@ -818,15 +818,15 @@ wheels = [
 
 [[package]]
 name = "typeline"
-version = "1.1.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "msgspec" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/a0/eb3e53ced02ffded86bfac689aedb45895eb807c18858099f3fd4337caf5/typeline-1.1.0.tar.gz", hash = "sha256:ff2d640b43409d8426b590b9372639f40694e6e0109c4c673744f461589e2d3e", size = 34488, upload-time = "2026-09-29T21:38:37.658Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/d3/38d19a467a97461cbe664b9ca3507326641ba4fd60d6a98f323972137d9b/typeline-2.0.0.tar.gz", hash = "sha256:89388118a4d58c93a6770cef9de668e1fceca8b33c3ab06780b4c9e2f7a24451", size = 47530, upload-time = "2026-09-30T01:32:26.578Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/ec/acdfb5568c93c123439b7b1fd53d34b36e878e28be79bb9f965ddb570162/typeline-1.1.0-py3-none-any.whl", hash = "sha256:14c68c434d3b55fe9b83b85aa6df41b5c4e048c768bb146b8434cc4cad1efa14", size = 19295, upload-time = "2026-09-29T21:38:36.284Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/bf/7f11724917d6ba6e976a76d1f244863701fa9bc720447ae700ea361c1cef/typeline-2.0.0-py3-none-any.whl", hash = "sha256:bb9541fc8fb62813e2f719f68caa3c7e6517dd41f422d3e8dec9bbb2b212475f", size = 25002, upload-time = "2026-09-30T01:32:25.019Z" },
 ]
 
 [[package]]
