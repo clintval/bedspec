@@ -1,3 +1,5 @@
+import pytest
+
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec.overlap import TreeDetector
@@ -137,3 +139,51 @@ def test_querying_an_unknown_reference_finds_nothing() -> None:
     """Test that querying a reference sequence with no features returns no overlaps."""
     detector: TreeDetector[Bed3] = TreeDetector([Bed3(refname="chr1", start=10, end=20)])
     assert list(detector.overlapping(Bed3(refname="chr2", start=10, end=20))) == []
+
+
+def features_added_out_of_order() -> list[Bed3]:
+    """Return features on two references, added out of order by start."""
+    return [
+        Bed3(refname="chr1", start=30, end=40),
+        Bed3(refname="chr2", start=5, end=9),
+        Bed3(refname="chr1", start=20, end=25),
+        Bed3(refname="chr1", start=10, end=15),
+        Bed3(refname="chr2", start=1, end=3),
+    ]
+
+
+def test_querying_while_iterating_visits_every_feature_once() -> None:
+    """Test that a query inside a loop over the detector neither skips nor repeats features."""
+    features = features_added_out_of_order()
+    detector: TreeDetector[Bed3] = TreeDetector(features)
+
+    seen: list[Bed3] = []
+    for feature in detector:
+        seen.append(feature)
+        _ = list(detector.overlapping(feature))
+
+    assert sorted(seen, key=lambda f: (f.refname, f.start)) == sorted(
+        features, key=lambda f: (f.refname, f.start)
+    )
+
+
+def test_iteration_order_does_not_depend_on_queries() -> None:
+    """Test that features are iterated by reference, then by start, whether or not a query ran."""
+    queried: TreeDetector[Bed3] = TreeDetector(features_added_out_of_order())
+    _ = queried.overlaps(Bed3(refname="chr1", start=0, end=1))
+    fresh: TreeDetector[Bed3] = TreeDetector(features_added_out_of_order())
+
+    expected = [(f.refname, f.start) for f in features_added_out_of_order()]
+    expected.sort(key=lambda key: (key[0] != "chr1", key[1]))
+    assert [(f.refname, f.start) for f in fresh] == expected
+    assert [(f.refname, f.start) for f in queried] == expected
+
+
+@pytest.mark.parametrize("refname", ["chr1", "chr3"])
+def test_adding_while_iterating_raises(refname: str) -> None:
+    """Test that adding a feature while iterating raises rather than skipping or repeating any."""
+    detector: TreeDetector[Bed3] = TreeDetector(features_added_out_of_order())
+
+    with pytest.raises(RuntimeError, match="changed during iteration"):
+        for _ in detector:
+            detector.add(Bed3(refname=refname, start=0, end=1))  # noqa: B909

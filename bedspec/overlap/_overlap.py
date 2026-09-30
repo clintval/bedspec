@@ -66,15 +66,22 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
 
     def __init__(self, features: Iterable[ReferenceSpanType] | None = None) -> None:
         self._refname_to_index: dict[Refname, _RefIndex] = {}
+        self._changes: int = 0
         if features is not None:
             self.add(*features)
 
     @override
     def __iter__(self) -> Iterator[ReferenceSpanType]:
-        """Iterate over the features in the overlap detector (order unspecified)."""
-        for index in self._refname_to_index.values():
-            tree = index.tree
+        """Iterate over the features by reference, in the order first added, then by start.
+
+        Queries may be made while iterating, but adding features raises a `RuntimeError`.
+        """
+        changes = self._changes
+        trees = [self._built(index) for index in self._refname_to_index.values()]
+        for tree in trees:
             for i in range(len(tree)):
+                if self._changes != changes:
+                    raise RuntimeError("TreeDetector changed during iteration")
                 yield tree.data_at(i)
 
     def add(self, *features: ReferenceSpanType) -> None:
@@ -85,12 +92,16 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
                 index = self._refname_to_index[feature.refname] = _RefIndex()
             index.tree.add(*_closed(feature), feature)
             index.is_built = False  # mark that this tree needs re-indexing
+            self._changes += 1
 
     def _tree_for(self, refname: Refname) -> IntervalTree | None:
         """Return the built interval tree for a reference, or None if it has no features."""
         index = self._refname_to_index.get(refname)
-        if index is None:
-            return None
+        return None if index is None else self._built(index)
+
+    @staticmethod
+    def _built(index: _RefIndex) -> IntervalTree:
+        """Return a reference's interval tree, building it first if features were added."""
         if not index.is_built:
             index.tree.build()
             index.is_built = True
