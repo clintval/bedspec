@@ -65,9 +65,6 @@ exclude-newer = "1 week"
 # pybgzf, superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
 exclude-newer-package = { pybgzf = false, superintervals = false, typeline = false }
 
-[tool.uv.sources]
-pybgzf = { path = "../pybgzf.worktrees/prerelease", editable = false }
-
 [tool.poe.tasks]
 fix-format = "ruff format"
 fix-lint   = "ruff check --fix"
