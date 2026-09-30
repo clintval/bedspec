@@ -65,7 +65,7 @@ exclude-newer = "1 week"
 exclude-newer-package = { pybgzf = false, superintervals = false, typeline = false }
 
 [tool.uv.sources]
-pybgzf = { path = "../pybgzf", editable = false }
+pybgzf = { path = "../pybgzf.worktrees/prerelease", editable = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"
