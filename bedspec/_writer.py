@@ -107,6 +107,9 @@ class BedWriter(TsvWriter[BedType]):
         _ = cls(StringIO(), **options)
         columns = cls._index_columns() if index is not None else None
         handle = pybgzf.open_writer(path, columns=columns, index=index, newline="", threads=threads)
+        if index is not None:
+            # Hand each line to the indexer as it is written, so a record out of order fails there.
+            handle.reconfigure(write_through=True)
         try:
             writer = cls(handle, **options)
         except BaseException:

@@ -1,6 +1,7 @@
 import bz2
 import gzip
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pybgzf import IndexedReader
@@ -9,8 +10,10 @@ from typeline import Comment
 
 from bedspec import Bed2
 from bedspec import Bed3
+from bedspec import Bed6
 from bedspec import BedPE
 from bedspec import BedReader
+from bedspec import BedStrand
 from bedspec import BedWriter
 
 BEDS = [
@@ -144,3 +147,100 @@ def test_track_and_browser_lines_are_written_without_an_index(tmp_path: Path) ->
         writer.write(BEDS[0])
 
     assert gzip.decompress(path.read_bytes()) == b"track name=genes\nchr1\t1\t5\n"
+
+
+UNSORTED: dict[type[Any], list[Any]] = {
+    Bed2: [Bed2("chr1", start=5), Bed2("chr1", start=4)],
+    Bed6: [
+        Bed6("chr1", start=5, end=9, name=None, score=None, strand=BedStrand.Positive),
+        Bed6("chr1", start=4, end=9, name=None, score=None, strand=None),
+    ],
+}
+"""Records of a point and an interval BED type whose second starts before the first."""
+
+INTERLEAVED: dict[type[Any], list[Any]] = {
+    Bed2: [Bed2("chr1", start=1), Bed2("chr2", start=1), Bed2("chr1", start=2)],
+    Bed6: [
+        Bed6("chr1", start=1, end=2, name="a", score=1, strand=None),
+        Bed6("chr2", start=1, end=2, name="b", score=2, strand=None),
+        Bed6("chr1", start=2, end=3, name="c", score=3, strand=None),
+    ],
+}
+"""Records of a point and an interval BED type whose first reference comes back after another."""
+
+TIED: dict[type[Any], list[Any]] = {
+    Bed2: [Bed2("chr1", start=5), Bed2("chr1", start=5)],
+    Bed6: [
+        Bed6("chr1", start=5, end=9, name="a", score=None, strand=None),
+        Bed6("chr1", start=5, end=6, name="b", score=None, strand=None),
+    ],
+}
+"""Records of a point and an interval BED type that start at the same position."""
+
+INDEXES = pytest.mark.parametrize(
+    "index,suffix", [(IndexFormat.CSI, ".csi"), (IndexFormat.TBI, ".tbi")], ids=["CSI", "TBI"]
+)
+RECORD_TYPES = pytest.mark.parametrize("record_type", [Bed2, Bed6], ids=["Bed2", "Bed6"])
+
+
+@INDEXES
+@RECORD_TYPES
+@pytest.mark.parametrize(
+    "unordered,message",
+    [(UNSORTED, "line 2: records are not sorted"), (INTERLEAVED, "line 3: .* not contiguous")],
+    ids=["unsorted", "interleaved"],
+)
+def test_an_index_refuses_records_out_of_order(
+    record_type: type[Any],
+    unordered: dict[type[Any], list[Any]],
+    message: str,
+    index: IndexFormat,
+    suffix: str,
+    tmp_path: Path,
+) -> None:
+    """Test that the write of a record out of order fails, naming its line, and leaves no index."""
+    path = tmp_path / "test.bed.gz"
+    index_path = tmp_path / f"test.bed.gz{suffix}"
+    _ = index_path.write_bytes(b"a stale index")
+    *ordered, last = unordered[record_type]
+
+    writer = BedWriter.from_path[record_type](path, index=index)
+    for record in ordered:
+        writer.write(record)
+    with pytest.raises(ValueError, match=message):
+        writer.write(last)
+    with pytest.raises(ValueError):
+        writer.close()
+
+    assert not index_path.exists()
+
+
+@RECORD_TYPES
+@pytest.mark.parametrize("unordered", [UNSORTED, INTERLEAVED], ids=["unsorted", "interleaved"])
+def test_records_out_of_order_are_written_without_an_index(
+    record_type: type[Any], unordered: dict[type[Any], list[Any]], tmp_path: Path
+) -> None:
+    """Test that BGZF without an index has no order, so records out of order are written."""
+    path = tmp_path / "test.bed.gz"
+    with BedWriter.from_path[record_type](path) as writer:
+        for record in unordered[record_type]:
+            writer.write(record)
+
+    with BedReader.from_path[record_type](path) as reader:
+        assert list(reader) == unordered[record_type]
+
+
+@INDEXES
+@RECORD_TYPES
+def test_an_index_accepts_records_that_start_together(
+    record_type: type[Any], index: IndexFormat, suffix: str, tmp_path: Path
+) -> None:
+    """Test that records starting at the same position are sorted, and are indexed."""
+    path = tmp_path / "test.bed.gz"
+    with BedWriter.from_path[record_type](path, index=index) as writer:
+        for record in TIED[record_type]:
+            writer.write(record)
+
+    assert (tmp_path / f"test.bed.gz{suffix}").is_file()
+    with IndexedReader(path) as reader:
+        assert len(list(reader.query("chr1", 5, 6))) == 2
