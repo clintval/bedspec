@@ -90,23 +90,25 @@ def test_the_file_is_closed_when_the_context_ends(tmp_path: Path) -> None:
 
 
 def test_a_record_type_is_required(tmp_path: Path) -> None:
-    """Test that the detector must be subscripted with a BED type."""
+    """Test that the detector must be subscripted with a BED type, and closes its file if not."""
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [Bed3("chr1", start=1, end=5)], IndexFormat.TBI)
 
-    with pytest.raises(TypeError, match=r"TabixDetector\[Bed3\]"):
-        with TabixDetector(path):
-            pass
+    detector: TabixDetector[Bed3] = TabixDetector(path)
+    with pytest.raises(TypeError, match=r"TabixDetector\[Bed3\]"), detector:
+        pass
+    assert detector.closed
 
 
 def test_a_paired_bed_cannot_be_queried(tmp_path: Path) -> None:
-    """Test that BEDPE, which has two intervals, is refused."""
+    """Test that BEDPE, which has two intervals, is refused, and the file is closed."""
     path = tmp_path / "features.bed.gz"
     write_sorted(path, [Bed3("chr1", start=1, end=5)], IndexFormat.TBI)
 
-    with pytest.raises(TypeError, match="BedPE"):
-        with TabixDetector[BedPE](path):  # type: ignore[type-var]  # pyright: ignore[reportInvalidTypeArguments]
-            pass
+    detector = TabixDetector[BedPE](path)  # type: ignore[type-var]  # pyright: ignore[reportInvalidTypeArguments]
+    with pytest.raises(TypeError, match="BedPE"), detector:
+        pass
+    assert detector.closed
 
 
 def test_every_span_of_a_territory_is_found_and_the_gap_between_them_is_not(

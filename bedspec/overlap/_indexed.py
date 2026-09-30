@@ -73,9 +73,13 @@ class TabixDetector(
 
     @override
     def __enter__(self) -> Self:
-        """Enter this context, checking the record type."""
+        """Enter this context, checking the record type and closing the file if it is refused."""
         _ = super().__enter__()
-        _ = self._record_type
+        try:
+            _ = self._record_type
+        except BaseException:
+            self.close()
+            raise
         return self
 
     @override
