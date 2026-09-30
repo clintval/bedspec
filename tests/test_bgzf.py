@@ -62,15 +62,17 @@ def test_other_paths_are_written_as_before(tmp_path: Path) -> None:
     assert bz2.decompress((tmp_path / "test.bed.bz2").read_bytes()) == b"chr1\t1\t5\n"
 
 
-@pytest.mark.parametrize("index", list(IndexFormat))
-def test_an_index_is_written_beside_the_bgzf_file(index: IndexFormat, tmp_path: Path) -> None:
+@pytest.mark.parametrize("index,suffix", [(IndexFormat.CSI, ".csi"), (IndexFormat.TBI, ".tbi")])
+def test_an_index_is_written_beside_the_bgzf_file(
+    index: IndexFormat, suffix: str, tmp_path: Path
+) -> None:
     """Test that a tabix or CSI index is written beside the file when asked for."""
     path = tmp_path / "test.bed.gz"
     with BedWriter.from_path[Bed3](path, index=index) as writer:
         for bed in BEDS:
             writer.write(bed)
 
-    assert (tmp_path / f"test.bed.gz.{index.value}").is_file()
+    assert (tmp_path / f"test.bed.gz{suffix}").is_file()
     with IndexedReader(path) as reader:
         assert list(reader.query("chr1", 5, 6)) == ["chr1\t3\t9"]
 
