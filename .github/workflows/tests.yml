@@ -6,6 +6,7 @@ on:
       - "**"
     tags:
       - "!**"
+  pull_request:
   workflow_call:
 
 permissions: {}
@@ -20,6 +21,8 @@ env:
 jobs:
   Tests:
     name: Tests
+    # Branches of this repository are tested when pushed, so only pull requests from forks run here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read  # to check out the repository
