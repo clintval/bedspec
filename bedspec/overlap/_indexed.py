@@ -61,6 +61,11 @@ class TabixDetector(
             raise TypeError(f"{name} needs a BED type of one interval each, not {record_type}!")
         return cast("type[IntervalBedType]", record_type)
 
+    @cached_property
+    def _decoder(self) -> BedReader[IntervalBedType]:
+        """A reader that decodes the lines index queries return, built once for every query."""
+        return BedReader[self._record_type](StringIO())  # type: ignore[name-defined]
+
     @property
     def closed(self) -> bool:
         """True once the file is closed."""
@@ -136,9 +141,8 @@ class TabixDetector(
         if stranded and strand is None:
             return
         start, end = _closed(feature)
-        lines = self._reader.query(feature.refname, max(start - 1, 0), end + 2)
-        text = StringIO("".join(f"{line}\n" for line in lines))
-        for record in BedReader[self._record_type](text):  # type: ignore[name-defined]
+        for line in self._reader.query(feature.refname, max(start - 1, 0), end + 2):
+            record = self._decoder.decode(line)
             passed = (
                 span.refname == feature.refname
                 and test(span)
