@@ -1,3 +1,4 @@
+from inspect import unwrap
 from io import StringIO
 from pathlib import Path
 from typing import TextIO
@@ -9,7 +10,6 @@ from typeline import Comment
 from typeline import TsvWriter
 from typeline import WriterOptions
 from typeline._binding import SubscriptableClassmethod
-from typeline._files import open_for_writing
 from typing_extensions import Self
 from typing_extensions import Unpack
 from typing_extensions import override
@@ -97,13 +97,14 @@ class BedWriter(TsvWriter[BedType]):
             options: the options of the writer, with BED defaults for any not given.
         """
         path = Path(path).expanduser()
-        _ = cls(StringIO(), **options)
         if path.suffix not in BGZF_SUFFIXES:
             if index is not None or threads != 1:
                 raise ValueError(
                     f"An index and threads need a BGZF path ending in .gz or .bgz, not: {path}"
                 )
-            return cls(open_for_writing(path), **options)
+            plain: Self = unwrap(super().from_path)(cls, path, **options)
+            return plain
+        _ = cls(StringIO(), **options)
         columns = cls._index_columns() if index is not None else None
         handle = pybgzf.open(path, columns=columns, index=index, newline="", threads=threads)
         try:
