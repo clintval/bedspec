@@ -117,7 +117,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pybgzf", specifier = ">=0.1" },
+    { name = "pybgzf", specifier = ">=0.1.1" },
     { name = "superintervals", specifier = ">=1.0.2" },
     { name = "typeline", specifier = ">=2.2.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
@@ -620,20 +620,20 @@ wheels = [
 
 [[package]]
 name = "pybgzf"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/46/206f98f344e1bdb15c1b3acb74c243a67e7bf9dfae5471ec218cd04a29e4/pybgzf-0.1.0.tar.gz", hash = "sha256:bef6776c0f8842272bc6820837893365975a583bbfd99d38ea357af50fe1d6c9", size = 145640, upload-time = "2026-09-30T15:35:54.386Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b7/d0c19c6b2cabe693315addc98e3f93929b38696c109b1c21e689aa926f13/pybgzf-0.1.1.tar.gz", hash = "sha256:4ff21a23f2dbabd0f953c1091aeb6b086869853859ef841eba0cb0f094ca9cf2", size = 145909, upload-time = "2026-09-30T18:19:17.935Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/ed/31bc8a76707d225d5b825eb9f37d8bf2a4d191fcd89cb2b1a05660206116/pybgzf-0.1.0-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d3d2792d5b4332c6c936881b330b0aed17b1ae8f39b6da849aca96bf8d48a47c", size = 557370, upload-time = "2026-09-30T15:35:44.56Z" },
-    { url = "https://files.pythonhosted.org/packages/89/fa/9005bfb5896df0039925e22438a078754c2a1e11e177c91132f836c4a2e7/pybgzf-0.1.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:1ca4702f28a07de54e62e2971cbeda1853dc48c60d76bc70fa7f584818af59a8", size = 532952, upload-time = "2026-09-30T15:35:45.917Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/a6/8c6c9bbb2d610a0de2f8d02ef2f745d8c6fcd4976a46e5a18698a12a65ba/pybgzf-0.1.0-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8039d541e4733e9643d9d82d92dc923a49fb1fd1bf4d8f328688b14f6d201d9f", size = 613314, upload-time = "2026-09-30T15:35:47.243Z" },
-    { url = "https://files.pythonhosted.org/packages/88/4d/d034af3d98c589d2c00d2f9a43c99525d0abeebb42e879ba1b40d1534361/pybgzf-0.1.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:1ac15c3879f3fbc2811fd998a15564419bb71a52776b6a607df6ed340f4d83cf", size = 606634, upload-time = "2026-09-30T15:35:48.688Z" },
-    { url = "https://files.pythonhosted.org/packages/7a/27/469584492728c98891ec5fd9efbff1fd1d09f337142630422c0837460958/pybgzf-0.1.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:9ce22387cab8034918bf5c7649afebfee21a64c17f94003fc635c69e825a1cf6", size = 779764, upload-time = "2026-09-30T15:35:49.917Z" },
-    { url = "https://files.pythonhosted.org/packages/64/d0/d355952d4e6456bbcf500b3d6311e34896b26558a013bb171d6ecd1a6d9c/pybgzf-0.1.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:804d39764fd96352d1a223e2c20243e169deac31164b01f9d843d94d6a870aae", size = 828206, upload-time = "2026-09-30T15:35:51.181Z" },
-    { url = "https://files.pythonhosted.org/packages/05/bf/d1a54f380c0248601ec43c010a67f3cc9ca465d3d1f05d77063d06cf373c/pybgzf-0.1.0-cp311-abi3-win_amd64.whl", hash = "sha256:a71d5e42fb56450a9cf667281eff02f04e9847720b4b47fb18ee4926813c4e02", size = 453888, upload-time = "2026-09-30T15:35:52.59Z" },
+    { url = "https://files.pythonhosted.org/packages/63/48/364320e88d7faabd6c29c3c9a75d11a31cf5c45760ca049ed5a7e49d6edc/pybgzf-0.1.1-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:fb618f0713a6fe03778daa1fd559ec3d0c328928206827823814ed89e62d2af4", size = 557563, upload-time = "2026-09-30T18:19:06.913Z" },
+    { url = "https://files.pythonhosted.org/packages/07/c6/eb1266cad3e7a9d6ff944688a03a5a8c540f4fde58765775b49eed54691b/pybgzf-0.1.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:23f8a768cdcbdcc13695c22a36e364831a3c6224f0838c4870ef5ac9188ecfec", size = 532820, upload-time = "2026-09-30T18:19:08.625Z" },
+    { url = "https://files.pythonhosted.org/packages/15/20/bff1574c221b827a816b3b9b8f206fdf79478d2171660e4a99cbcaed8185/pybgzf-0.1.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1aae2b8a6aaf9352d33e4e641dd77583bf211a559cec496b336097d367593d58", size = 613490, upload-time = "2026-09-30T18:19:10.473Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/d4/33a9a1636e89780f6c2c3a868b20bca92649bc53d6a1ccc03d6c0cb67c62/pybgzf-0.1.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:4b52d5dbebe86f86ce3391b9ee15d6700912a50b106895fa6a7668fec2b00a4a", size = 606138, upload-time = "2026-09-30T18:19:11.98Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/16/ac3b1cfb55441e54159d78b1a3294bdc0e63932166a9b28f96b92b30eeb9/pybgzf-0.1.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:575e47e252cf7d3a30f2bef932fd517fbd8aeea1e89be457e0284b62315a84eb", size = 780084, upload-time = "2026-09-30T18:19:13.402Z" },
+    { url = "https://files.pythonhosted.org/packages/06/e1/1acc7e5ae56d494d14d155ef446d3a3fd740370a2fead6753b06a9063ad9/pybgzf-0.1.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:25c3400d4cd8935f0f1fbc6a71a06aab2b3ba4ae116c09485f13dcc933d8a0ee", size = 828068, upload-time = "2026-09-30T18:19:14.9Z" },
+    { url = "https://files.pythonhosted.org/packages/57/24/1a11cafa50dc2b0711b00e275b97d65d3e632f720982830e5a034a85a390/pybgzf-0.1.1-cp311-abi3-win_amd64.whl", hash = "sha256:e82cf94e0285c158a220ad60c3e6f3cf9bf3c25e140d2b648a87a01b0657bf00", size = 453885, upload-time = "2026-09-30T18:19:16.494Z" },
 ]
 
 [[package]]
