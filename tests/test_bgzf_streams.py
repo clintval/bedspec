@@ -210,3 +210,26 @@ def test_bgzf_is_read_from_a_pipe(record_type: type[Any], threads: int, tmp_path
     ):
         assert list(reader) == RECORDS[record_type]
     writer_thread.join()
+
+
+@RECORD_TYPES
+def test_bgzf_is_read_from_a_fifo_by_path(record_type: type[Any], tmp_path: Path) -> None:
+    """Test that BedReader.from_path reads BGZF BED from a FIFO while the other end is written."""
+    path = tmp_path / "features.bed.gz"
+    with BedWriter.from_path[record_type](path) as writer:
+        write_all(writer, RECORDS[record_type])
+    fifo = tmp_path / "stream.bed.gz"
+    os.mkfifo(fifo)
+
+    def write() -> None:
+        with fifo.open("wb") as sink:
+            _ = sink.write(path.read_bytes())
+
+    def read() -> list[Any]:
+        with BedReader.from_path[record_type](fifo) as reader:
+            return list(reader)
+
+    reader_thread = Background(read)
+    writer_thread = Background(write)
+    assert reader_thread.join() == RECORDS[record_type]
+    writer_thread.join()

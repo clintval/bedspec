@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "pybgzf >=0.1",
     "superintervals >=1.0.2",
-    "typeline >=2.1",
+    "typeline >=2.1.1",
     "typing-extensions >=4.12",
 ]
 classifiers = [
@@ -45,6 +45,7 @@ dev = [
     "pytest ~=9.1",
     "pytest-cov ~=7.1",
     "pytest-doctestplus ~=1.7",
+    "pytest-timeout ~=2.4",
     "ruff ~=0.16",
     "validate-pyproject[all] ~=0.26",
 ]
@@ -107,6 +108,7 @@ fix-and-check-all.sequence    = [
 ]
 
 [tool.pytest.ini_options]
+timeout = 300
 addopts    = [
     "--color=yes",
     "--cov-fail-under=95",
