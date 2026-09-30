@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -10,10 +11,11 @@ from typing import TypeVar
 from superintervals import IntervalMap
 from typing_extensions import override
 
+from bedspec._bedspec import BedLike
 from bedspec._bedspec import BedStrand
 from bedspec._bedspec import ReferenceSpan
 
-ReferenceSpanType = TypeVar("ReferenceSpanType", bound=ReferenceSpan)
+FeatureType = TypeVar("FeatureType", bound=BedLike | ReferenceSpan)
 """Type variable for features stored within the overlap detector."""
 
 Refname: TypeAlias = str
@@ -36,6 +38,12 @@ def _closed(feature: ReferenceSpan) -> tuple[int, int]:
     return feature.start, feature.end - 1
 
 
+def _territory(feature: Any) -> Iterable[ReferenceSpan]:
+    """Return the spans a feature covers: its territory if it has one, or else the feature."""
+    territory: Callable[[], Iterable[ReferenceSpan]] | None = getattr(feature, "territory", None)
+    return (feature,) if territory is None else territory()
+
+
 @dataclass(slots=True)
 class _RefIndex:
     """Per-reference interval index state."""
@@ -44,19 +52,24 @@ class _RefIndex:
     is_built: bool = False
 
 
-class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
+class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
-    The overlap detector may be built with any feature-like Python object that has the following
-    properties:
+    The overlap detector may be built with any BED record, indexed by every span of its
+    `territory()`, or with any feature-like Python object that has the following properties:
 
       * `refname`: The reference sequence name
       * `start`: A 0-based start position
       * `end`: A 0-based half-open end position
 
+    A feature matches a query when any of its spans on the query's reference does, so a BEDPE
+    record is found by either end. A query yields each matching feature once, in the order the
+    index finds it, which is repeatable but is not the order the features were added.
+
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 
     Every query may be limited to features on the same strand as the query with `stranded=True`.
+    The strand compared is that of the matching span, or of its feature if the span has none.
     A feature without a strand never matches a stranded query.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
@@ -64,35 +77,46 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
     first hit.
     """
 
-    def __init__(self, features: Iterable[ReferenceSpanType] | None = None) -> None:
+    def __init__(self, features: Iterable[FeatureType] | None = None) -> None:
+        self._features: list[FeatureType] = []
+        self._spans: list[ReferenceSpan] = []
+        self._span_owners: list[int] = []
+        self._one_span_each: bool = True
         self._refname_to_index: dict[Refname, _RefIndex] = {}
-        self._changes: int = 0
         if features is not None:
             self.add(*features)
 
     @override
-    def __iter__(self) -> Iterator[ReferenceSpanType]:
-        """Iterate over the features by reference, in the order first added, then by start.
+    def __iter__(self) -> Iterator[FeatureType]:
+        """Iterate over the features in the order they were added.
 
         Queries may be made while iterating, but adding features raises a `RuntimeError`.
         """
-        changes = self._changes
-        trees = [self._built(index) for index in self._refname_to_index.values()]
-        for tree in trees:
-            for i in range(len(tree)):
-                if self._changes != changes:
-                    raise RuntimeError("TreeDetector changed during iteration")
-                yield tree.data_at(i)
+        count = len(self._features)
+        for feature in self._features:
+            if len(self._features) != count:
+                raise RuntimeError("TreeDetector changed during iteration")
+            yield feature
 
-    def add(self, *features: ReferenceSpanType) -> None:
-        """Add a feature to this overlap detector."""
+    def add(self, *features: FeatureType) -> None:
+        """Add features to this overlap detector, indexing every span of each."""
+        added = self._features
+        spans = self._spans
+        span_owners = self._span_owners
+        refname_to_index = self._refname_to_index
         for feature in features:
-            index = self._refname_to_index.get(feature.refname)
-            if index is None:
-                index = self._refname_to_index[feature.refname] = _RefIndex()
-            index.tree.add(*_closed(feature), feature)
-            index.is_built = False  # mark that this tree needs re-indexing
-            self._changes += 1
+            number = len(added)
+            added.append(feature)
+            for span in _territory(feature):
+                index = refname_to_index.get(span.refname)
+                if index is None:
+                    index = refname_to_index[span.refname] = _RefIndex()
+                index.tree.add(*_closed(span), len(spans))
+                index.is_built = False  # mark that this tree needs re-indexing
+                spans.append(span)
+                span_owners.append(number)
+            if len(spans) != len(added):
+                self._one_span_each = False
 
     def _tree_for(self, refname: Refname) -> IntervalTree | None:
         """Return the built interval tree for a reference, or None if it has no features."""
@@ -107,25 +131,38 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
             index.is_built = True
         return index.tree
 
-    def overlapping(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[ReferenceSpanType]:
-        """Yields all the overlapping features for a given query feature."""
+    def _strand_of(self, span: int) -> BedStrand | None:
+        """Return the strand of a span, or of its feature if the span has none."""
+        return _strand(self._spans[span]) or _strand(self._features[self._span_owners[span]])
+
+    def _hits(self, feature: ReferenceSpan, stranded: bool) -> list[int]:
+        """Return the spans that overlap a query feature, on its strand if stranded."""
         tree = self._tree_for(feature.refname)
         if tree is None:
-            return
+            return []
 
-        start, end = _closed(feature)
+        hits: list[int] = tree.search_values(*_closed(feature))
         if not stranded:
-            yield from tree.search_values(start, end)
-            return
+            return hits
 
         strand = _strand(feature)
         if strand is None:
-            return
-        for hit in tree.search_values(start, end):
-            if _strand(hit) is strand:
-                yield hit
+            return []
+        return [hit for hit in hits if self._strand_of(hit) is strand]
+
+    def _features_of(self, spans: list[int]) -> list[FeatureType]:
+        """Return the features that own the given spans, once each, in the order of the spans."""
+        features = self._features
+        if self._one_span_each:  # each span's number is then its feature's number
+            return [features[span] for span in spans]
+        span_owners = self._span_owners
+        return [features[number] for number in dict.fromkeys(span_owners[span] for span in spans)]
+
+    def overlapping(
+        self, feature: ReferenceSpan, *, stranded: bool = False
+    ) -> Iterator[FeatureType]:
+        """Yields all the features with a span that overlaps the given query feature."""
+        yield from self._features_of(self._hits(feature, stranded))
 
     def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
@@ -140,20 +177,24 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
         strand = _strand(feature)
         if strand is None:
             return False
-        return any(_strand(hit) is strand for hit in tree.iter_values(start, end))
+        return any(self._strand_of(span) is strand for span in tree.iter_values(start, end))
 
-    def enclosing(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[ReferenceSpanType]:
-        """Yields all the overlapping features that completely enclose the given query feature."""
-        for overlap in self.overlapping(feature, stranded=stranded):
-            if feature.start >= overlap.start and feature.end <= overlap.end:
-                yield overlap
+    def enclosing(self, feature: ReferenceSpan, *, stranded: bool = False) -> Iterator[FeatureType]:
+        """Yields all the features with a span that completely encloses the given query feature."""
+        spans = self._spans
+        yield from self._features_of([
+            hit
+            for hit in self._hits(feature, stranded)
+            if feature.start >= spans[hit].start and feature.end <= spans[hit].end
+        ])
 
     def enclosed_by(
         self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[ReferenceSpanType]:
-        """Yields all the overlapping features that are enclosed by the given query feature."""
-        for overlap in self.overlapping(feature, stranded=stranded):
-            if feature.start <= overlap.start and feature.end >= overlap.end:
-                yield overlap
+    ) -> Iterator[FeatureType]:
+        """Yields all the features with a span that is enclosed by the given query feature."""
+        spans = self._spans
+        yield from self._features_of([
+            hit
+            for hit in self._hits(feature, stranded)
+            if feature.start <= spans[hit].start and feature.end >= spans[hit].end
+        ])

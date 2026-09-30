@@ -154,7 +154,11 @@ The overlap detector supports the following operations:
 
 A zero-length feature overlaps the features that hold either base beside it.
 
+A BED record is found by any span of its territory, so `Bed2` points and `BedPE` pairs are supported, and a `BedPE` is found by either end.
+Each matching feature is returned once, even when several of its spans match.
+
 Each operation takes `stranded=True` to find only features on the same strand as the query.
+For a `BedPE`, each end is compared by its own strand.
 For the opposite strand, flip the query's strand with `dataclasses.replace`:
 
 ```pycon

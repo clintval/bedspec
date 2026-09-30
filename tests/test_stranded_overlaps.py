@@ -1,7 +1,10 @@
+from dataclasses import dataclass
 from dataclasses import replace
 
+from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import BedPE
 from bedspec import BedStrand
 from bedspec.overlap import TreeDetector
 
@@ -10,6 +13,25 @@ MINUS = Bed6(refname="chr1", start=1, end=9, name="minus", score=None, strand=Be
 UNSTRANDED = Bed6(refname="chr1", start=1, end=9, name="none", score=None, strand=None)
 BED3 = Bed3(refname="chr1", start=1, end=9)
 QUERY = Bed6(refname="chr1", start=2, end=3, name=None, score=None, strand=BedStrand.Positive)
+PAIR = BedPE(
+    refname1="chr1",
+    start1=10,
+    end1=20,
+    refname2="chr1",
+    start2=50,
+    end2=60,
+    name=None,
+    score=None,
+    strand1=BedStrand.Positive,
+    strand2=BedStrand.Negative,
+)
+
+
+@dataclass(frozen=True)
+class StrandedPoint(Bed2):
+    """A point on a strand, whose 1-length territory has no strand of its own."""
+
+    strand: BedStrand | None
 
 
 def detector() -> TreeDetector[Bed3 | Bed6]:
@@ -40,3 +62,40 @@ def test_features_without_a_strand_never_match_a_stranded_query() -> None:
     """Test that a query or feature without a strand never matches a stranded query."""
     assert set(detector().overlapping(BED3, stranded=True)) == set()
     assert not detector().overlaps(UNSTRANDED, stranded=True)
+
+
+def test_stranded_queries_compare_the_strand_of_the_pair_end_they_overlap() -> None:
+    """Test that a stranded query matches a pair only by the strand of an end it overlaps."""
+    detector: TreeDetector[BedPE] = TreeDetector([PAIR])
+    first = replace(QUERY, start=12, end=13)
+    second = replace(QUERY, start=55, end=56, strand=BedStrand.Negative)
+    both = replace(QUERY, start=0, end=100)
+
+    assert list(detector.overlapping(first, stranded=True)) == [PAIR]
+    assert list(detector.overlapping(second, stranded=True)) == [PAIR]
+    assert list(detector.overlapping(both, stranded=True)) == [PAIR]
+    assert not detector.overlaps(replace(first, strand=BedStrand.Negative), stranded=True)
+    assert not detector.overlaps(replace(second, strand=BedStrand.Positive), stranded=True)
+    assert detector.overlaps(replace(both, strand=BedStrand.Negative), stranded=True)
+
+
+def test_stranded_containment_compares_the_strand_of_the_pair_end_that_matches() -> None:
+    """Test that stranded enclosing and enclosed_by use the strand of the end that contains."""
+    detector: TreeDetector[BedPE] = TreeDetector([PAIR])
+    inside = replace(QUERY, start=12, end=13)
+    around = replace(QUERY, start=0, end=30)
+    minus = BedStrand.Negative
+
+    assert list(detector.enclosing(inside, stranded=True)) == [PAIR]
+    assert list(detector.enclosed_by(around, stranded=True)) == [PAIR]
+    assert not list(detector.enclosing(replace(inside, strand=minus), stranded=True))
+    assert not list(detector.enclosed_by(replace(around, strand=minus), stranded=True))
+
+
+def test_a_span_without_a_strand_takes_the_strand_of_its_feature() -> None:
+    """Test that a stranded query matches a feature by its own strand when its span has none."""
+    point = StrandedPoint(refname="chr1", start=2, strand=BedStrand.Positive)
+    detector: TreeDetector[StrandedPoint] = TreeDetector([point])
+
+    assert list(detector.overlapping(QUERY, stranded=True)) == [point]
+    assert not detector.overlaps(replace(QUERY, strand=BedStrand.Negative), stranded=True)
