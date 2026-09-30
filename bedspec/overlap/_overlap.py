@@ -1,3 +1,5 @@
+from bisect import bisect_left
+from bisect import bisect_right
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
@@ -63,13 +65,14 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
       * `end`: A 0-based half-open end position
 
     A feature matches a query when any of its spans on the query's reference does, so a BEDPE
-    record is found by either end. A query yields each matching feature once, in the order the
-    index finds it, which is repeatable but is not the order the features were added.
+    record is found by either end, but it is enclosed by a query only when all of its spans are.
+    A query yields each matching feature once, in the order the index finds it, which is
+    repeatable but is not the order the features were added.
 
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 
     Every query may be limited to features on the same strand as the query with `stranded=True`.
-    The strand compared is that of the matching span, or of its feature if the span has none.
+    The strand compared is that of each matching span, or of its feature if the span has none.
     A feature without a strand never matches a stranded query.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
@@ -135,6 +138,21 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         """Return the strand of a span, or of its feature if the span has none."""
         return _strand(self._spans[span]) or _strand(self._features[self._span_owners[span]])
 
+    def _spans_of(self, number: int) -> range:
+        """Return the spans of a feature, which are numbered consecutively as they were added."""
+        span_owners = self._span_owners
+        return range(bisect_left(span_owners, number), bisect_right(span_owners, number))
+
+    def _is_inside(self, span: int, feature: ReferenceSpan, strand: BedStrand | None) -> bool:
+        """Return whether a span is inside a query feature, and on a strand if one is given."""
+        inner = self._spans[span]
+        return (
+            inner.refname == feature.refname
+            and feature.start <= inner.start
+            and feature.end >= inner.end
+            and (strand is None or self._strand_of(span) is strand)
+        )
+
     def _hits(self, feature: ReferenceSpan, stranded: bool) -> list[int]:
         """Return the spans that overlap a query feature, on its strand if stranded."""
         tree = self._tree_for(feature.refname)
@@ -191,10 +209,19 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     def enclosed_by(
         self, feature: ReferenceSpan, *, stranded: bool = False
     ) -> Iterator[FeatureType]:
-        """Yields all the features with a span that is enclosed by the given query feature."""
+        """Yields all the features with every span enclosed by the given query feature."""
         spans = self._spans
-        yield from self._features_of([
-            hit
-            for hit in self._hits(feature, stranded)
-            if feature.start <= spans[hit].start and feature.end >= spans[hit].end
-        ])
+        hits = self._hits(feature, stranded)
+        if self._one_span_each:
+            yield from self._features_of([
+                hit
+                for hit in hits
+                if feature.start <= spans[hit].start and feature.end >= spans[hit].end
+            ])
+            return
+
+        features = self._features
+        strand = _strand(feature) if stranded else None
+        for number in dict.fromkeys(self._span_owners[hit] for hit in hits):
+            if all(self._is_inside(span, feature, strand) for span in self._spans_of(number)):
+                yield features[number]

@@ -156,6 +156,7 @@ A zero-length feature overlaps the features that hold either base beside it.
 
 A BED record is found by any span of its territory, so `Bed2` points and `BedPE` pairs are supported, and a `BedPE` is found by either end.
 Each matching feature is returned once, even when several of its spans match.
+A feature is enclosed by the input feature only when all of its spans are, so a `BedPE` needs both ends inside.
 
 Each operation takes `stranded=True` to find only features on the same strand as the query.
 For a `BedPE`, each end is compared by its own strand.

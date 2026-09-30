@@ -388,14 +388,32 @@ def test_enclosing_compares_the_query_with_each_span() -> None:
     assert list(detector.enclosing(Bed3(refname="chr1", start=11, end=29))) == []
 
 
-def test_enclosed_by_compares_the_query_with_each_span() -> None:
-    """Test that a feature is enclosed by a query when one of its spans is inside the query."""
+def test_enclosed_by_requires_every_block_inside_the_query() -> None:
+    """Test that a feature is enclosed by a query only when all of its blocks are inside it."""
     detector: TreeDetector[Blocked] = TreeDetector([BLOCKED])
 
-    assert list(detector.enclosed_by(Bed3(refname="chr1", start=9, end=12))) == [BLOCKED]
-    assert list(detector.enclosed_by(Bed3(refname="chr1", start=28, end=31))) == [BLOCKED]
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=10, end=30))) == [BLOCKED]
     assert list(detector.enclosed_by(Bed3(refname="chr1", start=0, end=100))) == [BLOCKED]
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=9, end=12))) == []
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=28, end=31))) == []
     assert list(detector.enclosed_by(Bed3(refname="chr1", start=11, end=29))) == []
+
+
+def test_a_pair_is_enclosed_only_when_both_ends_are_inside_the_query() -> None:
+    """Test that a pair on one reference is enclosed by a query only when both ends are inside."""
+    detector: TreeDetector[BedPE] = TreeDetector([PAIR])
+
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=10, end=60))) == [PAIR]
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=0, end=30))) == []
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=40, end=100))) == []
+
+
+def test_a_pair_across_two_references_is_never_enclosed() -> None:
+    """Test that a pair with ends on two references is not enclosed by a query on either one."""
+    detector: TreeDetector[BedPE] = TreeDetector([replace(PAIR, refname2="chr2")])
+
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=0, end=100))) == []
+    assert list(detector.enclosed_by(Bed3(refname="chr2", start=0, end=100))) == []
 
 
 def test_the_same_feature_added_twice_is_found_twice() -> None:

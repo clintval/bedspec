@@ -79,17 +79,24 @@ def test_stranded_queries_compare_the_strand_of_the_pair_end_they_overlap() -> N
     assert detector.overlaps(replace(both, strand=BedStrand.Negative), stranded=True)
 
 
-def test_stranded_containment_compares_the_strand_of_the_pair_end_that_matches() -> None:
-    """Test that stranded enclosing and enclosed_by use the strand of the end that contains."""
+def test_stranded_enclosing_compares_the_strand_of_the_pair_end_that_encloses() -> None:
+    """Test that stranded enclosing uses the strand of the pair end that encloses the query."""
     detector: TreeDetector[BedPE] = TreeDetector([PAIR])
     inside = replace(QUERY, start=12, end=13)
-    around = replace(QUERY, start=0, end=30)
-    minus = BedStrand.Negative
 
     assert list(detector.enclosing(inside, stranded=True)) == [PAIR]
-    assert list(detector.enclosed_by(around, stranded=True)) == [PAIR]
-    assert not list(detector.enclosing(replace(inside, strand=minus), stranded=True))
-    assert not list(detector.enclosed_by(replace(around, strand=minus), stranded=True))
+    assert not list(detector.enclosing(replace(inside, strand=BedStrand.Negative), stranded=True))
+
+
+def test_a_pair_with_ends_on_different_strands_is_not_enclosed_by_a_stranded_query() -> None:
+    """Test that a stranded query encloses a pair only when both ends are on its strand."""
+    around = replace(QUERY, start=0, end=100)
+    same = replace(PAIR, strand2=BedStrand.Positive)
+    detector: TreeDetector[BedPE] = TreeDetector([PAIR, same])
+
+    assert set(detector.enclosed_by(around)) == {PAIR, same}
+    assert list(detector.enclosed_by(around, stranded=True)) == [same]
+    assert not list(detector.enclosed_by(replace(around, strand=BedStrand.Negative), stranded=True))
 
 
 def test_a_span_without_a_strand_takes_the_strand_of_its_feature() -> None:
