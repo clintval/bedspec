@@ -112,7 +112,7 @@ BedType = TypeVar("BedType", bound=BedLike)
 """A type variable for any kind of BED record type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class PointBed(BedLike, ABC):
     """An abstract class for a BED record that describes a 0-based 1-length point."""
 
@@ -121,7 +121,9 @@ class PointBed(BedLike, ABC):
 
     def __init_subclass__(cls) -> None:
         if not dataclasses.is_dataclass(cls):
-            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+            raise TypeError(
+                "You must annotate custom BED class definitions with @dataclass(frozen=True)!"
+            )
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
@@ -142,7 +144,7 @@ class PointBed(BedLike, ABC):
         yield Bed3(refname=self.refname, start=self.start, end=self.start + 1)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SimpleBed(BedLike, ReferenceSpan, ABC):
     """An abstract class for a BED record that describes a contiguous linear interval."""
 
@@ -152,7 +154,9 @@ class SimpleBed(BedLike, ReferenceSpan, ABC):
 
     def __init_subclass__(cls) -> None:
         if not dataclasses.is_dataclass(cls):
-            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+            raise TypeError(
+                "You must annotate custom BED class definitions with @dataclass(frozen=True)!"
+            )
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
@@ -170,7 +174,7 @@ class SimpleBed(BedLike, ReferenceSpan, ABC):
         yield self
 
 
-@dataclass
+@dataclass(frozen=True)
 class PairBed(BedLike, ABC):
     """An abstract base class for a BED record that describes a pair of linear linear intervals."""
 
@@ -183,7 +187,9 @@ class PairBed(BedLike, ABC):
 
     def __init_subclass__(cls) -> None:
         if not dataclasses.is_dataclass(cls):
-            raise TypeError("You must annotate custom BED class definitions with @dataclass!")
+            raise TypeError(
+                "You must annotate custom BED class definitions with @dataclass(frozen=True)!"
+            )
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
@@ -208,7 +214,7 @@ class PairBed(BedLike, ABC):
         yield self.bed2
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class BedColor:
     """The color of a BED record in red, green, and blue color values."""
 
@@ -236,7 +242,7 @@ class BedColor:
         return f"{self.r},{self.g},{self.b}"
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed2(PointBed):
     """A BED2 record that describes a single 0-based 1-length point."""
 
@@ -244,7 +250,7 @@ class Bed2(PointBed):
     start: int
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed3(SimpleBed):
     """A BED3 record that describes a contiguous linear interval."""
 
@@ -253,7 +259,7 @@ class Bed3(SimpleBed):
     end: int = field(kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed4(SimpleBed):
     """A BED4 record that describes a contiguous linear interval."""
 
@@ -269,7 +275,7 @@ class Bed4(SimpleBed):
         _check_name(self.name)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed5(SimpleBed, Named):
     """A BED5 record that describes a contiguous linear interval."""
 
@@ -287,7 +293,7 @@ class Bed5(SimpleBed, Named):
         _check_score(self.score)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed6(SimpleBed, Named, Stranded):
     """A BED6 record that describes a contiguous linear interval."""
 
@@ -306,7 +312,7 @@ class Bed6(SimpleBed, Named, Stranded):
         _check_score(self.score)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed12(SimpleBed, Named, Stranded):
     """A BED12 record that describes a contiguous linear interval."""
 
@@ -320,8 +326,8 @@ class Bed12(SimpleBed, Named, Stranded):
     thick_end: int | None = field(kw_only=True)
     item_rgb: BedColor | None = field(kw_only=True)
     block_count: int | None = field(kw_only=True)
-    block_sizes: list[int] | None = field(kw_only=True)
-    block_starts: list[int] | None = field(kw_only=True)
+    block_sizes: tuple[int, ...] | None = field(kw_only=True)
+    block_starts: tuple[int, ...] | None = field(kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate this BED12 record."""
@@ -363,42 +369,42 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("The last defined block's end must be equal to the BED end!")
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed3N(Bed3):
     """A BED3+N record: a BED3 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed4N(Bed4):
     """A BED4+N record: a BED4 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed5N(Bed5):
     """A BED5+N record: a BED5 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed6N(Bed6):
     """A BED6+N record: a BED6 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class Bed12N(Bed12):
     """A BED12+N record: a BED12 record followed by any number of extra columns, kept as text."""
 
     extra: ExtraColumns = field(default=(), kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class BedGraph(SimpleBed):
     """A bedGraph feature for continuous-valued data."""
 
@@ -408,7 +414,7 @@ class BedGraph(SimpleBed):
     value: float = field(kw_only=True)
 
 
-@dataclass(slots=True, unsafe_hash=True)
+@dataclass(slots=True, frozen=True)
 class BedPE(PairBed, Named):
     """A BED record that describes a pair of BED records as per the bedtools spec."""
 

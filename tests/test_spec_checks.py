@@ -26,8 +26,8 @@ def bed12(**fields: Any) -> Bed12:
         "thick_end": 10,
         "item_rgb": None,
         "block_count": 2,
-        "block_sizes": [2, 3],
-        "block_starts": [0, 5],
+        "block_sizes": (2, 3),
+        "block_starts": (0, 5),
     }
     return Bed12(**(defaults | fields))
 
@@ -161,13 +161,13 @@ def test_bed12_may_have_no_thick_part() -> None:
 @pytest.mark.parametrize(
     "block_sizes,block_starts",
     [
-        ([4, 3], [0, 3]),
-        ([3, 3, 3], [0, 5, 2]),
-        ([9, 3], [0, 5]),
+        ((4, 3), (0, 3)),
+        ((3, 3, 3), (0, 5, 2)),
+        ((9, 3), (0, 5)),
     ],
 )
 def test_bed12_blocks_must_ascend_without_overlapping(
-    block_sizes: list[int], block_starts: list[int]
+    block_sizes: tuple[int, ...], block_starts: tuple[int, ...]
 ) -> None:
     """Test that the blocks of a BED12 record must ascend and must not overlap."""
     with pytest.raises(ValueError, match="Blocks must be in ascending order and must not overlap!"):
@@ -176,7 +176,7 @@ def test_bed12_blocks_must_ascend_without_overlapping(
 
 def test_bed12_blocks_may_touch() -> None:
     """Test that the blocks of a BED12 record may touch."""
-    assert bed12(block_sizes=[5, 3], block_starts=[0, 5]).block_count == 2
+    assert bed12(block_sizes=(5, 3), block_starts=(0, 5)).block_count == 2
 
 
 def test_overlap_detector_finds_zero_length_features_by_their_flanking_bases() -> None:

@@ -202,8 +202,8 @@ def test_bed12_validation() -> None:
         thick_start: int | None = None,
         thick_end: int | None = None,
         block_count: int | None = None,
-        block_sizes: list[int] | None = None,
-        block_starts: list[int] | None = None,
+        block_sizes: tuple[int, ...] | None = None,
+        block_starts: tuple[int, ...] | None = None,
     ) -> Bed12:
         return Bed12(
             refname="chr1",
@@ -246,34 +246,34 @@ def test_bed12_validation() -> None:
         ValueError, match="block_count, block_sizes, block_starts must all be set or unset!"
     ):
         make_bed12(block_count=1, block_sizes=None, block_starts=None)
-        make_bed12(block_count=None, block_sizes=[1], block_starts=[0])
-        make_bed12(block_count=1, block_sizes=None, block_starts=[0])
-        make_bed12(block_count=1, block_sizes=[1], block_starts=None)
+        make_bed12(block_count=None, block_sizes=(1,), block_starts=(0,))
+        make_bed12(block_count=1, block_sizes=None, block_starts=(0,))
+        make_bed12(block_count=1, block_sizes=(1,), block_starts=None)
 
     with pytest.raises(
         ValueError, match="When set, block_count must be greater than or equal to 1!"
     ):
-        make_bed12(block_count=-1, block_sizes=[1], block_starts=[0])
+        make_bed12(block_count=-1, block_sizes=(1,), block_starts=(0,))
 
     with pytest.raises(
         ValueError, match="Length of block_sizes and block_starts must equal block_count!"
     ):
-        make_bed12(block_count=1, block_sizes=[1], block_starts=[0, 1])
-        make_bed12(block_count=1, block_sizes=[1, 2], block_starts=[0])
-        make_bed12(block_count=2, block_sizes=[1], block_starts=[0])
+        make_bed12(block_count=1, block_sizes=(1,), block_starts=(0, 1))
+        make_bed12(block_count=1, block_sizes=(1, 2), block_starts=(0,))
+        make_bed12(block_count=2, block_sizes=(1,), block_starts=(0,))
 
     with pytest.raises(ValueError, match="block_starts must start with 0!"):
-        make_bed12(block_count=1, block_sizes=[1], block_starts=[1])
+        make_bed12(block_count=1, block_sizes=(1,), block_starts=(1,))
 
     with pytest.raises(
         ValueError, match="All sizes in block_size must be greater than or equal to one!"
     ):
-        make_bed12(block_count=1, block_sizes=[-1], block_starts=[0])
+        make_bed12(block_count=1, block_sizes=(-1,), block_starts=(0,))
 
     with pytest.raises(
         ValueError, match="The last defined block's end must be equal to the BED end!"
     ):
-        make_bed12(block_count=2, block_sizes=[1, 1], block_starts=[0, 4])
+        make_bed12(block_count=2, block_sizes=(1, 1), block_starts=(0, 4))
 
 
 def test_make_bedpe_from_pair_of_bed6() -> None:
