@@ -9,6 +9,7 @@ keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
+    "pybgzf >=0.1",
     "superintervals >=1.0.2",
     "typeline >=2.0",
     "typing-extensions >=4.12",
@@ -60,8 +61,11 @@ only-include = ["bedspec", "tests", "README.md", "CONTRIBUTING.md", "LICENSE"]
 # caught before it can be locked. Must stay >= the Dependabot `cooldown` in
 # .github/dependabot.yml, or Dependabot will propose versions that can't lock.
 exclude-newer = "1 week"
-# superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
-exclude-newer-package = { superintervals = false, typeline = false }
+# pybgzf, superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
+exclude-newer-package = { pybgzf = false, superintervals = false, typeline = false }
+
+[tool.uv.sources]
+pybgzf = { path = "../pybgzf", editable = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"
