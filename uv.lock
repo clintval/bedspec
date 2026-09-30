@@ -114,7 +114,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "superintervals", specifier = ">=1.0.1" },
+    { name = "superintervals", specifier = ">=1.0.2" },
     { name = "typeline", specifier = ">=2.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
@@ -747,12 +747,12 @@ wheels = [
 
 [[package]]
 name = "superintervals"
-version = "1.0.1"
+version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cython" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/d1/5e85ac38730075ab8ba67aeb1da42154aa16d8d159468a269973d1017f23/superintervals-1.0.1.tar.gz", hash = "sha256:89290430037527d26ee87fee583a050fd8fc1ec5a01a79d84bd9f3181d6fcd30", size = 260241, upload-time = "2026-09-30T12:07:59.22Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/06/5d580132ebf6cbec3fe6293b94475316f909ea742f673d80d6669e3982bc/superintervals-1.0.2.tar.gz", hash = "sha256:112fd0fd8b11cefbacd719e0e2bf43834daf16a4ca5c2f84a57a536a0a77aef1", size = 260369, upload-time = "2026-09-30T15:29:37.87Z" }
 
 [[package]]
 name = "tomli"

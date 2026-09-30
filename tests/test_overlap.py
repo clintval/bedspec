@@ -1,3 +1,5 @@
+from random import Random
+
 import pytest
 
 from bedspec import Bed3
@@ -198,3 +200,19 @@ def test_overlaps_finds_a_query_inside_a_long_feature_after_a_nested_one() -> No
 
     assert list(detector.overlapping(query)) == [long]
     assert detector.overlaps(query)
+
+
+def test_overlaps_agrees_with_overlapping_on_random_features() -> None:
+    """Test that overlaps is True exactly when overlapping finds a feature, on random features."""
+    rng = Random(42)
+    for _ in range(200):
+        starts = [rng.randrange(1000) for _ in range(rng.randrange(40))]
+        features = [
+            Bed3(refname="chr1", start=start, end=start + rng.choice((1, 10, 100, 500)))
+            for start in starts
+        ]
+        detector: TreeDetector[Bed3] = TreeDetector(features)
+        for _ in range(50):
+            start = rng.randrange(1100)
+            query = Bed3(refname="chr1", start=start, end=start + rng.randrange(50))
+            assert detector.overlaps(query) is any(True for _ in detector.overlapping(query))
