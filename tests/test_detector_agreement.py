@@ -3,14 +3,21 @@ import random
 from collections import Counter
 from collections.abc import Iterable
 from collections.abc import Iterator
+from collections.abc import Sequence
+from dataclasses import dataclass
+from dataclasses import fields
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pybgzf import IndexFormat
+from typing_extensions import override
 
+from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import BedWriter
+from bedspec import ReferenceSpan
 from bedspec.overlap import TabixDetector
 from bedspec.overlap import TreeDetector
 
@@ -39,6 +46,24 @@ CSI_REFERENCES: dict[str, tuple[int, int]] = {**REFERENCES, "chrBig": (LARGEST -
 
 ABSENT = ["chr", "chrX"]
 """References no feature is written on."""
+
+
+@dataclass(frozen=True)
+class Blocks6(Bed6):
+    """A BED6 whose territory is its first and last thirds and a point between them."""
+
+    @override
+    def territory(self) -> Iterator[ReferenceSpan]:
+        """Yield the first and last thirds, and a zero-length middle on the other strand."""
+        third = len(self) // 3
+        if third == 0:
+            yield self
+            return
+        middle = self.start + len(self) // 2
+        strand = None if self.strand is None else self.strand.opposite()
+        yield Bed3(self.refname, start=self.start, end=self.start + third)
+        yield Bed6(self.refname, start=middle, end=middle, name=None, score=None, strand=strand)
+        yield Bed3(self.refname, start=self.end - third, end=self.end)
 
 
 def near_boundary(rng: random.Random, length: int) -> int:
@@ -115,7 +140,7 @@ def query_at(rng: random.Random, refname: str, start: int, end: int) -> Bed6:
     return Bed6(refname, start=start, end=min(end, LARGEST), name=None, score=None, strand=strand)
 
 
-def edge_queries(rng: random.Random, feature: Bed6) -> Iterator[Bed6]:
+def edge_queries(rng: random.Random, feature: ReferenceSpan) -> Iterator[Bed6]:
     """Yield zero-length or one-base queries at each edge of a feature, it, and one base wider."""
     edges = {feature.start - 1, feature.start, feature.end - 1, feature.end, feature.end + 1}
     for position in sorted(edges - {-1}):
@@ -125,7 +150,7 @@ def edge_queries(rng: random.Random, feature: Bed6) -> Iterator[Bed6]:
 
 
 def hostile_queries(
-    rng: random.Random, features: list[Bed6], lengths: dict[str, int]
+    rng: random.Random, features: Sequence[Bed6], lengths: dict[str, int]
 ) -> Iterator[Bed6]:
     """Yield queries at feature edges, inside long features, on bin boundaries, and at random."""
     for feature in rng.sample(features, 80):
@@ -159,14 +184,14 @@ def bgzf_blocks(path: Path) -> int:
 
 
 def assert_detectors_agree(
-    tree: TreeDetector[Bed6], tabix: TabixDetector[Bed6], queries: Iterable[Bed6], index: str
+    tree: TreeDetector[Any], tabix: TabixDetector[Any], queries: Iterable[Bed6], index: str
 ) -> None:
     """Assert that both detectors find the same features for every query, method, and strand."""
     for query in queries:
         for stranded in (False, True):
             for method in METHODS:
-                expected: Counter[Bed6] = Counter(getattr(tree, method)(query, stranded=stranded))
-                actual: Counter[Bed6] = Counter(getattr(tabix, method)(query, stranded=stranded))
+                expected: Counter[Any] = Counter(getattr(tree, method)(query, stranded=stranded))
+                actual: Counter[Any] = Counter(getattr(tabix, method)(query, stranded=stranded))
                 assert actual == expected, f"{method}({query}, {stranded=}) with {index}"
             found = bool(list(tree.overlapping(query, stranded=stranded)))
             for detector in (tree, tabix):
@@ -195,4 +220,34 @@ def test_both_detectors_agree_on_hostile_features(index: IndexFormat, tmp_path: 
     lengths = {refname: length for refname, (length, _) in references.items()}
     queries = list(hostile_queries(rng, features, lengths))
     with TabixDetector[Bed6](path) as tabix:
+        assert_detectors_agree(TreeDetector(features), tabix, queries, index.name)
+
+
+@pytest.mark.parametrize("index", list(IndexFormat))
+def test_both_detectors_agree_on_every_span_of_features_with_several(
+    index: IndexFormat, tmp_path: Path
+) -> None:
+    """Test that both detectors agree on features whose territory has several spans."""
+    rng = random.Random(f"blocks {index.name}")
+    features = [
+        Blocks6(**{field.name: getattr(feature, field.name) for field in fields(Bed6)})
+        for refname, (length, count) in REFERENCES.items()
+        for feature in hostile_features(rng, refname, length, count // 10)
+    ]
+    path = tmp_path / "blocks.bed.gz"
+    with BedWriter.from_path[Blocks6](path, index=index) as writer:
+        for feature in features:
+            writer.write(feature)
+
+    lengths = {refname: length for refname, (length, _) in REFERENCES.items()}
+    queries = [
+        *hostile_queries(rng, features, lengths),
+        *(
+            query
+            for feature in rng.sample(features, 100)
+            for span in feature.territory()
+            for query in edge_queries(rng, span)
+        ),
+    ]
+    with TabixDetector[Blocks6](path) as tabix:
         assert_detectors_agree(TreeDetector(features), tabix, queries, index.name)
