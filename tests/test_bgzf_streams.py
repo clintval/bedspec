@@ -130,7 +130,7 @@ def test_bgzf_is_written_into_a_pipe(record_type: type[Any], threads: int) -> No
     read_end, write_end = os.pipe()
     reader = Background(read_all(os.fdopen(read_end, "rb")))
     with os.fdopen(write_end, "wb") as sink:
-        handle = pybgzf.open_writer(sink, newline="", threads=threads)
+        handle = pybgzf.writer(sink, newline="", threads=threads)
         with BedWriter[record_type](handle) as writer:  # type: ignore[valid-type]
             write_all(writer, RECORDS[record_type])
 
@@ -206,7 +206,7 @@ def test_bgzf_is_read_from_a_pipe(record_type: type[Any], threads: int, tmp_path
     writer_thread = Background(write)
     with (
         os.fdopen(read_end, "rb") as source,
-        BedReader[record_type](pybgzf.open_reader(source, threads=threads)) as reader,  # type: ignore[valid-type]
+        BedReader[record_type](pybgzf.reader(source, threads=threads)) as reader,  # type: ignore[valid-type]
     ):
         assert list(reader) == RECORDS[record_type]
     writer_thread.join()

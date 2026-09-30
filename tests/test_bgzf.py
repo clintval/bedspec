@@ -22,6 +22,9 @@ BEDS = [
     Bed3(refname="chr2", start=0, end=2),
 ]
 
+BGZF_EOF = bytes.fromhex("1f8b08040000000000ff0600424302001b0003000000000000000000")
+"""The empty block that ends every complete BGZF file."""
+
 
 def is_bgzf(path: Path) -> bool:
     """Return True if a file starts with a BGZF block header."""
@@ -226,7 +229,10 @@ def test_an_index_refuses_records_out_of_order(
     suffix: str,
     tmp_path: Path,
 ) -> None:
-    """Test that the write of a record out of order fails, naming its line, and leaves no index."""
+    """Test that the write of a record out of order fails, naming its line, and leaves no index.
+
+    The file is then closed without the BGZF end-of-file marker, so it reads as truncated.
+    """
     path = tmp_path / "test.bed.gz"
     index_path = tmp_path / f"test.bed.gz{suffix}"
     _ = index_path.write_bytes(b"a stale index")
@@ -237,10 +243,10 @@ def test_an_index_refuses_records_out_of_order(
         writer.write(record)
     with pytest.raises(ValueError, match=message):
         writer.write(last)
-    with pytest.raises(ValueError):
-        writer.close()
+    writer.close()
 
     assert not index_path.exists()
+    assert not path.read_bytes().endswith(BGZF_EOF)
 
 
 @RECORD_TYPES

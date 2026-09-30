@@ -111,7 +111,7 @@ class BedWriter(TsvWriter[BedType]):
             raise ValueError(f"An index_path needs an index, but none was asked for: {index_path}")
         _ = cls(StringIO(), **options)
         columns = cls._index_columns() if index is not None else None
-        handle = pybgzf.open_writer(
+        handle = pybgzf.writer(
             path, columns=columns, index=index, index_path=index_path, newline="", threads=threads
         )
         if index is not None:
