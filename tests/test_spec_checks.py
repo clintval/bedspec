@@ -200,3 +200,23 @@ def test_overlap_detector_holds_zero_length_features() -> None:
     assert set(detector.overlapping(Bed3(refname="chr1", start=6, end=9))) == set()
     assert set(detector.overlapping(Bed3(refname="chr1", start=0, end=1))) == {at_start}
     assert set(detector.enclosed_by(Bed3(refname="chr1", start=5, end=9))) == {insertion}
+
+
+def test_bedpe_scores_are_not_limited_to_the_bed_range() -> None:
+    """Test that a BEDPE score outside 0 to 1000 is allowed, and its intervals can be taken."""
+    record = BedPE(
+        refname1="chr1",
+        start1=1,
+        end1=2,
+        refname2="chr2",
+        start2=3,
+        end2=4,
+        name="pair",
+        score=1001,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
+    )
+    assert record.score == 1001
+    assert record.bed1.score is None
+    assert record.bed2.score is None
+    assert list(record.territory()) == [record.bed1, record.bed2]

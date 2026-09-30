@@ -424,28 +424,33 @@ class BedPE(PairBed, Named):
     strand2: BedStrand | None = field(kw_only=True)
 
     @property
+    def _bed_score(self) -> int | None:
+        """This pair's score if BED can hold it, since a BEDPE score is not limited to 0-1000."""
+        return self.score if self.score is None or 0 <= self.score <= 1000 else None
+
+    @property
     @override
     def bed1(self) -> Bed6:
-        """The first of the two intervals as a BED6 record."""
+        """The first of the two intervals as a BED6 record, without a score BED can't hold."""
         return Bed6(
             refname=self.refname1,
             start=self.start1,
             end=self.end1,
             name=self.name,
-            score=self.score,
+            score=self._bed_score,
             strand=self.strand1,
         )
 
     @property
     @override
     def bed2(self) -> Bed6:
-        """The second of the two intervals as a BED6 record."""
+        """The second of the two intervals as a BED6 record, without a score BED can't hold."""
         return Bed6(
             refname=self.refname2,
             start=self.start2,
             end=self.end2,
             name=self.name,
-            score=self.score,
+            score=self._bed_score,
             strand=self.strand2,
         )
 
