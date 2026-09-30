@@ -135,7 +135,8 @@ class TreeDetector(Iterable[ReferenceSpanType], Generic[ReferenceSpanType]):
 
         start, end = _closed(feature)
         if not stranded:
-            return tree.has_overlaps(start, end)
+            # NB: superintervals' has_overlaps misses some nested overlaps; we are fixing it upstream.
+            return next(tree.iter_idxs(start, end), None) is not None
 
         strand = _strand(feature)
         if strand is None:
