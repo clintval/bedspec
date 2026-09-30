@@ -9,7 +9,7 @@ keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
-    "superintervals >=1.0",
+    "superintervals >=1.0.1",
     "typeline >=2.0",
     "typing-extensions >=4.12",
 ]
