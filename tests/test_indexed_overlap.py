@@ -8,6 +8,7 @@ from typing_extensions import override
 
 from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import Bed12
 from bedspec import BedPE
 from bedspec import BedStrand
 from bedspec import BedWriter
@@ -17,10 +18,10 @@ from bedspec.overlap import TabixDetector
 
 @dataclass(frozen=True)
 class Blocked(Bed3):
-    """A BED3 whose territory is only its first and last ten bases."""
+    """A BED3 whose spans are only its first and last ten bases."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the first and last ten bases of this feature."""
         yield Bed3(self.refname, start=self.start, end=self.start + 10)
         yield Bed3(self.refname, start=self.end - 10, end=self.end)
@@ -28,10 +29,10 @@ class Blocked(Bed3):
 
 @dataclass(frozen=True)
 class Blocked6(Bed6):
-    """A BED6 whose territory is only its first and last ten bases, without a strand."""
+    """A BED6 whose spans are only its first and last ten bases, without a strand."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the first and last ten bases of this feature."""
         yield Bed3(self.refname, start=self.start, end=self.start + 10)
         yield Bed3(self.refname, start=self.end - 10, end=self.end)
@@ -111,10 +112,10 @@ def test_a_paired_bed_cannot_be_queried(tmp_path: Path) -> None:
     assert detector.closed
 
 
-def test_every_span_of_a_territory_is_found_and_the_gap_between_them_is_not(
+def test_every_span_of_a_feature_is_found_and_the_gap_between_them_is_not(
     tmp_path: Path,
 ) -> None:
-    """Test that a query of any span of a feature's territory finds it, and a gap does not."""
+    """Test that a query of any span of a feature finds it, and a gap does not."""
     blocked = Blocked("chr1", start=0, end=100)
     path = tmp_path / "features.bed.gz"
     with BedWriter.from_path[Blocked](path, index=IndexFormat.TBI) as writer:
@@ -129,8 +130,8 @@ def test_every_span_of_a_territory_is_found_and_the_gap_between_them_is_not(
         assert list(detector.enclosing(Bed3("chr1", start=5, end=95))) == []
 
 
-def test_a_feature_is_enclosed_only_when_every_span_of_its_territory_is(tmp_path: Path) -> None:
-    """Test that enclosed_by needs every span of a feature's territory inside the query."""
+def test_a_feature_is_enclosed_only_when_every_span_of_it_is(tmp_path: Path) -> None:
+    """Test that enclosed_by needs every span of a feature inside the query."""
     blocked = Blocked("chr1", start=0, end=100)
     path = tmp_path / "features.bed.gz"
     with BedWriter.from_path[Blocked](path, index=IndexFormat.TBI) as writer:
@@ -140,6 +141,42 @@ def test_a_feature_is_enclosed_only_when_every_span_of_its_territory_is(tmp_path
         assert list(detector.enclosed_by(Bed3("chr1", start=0, end=20))) == []
         assert list(detector.enclosed_by(Bed3("chr1", start=80, end=100))) == []
         assert list(detector.enclosed_by(Bed3("chr1", start=0, end=100))) == [blocked]
+
+
+def test_a_query_in_a_bed12_intron_finds_nothing_though_the_index_returns_it(
+    tmp_path: Path,
+) -> None:
+    """Test that a BED12 record the index returns for an intron is not found by any query method."""
+    transcript = Bed12(
+        "chr1",
+        start=100,
+        end=200,
+        name="tx",
+        score=None,
+        strand=BedStrand.Negative,
+        thick_start=None,
+        thick_end=None,
+        item_rgb=None,
+        block_count=2,
+        block_sizes=(10, 10),
+        block_starts=(0, 90),
+    )
+    path = tmp_path / "transcripts.bed.gz"
+    with BedWriter.from_path[Bed12](path, index=IndexFormat.TBI) as writer:
+        writer.write(transcript)
+
+    intron = Bed6("chr1", start=150, end=151, name=None, score=None, strand=BedStrand.Negative)
+    block = Bed6("chr1", start=195, end=196, name=None, score=None, strand=BedStrand.Negative)
+    with TabixDetector[Bed12](path) as detector:
+        for query in (intron, Bed3("chr1", start=110, end=190), Bed3("chr1", start=150, end=150)):
+            for stranded in (False, True):
+                assert not detector.overlaps(query, stranded=stranded)
+                assert list(detector.overlapping(query, stranded=stranded)) == []
+                assert list(detector.enclosing(query, stranded=stranded)) == []
+                assert list(detector.enclosed_by(query, stranded=stranded)) == []
+        assert list(detector.overlapping(block, stranded=True)) == [transcript]
+        assert list(detector.enclosing(block, stranded=True)) == [transcript]
+        assert list(detector.enclosed_by(Bed3("chr1", start=100, end=200))) == [transcript]
 
 
 def test_a_span_without_a_strand_takes_the_strand_of_its_feature(tmp_path: Path) -> None:

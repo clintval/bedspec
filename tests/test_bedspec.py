@@ -1,6 +1,7 @@
 from dataclasses import is_dataclass
 
 import pytest
+from typing_extensions import override
 
 from bedspec import Bed2
 from bedspec import Bed3
@@ -18,6 +19,7 @@ from bedspec import PointBed
 from bedspec import ReferenceSpan
 from bedspec import SimpleBed
 from bedspec import Stranded
+from bedspec import Territory
 from bedspec._bedspec import DataclassInstance
 
 
@@ -144,10 +146,10 @@ def test_paired_bed_has_two_interval_properties() -> None:
     assert record.bed2 == Bed6(refname="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.Negative)  # fmt: skip  # noqa: E501
 
 
-def test_point_bed_types_have_a_territory() -> None:
-    """Test that a point BED has a territory of 1-length."""
+def test_point_bed_types_have_a_span() -> None:
+    """Test that a point BED has one span of 1-length."""
     expected = Bed3(refname="chr1", start=1, end=2)
-    assert list(Bed2(refname="chr1", start=1).territory()) == [expected]
+    assert list(Bed2(refname="chr1", start=1).spans()) == [expected]
 
 
 def test_point_bed_types_are_length_1() -> None:
@@ -155,8 +157,8 @@ def test_point_bed_types_are_length_1() -> None:
     assert len(Bed2(refname="chr1", start=1)) == 1
 
 
-def test_simple_bed_types_have_a_territory() -> None:
-    """Test that simple BEDs are their own territory."""
+def test_simple_bed_types_have_a_span() -> None:
+    """Test that simple BEDs are their own only span."""
     for record in (
         Bed3(refname="chr1", start=1, end=2),
         Bed4(refname="chr1", start=1, end=2, name="foo"),
@@ -164,7 +166,7 @@ def test_simple_bed_types_have_a_territory() -> None:
         Bed6(refname="chr1", start=1, end=2, name="foo", score=3, strand=BedStrand.Positive),
         BedGraph(refname="chr1", start=1, end=2, value=1.0),
     ):
-        assert list(record.territory()) == [record]
+        assert list(record.spans()) == [record]
 
 
 def test_simple_bed_types_have_length() -> None:
@@ -174,8 +176,8 @@ def test_simple_bed_types_have_length() -> None:
     assert len(Bed3(refname="chr1", start=1, end=4)) == 3
 
 
-def test_paired_bed_types_have_a_territory() -> None:
-    """Test that paired BEDs use both their intervals as their territory."""
+def test_paired_bed_types_have_two_spans() -> None:
+    """Test that paired BEDs have both their intervals as spans, each with its own strand."""
     record = BedPE(
         refname1="chr1",
         start1=1,
@@ -192,7 +194,100 @@ def test_paired_bed_types_have_a_territory() -> None:
         Bed6(refname="chr1", start=1, end=2, name="foo", score=5, strand=BedStrand.Positive),
         Bed6(refname="chr2", start=3, end=4, name="foo", score=5, strand=BedStrand.Negative),
     ]
-    assert list(record.territory()) == expected
+    assert list(record.spans()) == expected
+
+
+def bed12(
+    start: int,
+    end: int,
+    blocks: tuple[tuple[int, int], ...] | None,
+    strand: BedStrand | None = BedStrand.Negative,
+) -> Bed12:
+    """Return a BED12 record on chr1 with the given blocks, each a start offset and a size."""
+    return Bed12(
+        refname="chr1",
+        start=start,
+        end=end,
+        name="tx",
+        score=7,
+        strand=strand,
+        thick_start=None,
+        thick_end=None,
+        item_rgb=None,
+        block_count=None if blocks is None else len(blocks),
+        block_sizes=None if blocks is None else tuple(size for _, size in blocks),
+        block_starts=None if blocks is None else tuple(offset for offset, _ in blocks),
+    )
+
+
+def test_bed12_spans_are_its_blocks_on_its_strand() -> None:
+    """Test that the spans of a BED12 record are its blocks, with its name, score, and strand."""
+    record = bed12(100, 200, ((0, 10), (40, 20), (90, 10)))
+    assert list(record.spans()) == [
+        Bed6(refname="chr1", start=100, end=110, name="tx", score=7, strand=BedStrand.Negative),
+        Bed6(refname="chr1", start=140, end=160, name="tx", score=7, strand=BedStrand.Negative),
+        Bed6(refname="chr1", start=190, end=200, name="tx", score=7, strand=BedStrand.Negative),
+    ]
+
+
+def test_bed12_spans_keep_abutting_blocks_apart() -> None:
+    """Test that blocks that abut are each a span of their own."""
+    record = bed12(0, 10, ((0, 4), (4, 6)), strand=None)
+    assert [(span.start, span.end) for span in record.spans()] == [(0, 4), (4, 10)]
+
+
+def test_a_bed12_without_blocks_is_its_own_span() -> None:
+    """Test that a BED12 record without blocks is its own only span."""
+    record = bed12(100, 200, None)
+    assert list(record.spans()) == [record]
+
+
+def test_the_territory_of_a_bed12_holds_its_blocks_and_not_its_introns() -> None:
+    """Test that the territory of a BED12 record holds the bases of its blocks only."""
+    territory = bed12(100, 200, ((0, 10), (40, 20), (90, 10))).territory()
+    assert isinstance(territory, Territory)
+    assert list(territory) == [
+        Bed3("chr1", start=100, end=110),
+        Bed3("chr1", start=140, end=160),
+        Bed3("chr1", start=190, end=200),
+    ]
+    assert territory.length == 40
+    assert not territory.contains("chr1", 120)
+
+
+def test_the_territory_of_a_record_is_the_territory_of_its_spans() -> None:
+    """Test that a record's territory holds the bases of its spans, without their strands."""
+    pair = BedPE(
+        refname1="chr2",
+        start1=10,
+        end1=20,
+        refname2="chr1",
+        start2=15,
+        end2=30,
+        name=None,
+        score=None,
+        strand1=BedStrand.Positive,
+        strand2=BedStrand.Negative,
+    )
+    assert pair.territory() == Territory(pair.spans())
+    assert list(pair.territory()) == [
+        Bed3("chr2", start=10, end=20),
+        Bed3("chr1", start=15, end=30),
+    ]
+    assert Bed2("chr1", 5).territory() == Territory([Bed3("chr1", start=5, end=6)])
+    assert Bed3("chr1", start=5, end=5).territory() == Territory()
+    record = Bed6("chr1", start=1, end=9, name="a", score=1, strand=BedStrand.Positive)
+    assert list(record.territory()) == [Bed3("chr1", start=1, end=9)]
+
+
+def test_a_custom_bed_class_must_override_spans_and_not_territory() -> None:
+    """Test that a custom BED class that overrides territory() is refused when it is defined."""
+    with pytest.raises(TypeError, match=r"Override spans\(\) in custom BED class definitions"):
+
+        class Bad(Bed3):  # pyright: ignore[reportUnusedClass]
+            @override  # type: ignore[misc]
+            def territory(self) -> Territory:  # pyright: ignore[reportIncompatibleMethodOverride]
+                return Territory()
 
 
 def test_bed12_validation() -> None:

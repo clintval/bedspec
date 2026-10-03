@@ -11,6 +11,7 @@ from typing_extensions import override
 from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import Bed12
 from bedspec import BedPE
 from bedspec import BedReader
 from bedspec import BedStrand
@@ -21,10 +22,10 @@ from bedspec import Territory
 
 @dataclass(frozen=True)
 class Blocked(Bed3):
-    """A record whose territory is a block of two bases at each end of its span."""
+    """A record whose spans are a block of two bases at each end of it."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the first two and the last two bases of this record."""
         yield Bed3(refname=self.refname, start=self.start, end=self.start + 2)
         yield Bed3(refname=self.refname, start=self.end - 2, end=self.end)
@@ -337,6 +338,42 @@ def test_a_record_of_several_spans_adds_only_its_spans() -> None:
     ]
 
 
+def bed12(start: int, blocks: tuple[tuple[int, int], ...]) -> Bed12:
+    """Return a BED12 record on chr1 with the given blocks, each a start offset and a size."""
+    offset, size = blocks[-1]
+    return Bed12(
+        "chr1",
+        start=start,
+        end=start + offset + size,
+        name=None,
+        score=None,
+        strand=BedStrand.Positive,
+        thick_start=None,
+        thick_end=None,
+        item_rgb=None,
+        block_count=len(blocks),
+        block_sizes=tuple(size for _, size in blocks),
+        block_starts=tuple(offset for offset, _ in blocks),
+    )
+
+
+def test_a_bed12_adds_its_blocks_and_not_its_introns() -> None:
+    """Test that a BED12 record adds the bases of its blocks, the same as its own territory."""
+    record = bed12(100, ((0, 10), (40, 20), (90, 10)))
+    territory = Territory([record])
+    assert bounds(territory) == [("chr1", 100, 110), ("chr1", 140, 160), ("chr1", 190, 200)]
+    assert territory == record.territory()
+    assert territory.length == 40
+    assert record in territory
+    assert Bed3("chr1", start=100, end=200) not in territory
+    assert bounds(chr1((0, 300)) - territory) == [
+        ("chr1", 0, 100),
+        ("chr1", 110, 140),
+        ("chr1", 160, 190),
+        ("chr1", 200, 300),
+    ]
+
+
 def test_a_span_that_is_not_a_bed_record_adds_itself() -> None:
     """Test that any object with a reference, start, and end adds itself."""
     assert Territory([Span("chr1", 0, 10), Span("chr1", 5, 15)]) == chr1((0, 15))
@@ -427,14 +464,32 @@ def test_a_territory_written_and_read_back_is_equal(tmp_path: Path) -> None:
         assert Territory(reader) == territory
 
 
-def random_feature(rng: Random) -> Bed2 | Bed3 | BedPE | Blocked:
-    """Return a short, possibly zero-length, span, a point, a pair, or a blocked record."""
+def random_feature(rng: Random) -> Bed2 | Bed3 | Bed12 | BedPE | Blocked:
+    """Return a short, possibly zero-length, span, a point, a pair, or a record of blocks."""
     refname, start = rng.choice(("chr1", "chr2")), rng.randrange(80)
-    kind = rng.randrange(4)
+    kind = rng.randrange(5)
     if kind == 0:
         return Bed2(refname, start)
     if kind == 1:
         return Blocked(refname, start=start, end=start + rng.randrange(4, 12))
+    if kind == 4:
+        offsets, sizes = [0], [rng.randrange(1, 6) for _ in range(rng.randrange(1, 4))]
+        for size in sizes[:-1]:
+            offsets.append(offsets[-1] + size + rng.randrange(0, 8))
+        return Bed12(
+            refname,
+            start=start,
+            end=start + offsets[-1] + sizes[-1],
+            name=None,
+            score=None,
+            strand=rng.choice((BedStrand.Positive, BedStrand.Negative, None)),
+            thick_start=None,
+            thick_end=None,
+            item_rgb=None,
+            block_count=len(sizes),
+            block_sizes=tuple(sizes),
+            block_starts=tuple(offsets),
+        )
     end = start + rng.choice((0, 0, 1, 2, 5, 15, 30))
     if kind == 2:
         return Bed3(refname, start=start, end=end)
@@ -453,19 +508,19 @@ def random_feature(rng: Random) -> Bed2 | Bed3 | BedPE | Blocked:
     )
 
 
-def bases_of(features: list[Bed2 | Bed3 | BedPE | Blocked]) -> set[tuple[str, int]]:
+def bases_of(features: list[Bed2 | Bed3 | Bed12 | BedPE | Blocked]) -> set[tuple[str, int]]:
     """Return every base of every span of the given features."""
     return {
         (span.refname, position)
         for feature in features
-        for span in feature.territory()
+        for span in feature.spans()
         for position in range(span.start, span.end)
     }
 
 
-def is_held(feature: Bed2 | Bed3 | BedPE | Blocked, bases: set[tuple[str, int]]) -> bool:
+def is_held(feature: Bed2 | Bed3 | Bed12 | BedPE | Blocked, bases: set[tuple[str, int]]) -> bool:
     """Return whether every base of every span is held, or either base beside a zero-length span."""
-    for span in feature.territory():
+    for span in feature.spans():
         if span.start == span.end:
             if not {(span.refname, span.start - 1), (span.refname, span.start)} & bases:
                 return False
@@ -505,3 +560,4 @@ def test_territories_agree_with_sets_of_bases_on_random_features() -> None:
                 assert territory.contains(refname, position) is ((refname, position) in bases)
         for feature in second:
             assert (feature in territory) is is_held(feature, bases)
+            assert held(feature.territory()) == bases_of([feature])
