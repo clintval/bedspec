@@ -28,6 +28,7 @@ from ._bedspec import ReferenceSpan
 from ._bedspec import SimpleBed
 from ._bedspec import Stranded
 from ._reader import BedReader
+from ._territory import Territory
 from ._writer import BedWriter
 
 __all__ = [
@@ -62,4 +63,5 @@ __all__ = [
     "Stranded",
     "BedReader",
     "BedWriter",
+    "Territory",
 ]

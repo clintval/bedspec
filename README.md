@@ -196,6 +196,56 @@ True
 
 ```
 
+### Merging, Intersecting, and Subtracting
+
+A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
+Spans that overlap or abut are joined, and a zero-length span holds no bases:
+
+```pycon
+>>> from bedspec import Territory
+>>>
+>>> targets = Territory([
+...     Bed3("chr1", start=0, end=10),
+...     Bed3("chr1", start=5, end=20),
+...     Bed3("chr1", start=20, end=30),
+...     Bed3("chr2", start=0, end=5),
+... ])
+>>> list(targets)
+[Bed3(refname='chr1', start=0, end=30), Bed3(refname='chr2', start=0, end=5)]
+>>> targets.length
+35
+
+```
+
+Territories combine like sets of bases, with `|` for the union, `&` for the intersection, and `-` for the difference.
+For example, the bases of the targets that a gene holds, less a mask of bases to ignore:
+
+```pycon
+>>> gene = Territory([Bed3("chr1", start=25, end=40)])
+>>> mask = Territory([Bed3("chr1", start=27, end=28)])
+>>>
+>>> share = (targets & gene) - mask
+>>> share
+Territory([Bed3(refname='chr1', start=25, end=27), Bed3(refname='chr1', start=28, end=30)])
+>>> share.length
+4
+
+```
+
+Test one base with `contains`, or whether every base of a span or BED record is held with `in`:
+
+```pycon
+>>> share.contains("chr1", 26), share.contains("chr1", 27)
+(True, False)
+>>> Bed3("chr1", start=25, end=27) in share
+True
+
+```
+
+A BED record adds every span of its territory, so a `BedPE` adds both of its ends.
+Spans are yielded as `Bed3` records, by start within each reference, with references in the order they were first added.
+Territories are immutable, hashable, and equal when they hold the same bases.
+
 ### Custom BED Types
 
 To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).
