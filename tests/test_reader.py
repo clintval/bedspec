@@ -147,3 +147,18 @@ def test_bed_reader_hands_comments_to_on_comment(tmp_path: Path) -> None:
         Comment(line_number=2, text="# made by a tool"),
         Comment(line_number=4, text="browser hide all"),
     ]
+
+
+def test_we_can_roundtrip_a_header_with_renamed_columns(tmp_path: Path) -> None:
+    """Test that the BED reader and writer pass typeline's rename option through to a header."""
+    rename = {"refname": "chrom", "start": "chromStart", "end": "chromEnd"}
+    bed: Bed3 = Bed3(refname="chr1", start=1, end=2)
+
+    with BedWriter.from_path[Bed3](tmp_path / "test.bed", rename=rename) as writer:
+        writer.write_header()
+        writer.write(bed)
+
+    assert Path(tmp_path / "test.bed").read_text() == "chrom\tchromStart\tchromEnd\nchr1\t1\t2\n"
+
+    with BedReader.from_path[Bed3](tmp_path / "test.bed", header=True, rename=rename) as reader:
+        assert list(reader) == [bed]
