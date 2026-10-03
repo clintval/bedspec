@@ -143,6 +143,45 @@ peak ('3.2', '0.01')
 
 ```
 
+### Spans and Territory
+
+Every BED record yields its pieces on reference sequences with `spans()`, each with its strand.
+A `Bed2` yields its one base, a `Bed3` to `Bed9` yields itself, a `BedPE` yields both of its ends, and a `Bed12` yields its blocks, so its introns are not part of it:
+
+```pycon
+>>> from bedspec import BedStrand
+>>>
+>>> transcript = Bed12(
+...     "chr1",
+...     start=100,
+...     end=200,
+...     name="tx",
+...     score=None,
+...     strand=BedStrand.Positive,
+...     thick_start=None,
+...     thick_end=None,
+...     item_rgb=None,
+...     block_count=2,
+...     block_sizes=(10, 20),
+...     block_starts=(0, 80),
+... )
+>>> for span in transcript.spans():
+...     print(span.refname, span.start, span.end, span.strand)
+chr1 100 110 +
+chr1 180 200 +
+
+```
+
+`territory()` returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
+
+```pycon
+>>> transcript.territory()
+Territory([Bed3(refname='chr1', start=100, end=110), Bed3(refname='chr1', start=180, end=200)])
+>>> transcript.territory().length
+30
+
+```
+
 ### Overlap Detection
 
 Use a fast overlap detector for any collection of interval types, including third-party:
@@ -171,14 +210,35 @@ The overlap detector supports the following operations:
 
 A zero-length feature overlaps the features that hold either base beside it.
 
-A BED record is found by any span of its territory, so `Bed2` points and `BedPE` pairs are supported, and a `BedPE` is found by either end.
+A BED record is found by any of its `spans()`, so `Bed2` points and `BedPE` pairs are supported, a `BedPE` is found by either end, and a `Bed12` is found by its blocks.
+A query that touches only an intron of a `Bed12` does not find it, so to find a `Bed12` by its whole span, add it as a `Bed6`:
+
+```pycon
+>>> intron = Bed3("chr1", start=150, end=160)
+>>>
+>>> list(TreeDetector[Bed12]([transcript]).overlapping(intron))
+[]
+>>> whole = Bed6(
+...     transcript.refname,
+...     start=transcript.start,
+...     end=transcript.end,
+...     name=transcript.name,
+...     score=transcript.score,
+...     strand=transcript.strand,
+... )
+>>> list(TreeDetector[Bed6]([whole]).overlapping(intron)) == [whole]
+True
+
+```
+
 Each matching feature is returned once, even when several of its spans match.
 A feature encloses the input feature when any one of its spans does.
 A feature is enclosed by the input feature only when all of its spans are, so a `BedPE` needs both ends inside.
 Queries must be spans with an `end`, so a `Bed2` can be added but cannot be used as a query.
+A `TabixDetector` answers every query the same way: its index finds each record by its whole extent, and each record found is then tested by its spans, so a query in an intron finds nothing there either.
 
 Each operation takes `stranded=True` to find only features on the same strand as the query.
-For a `BedPE`, each end is compared by its own strand.
+For a `BedPE`, each end is compared by its own strand, and each block of a `Bed12` by the record's strand.
 For the opposite strand, flip the query's strand with `dataclasses.replace`:
 
 ```pycon
@@ -196,10 +256,61 @@ True
 
 ```
 
+### Merging, Intersecting, and Subtracting
+
+A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
+Spans that overlap or abut are joined, and a zero-length span holds no bases:
+
+```pycon
+>>> from bedspec import Territory
+>>>
+>>> targets = Territory([
+...     Bed3("chr1", start=0, end=10),
+...     Bed3("chr1", start=5, end=20),
+...     Bed3("chr1", start=20, end=30),
+...     Bed3("chr2", start=0, end=5),
+... ])
+>>> list(targets)
+[Bed3(refname='chr1', start=0, end=30), Bed3(refname='chr2', start=0, end=5)]
+>>> targets.length
+35
+
+```
+
+Territories combine like sets of bases, with `|` for the union, `&` for the intersection, and `-` for the difference.
+For example, the bases of the targets that a gene holds, less a mask of bases to ignore:
+
+```pycon
+>>> gene = Territory([Bed3("chr1", start=25, end=40)])
+>>> mask = Territory([Bed3("chr1", start=27, end=28)])
+>>>
+>>> share = (targets & gene) - mask
+>>> share
+Territory([Bed3(refname='chr1', start=25, end=27), Bed3(refname='chr1', start=28, end=30)])
+>>> share.length
+4
+
+```
+
+Test one base with `contains`, or whether every base of a span or BED record is held with `in`:
+
+```pycon
+>>> share.contains("chr1", 26), share.contains("chr1", 27)
+(True, False)
+>>> Bed3("chr1", start=25, end=27) in share
+True
+
+```
+
+A BED record adds every one of its spans, so a `BedPE` adds both of its ends and a `Bed12` only its blocks, the same bases as its own `territory()`.
+Spans are yielded as `Bed3` records, by start within each reference, with references in the order they were first added.
+Territories are immutable, hashable, and equal when they hold the same bases.
+
 ### Custom BED Types
 
 To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).
 Custom BED records must be frozen dataclasses too.
+A record of several pieces overrides `spans()` to yield them, and its `territory()` and overlap detection follow.
 
 For example, to create a custom BED3+1 class:
 

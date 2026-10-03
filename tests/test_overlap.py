@@ -14,6 +14,7 @@ from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed6
+from bedspec import Bed12
 from bedspec import BedLike
 from bedspec import BedPE
 from bedspec import BedStrand
@@ -36,10 +37,10 @@ PAIR = BedPE(
 
 @dataclass(frozen=True)
 class Blocked(Bed3):
-    """A record whose territory is a block of two bases at each end of its span."""
+    """A record whose spans are a block of two bases at each end of it."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the first two and the last two bases of this record."""
         yield Bed3(refname=self.refname, start=self.start, end=self.start + 2)
         yield Bed3(refname=self.refname, start=self.end - 2, end=self.end)
@@ -50,10 +51,10 @@ BLOCKED = Blocked(refname="chr1", start=10, end=30)
 
 @dataclass(frozen=True)
 class Flaky(Bed3):
-    """A record whose territory raises after its first span."""
+    """A record whose spans raise after the first."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield this record, then raise."""
         yield self
         raise ValueError("a span of this record is invalid")
@@ -61,10 +62,10 @@ class Flaky(Bed3):
 
 @dataclass(frozen=True)
 class Hollow(Bed3):
-    """A record whose territory has no spans."""
+    """A record that has no spans."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield no spans."""
         yield from ()
 
@@ -77,7 +78,7 @@ class Multi(BedLike):
     strand: BedStrand | None
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the parts of this record."""
         yield from self.parts
 
@@ -93,12 +94,12 @@ class Span:
 
 @dataclass
 class Region:
-    """A feature on a reference sequence with a text field named territory, not a BED record."""
+    """A feature on a reference sequence with a text field named spans, not a BED record."""
 
     refname: str
     start: int
     end: int
-    territory: str = "EMEA"
+    spans: str = "EMEA"
 
 
 def test_overlap_detector_as_iterable() -> None:
@@ -408,7 +409,7 @@ def test_a_pair_is_yielded_once_by_a_query_over_both_ends() -> None:
 
 
 def test_a_query_between_the_blocks_of_a_feature_finds_nothing() -> None:
-    """Test that a query in the gap between the blocks of a feature's territory finds nothing."""
+    """Test that a query in the gap between the blocks of a feature finds nothing."""
     detector: TreeDetector[Blocked] = TreeDetector([BLOCKED])
     gap = Bed3(refname="chr1", start=12, end=28)
 
@@ -418,12 +419,90 @@ def test_a_query_between_the_blocks_of_a_feature_finds_nothing() -> None:
 
 
 def test_a_query_in_either_block_of_a_feature_finds_it_once() -> None:
-    """Test that a query in either or both blocks of a feature's territory finds it once."""
+    """Test that a query in either or both blocks of a feature finds it once."""
     detector: TreeDetector[Blocked] = TreeDetector([BLOCKED])
 
     for start, end in ((10, 11), (29, 30), (11, 29), (0, 100)):
         query = Bed3(refname="chr1", start=start, end=end)
         assert list(detector.overlapping(query)) == [BLOCKED]
+
+
+TRANSCRIPT = Bed12(
+    refname="chr1",
+    start=100,
+    end=200,
+    name="tx",
+    score=None,
+    strand=BedStrand.Positive,
+    thick_start=None,
+    thick_end=None,
+    item_rgb=None,
+    block_count=3,
+    block_sizes=(10, 20, 10),
+    block_starts=(0, 40, 90),
+)
+"""A BED12 record with blocks at 100-110, 140-160, and 190-200, and introns between them."""
+
+
+def test_a_query_in_a_bed12_intron_finds_nothing() -> None:
+    """Test that a query touching only an intron of a BED12 record finds nothing."""
+    detector: TreeDetector[Bed12] = TreeDetector([TRANSCRIPT])
+
+    for start, end in ((110, 140), (111, 139), (125, 126), (125, 125), (160, 190)):
+        query = Bed3(refname="chr1", start=start, end=end)
+        assert not detector.overlaps(query)
+        assert list(detector.overlapping(query)) == []
+        assert list(detector.enclosing(query)) == []
+        assert list(detector.enclosed_by(query)) == []
+
+
+def test_a_query_touching_a_bed12_block_finds_it_once() -> None:
+    """Test that a query touching any block of a BED12 record finds it once."""
+    detector: TreeDetector[Bed12] = TreeDetector([TRANSCRIPT])
+
+    for start, end in ((100, 101), (109, 141), (110, 110), (159, 160), (199, 200), (0, 1000)):
+        query = Bed3(refname="chr1", start=start, end=end)
+        assert detector.overlaps(query)
+        assert list(detector.overlapping(query)) == [TRANSCRIPT]
+
+
+def test_a_bed12_encloses_a_query_only_inside_one_block() -> None:
+    """Test that a BED12 record encloses a query only when one of its blocks does."""
+    detector: TreeDetector[Bed12] = TreeDetector([TRANSCRIPT])
+
+    assert list(detector.enclosing(Bed3(refname="chr1", start=140, end=160))) == [TRANSCRIPT]
+    assert list(detector.enclosing(Bed3(refname="chr1", start=110, end=110))) == [TRANSCRIPT]
+    assert list(detector.enclosing(Bed3(refname="chr1", start=105, end=145))) == []
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=100, end=200))) == [TRANSCRIPT]
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=100, end=199))) == []
+
+
+def test_a_bed12_is_found_by_its_strand_on_every_block() -> None:
+    """Test that every block of a BED12 record is found on the record's strand."""
+    detector: TreeDetector[Bed12] = TreeDetector([TRANSCRIPT])
+    plus = Bed6("chr1", start=150, end=151, name=None, score=None, strand=BedStrand.Positive)
+    minus = Bed6("chr1", start=150, end=151, name=None, score=None, strand=BedStrand.Negative)
+
+    assert list(detector.overlapping(plus, stranded=True)) == [TRANSCRIPT]
+    assert list(detector.overlapping(minus, stranded=True)) == []
+    assert list(detector.enclosing(plus, stranded=True)) == [TRANSCRIPT]
+    assert list(detector.enclosing(minus, stranded=True)) == []
+
+
+def test_a_bed12_added_as_a_bed6_is_found_by_its_whole_span() -> None:
+    """Test that a BED12 record added as a BED6 record is found by a query in an intron."""
+    whole = Bed6(
+        TRANSCRIPT.refname,
+        start=TRANSCRIPT.start,
+        end=TRANSCRIPT.end,
+        name=TRANSCRIPT.name,
+        score=TRANSCRIPT.score,
+        strand=TRANSCRIPT.strand,
+    )
+    detector: TreeDetector[Bed6] = TreeDetector([whole])
+
+    assert list(detector.overlapping(Bed3(refname="chr1", start=125, end=126))) == [whole]
+    assert list(detector.enclosing(Bed3(refname="chr1", start=105, end=145))) == [whole]
 
 
 def test_enclosing_compares_the_query_with_each_span() -> None:
@@ -500,7 +579,7 @@ def test_iteration_yields_each_feature_once_in_the_order_added() -> None:
     assert list(detector) == features
 
 
-def test_a_feature_with_a_territory_field_is_its_own_span() -> None:
+def test_a_feature_with_a_spans_field_is_its_own_span() -> None:
     """Test that a feature which is not a BED record is its own span, whatever its fields."""
     region = Region(refname="chr1", start=10, end=20)
     detector: TreeDetector[Region] = TreeDetector([region])
@@ -518,8 +597,8 @@ def test_a_mock_feature_is_its_own_span() -> None:
     assert list(detector.overlapping(Bed3(refname="chr1", start=15, end=16))) == [mock]
 
 
-def test_adding_a_feature_whose_territory_raises_adds_nothing() -> None:
-    """Test that adding features adds none of them when any feature's territory raises."""
+def test_adding_a_feature_whose_spans_raise_adds_nothing() -> None:
+    """Test that adding features adds none of them when any feature's spans raise."""
     bed = Bed3(refname="chr1", start=10, end=20)
     detector: TreeDetector[Bed3] = TreeDetector([bed])
     query = Bed3(refname="chr1", start=0, end=100)
@@ -614,7 +693,7 @@ def expected(features: list[Any], query: Bed6, stranded: bool) -> dict[str, list
     found: dict[str, list[Any]] = {"overlapping": [], "enclosing": [], "enclosed_by": []}
     start, end = closed(query)
     for feature in features:
-        every = list(feature.territory()) if isinstance(feature, BedLike) else [feature]
+        every = list(feature.spans()) if isinstance(feature, BedLike) else [feature]
         spans = [
             span
             for span in every

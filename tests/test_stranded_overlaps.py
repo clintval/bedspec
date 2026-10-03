@@ -29,7 +29,7 @@ PAIR = BedPE(
 
 @dataclass(frozen=True)
 class StrandedPoint(Bed2):
-    """A point on a strand, whose 1-length territory has no strand of its own."""
+    """A point on a strand, whose 1-length span has no strand of its own."""
 
     strand: BedStrand | None
 

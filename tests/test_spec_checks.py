@@ -219,4 +219,4 @@ def test_bedpe_scores_are_not_limited_to_the_bed_range() -> None:
     assert record.score == 1001
     assert record.bed1.score is None
     assert record.bed2.score is None
-    assert list(record.territory()) == [record.bed1, record.bed2]
+    assert list(record.spans()) == [record.bed1, record.bed2]

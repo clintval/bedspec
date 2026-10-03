@@ -15,9 +15,11 @@ from typing_extensions import override
 
 from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import Bed12
 from bedspec import BedStrand
 from bedspec import BedWriter
 from bedspec import ReferenceSpan
+from bedspec import SimpleBed
 from bedspec.overlap import TabixDetector
 from bedspec.overlap import TreeDetector
 
@@ -50,10 +52,10 @@ ABSENT = ["chr", "chrX"]
 
 @dataclass(frozen=True)
 class Blocks6(Bed6):
-    """A BED6 whose territory is its first and last thirds and a point between them."""
+    """A BED6 whose spans are its first and last thirds and a point between them."""
 
     @override
-    def territory(self) -> Iterator[ReferenceSpan]:
+    def spans(self) -> Iterator[ReferenceSpan]:
         """Yield the first and last thirds, and a zero-length middle on the other strand."""
         third = len(self) // 3
         if third == 0:
@@ -150,7 +152,7 @@ def edge_queries(rng: random.Random, feature: ReferenceSpan) -> Iterator[Bed6]:
 
 
 def hostile_queries(
-    rng: random.Random, features: Sequence[Bed6], lengths: dict[str, int]
+    rng: random.Random, features: Sequence[SimpleBed], lengths: dict[str, int]
 ) -> Iterator[Bed6]:
     """Yield queries at feature edges, inside long features, on bin boundaries, and at random."""
     for feature in rng.sample(features, 80):
@@ -227,7 +229,7 @@ def test_both_detectors_agree_on_hostile_features(index: IndexFormat, tmp_path: 
 def test_both_detectors_agree_on_every_span_of_features_with_several(
     index: IndexFormat, tmp_path: Path
 ) -> None:
-    """Test that both detectors agree on features whose territory has several spans."""
+    """Test that both detectors agree on features that have several spans."""
     rng = random.Random(f"blocks {index.name}")
     features = [
         Blocks6(**{field.name: getattr(feature, field.name) for field in fields(Bed6)})
@@ -245,9 +247,107 @@ def test_both_detectors_agree_on_every_span_of_features_with_several(
         *(
             query
             for feature in rng.sample(features, 100)
-            for span in feature.territory()
+            for span in feature.spans()
             for query in edge_queries(rng, span)
         ),
     ]
     with TabixDetector[Blocks6](path) as tabix:
         assert_detectors_agree(TreeDetector(features), tabix, queries, index.name)
+
+
+def transcript(rng: random.Random, refname: str, length: int) -> Bed12:
+    """Return a BED12 record of one to six blocks, some abutting, with introns of any length."""
+    sizes = [rng.randint(1, 300) for _ in range(rng.randint(1, 6))]
+    starts = [0]
+    for size in sizes[:-1]:
+        starts.append(starts[-1] + size + rng.choice([0, 1, 2, rng.randint(3, 50_000)]))
+    span = starts[-1] + sizes[-1]
+    start = rng.choice([near_boundary(rng, length - span), rng.randint(0, length - span)])
+    return Bed12(
+        refname,
+        start=start,
+        end=start + span,
+        name=rng.choice([None, "tx"]),
+        score=rng.choice([None, 0, 1000]),
+        strand=rng.choice(STRANDS),
+        thick_start=None,
+        thick_end=None,
+        item_rgb=None,
+        block_count=len(sizes),
+        block_sizes=tuple(sizes),
+        block_starts=tuple(starts),
+    )
+
+
+def introns(feature: Bed12) -> Iterator[Bed3]:
+    """Yield the bases between each block of a BED12 record and the next, where there are any."""
+    blocks = list(feature.spans())
+    for block, following in zip(blocks, blocks[1:], strict=False):
+        if block.end < following.start:
+            yield Bed3(feature.refname, start=block.end, end=following.start)
+
+
+def intron_only(intron: Bed3) -> Iterator[tuple[int, int]]:
+    """Yield the start and end of queries in an intron that touch neither block beside it."""
+    middle = (intron.start + intron.end) // 2
+    yield intron.start, intron.end
+    yield middle, middle + 1
+    if intron.start < middle:
+        yield middle, middle
+
+
+@pytest.mark.parametrize("index", list(IndexFormat))
+def test_both_detectors_agree_on_the_blocks_of_bed12_records(
+    index: IndexFormat, tmp_path: Path
+) -> None:
+    """Test that both detectors find BED12 records by their blocks, and neither by an intron."""
+    rng = random.Random(f"bed12 {index.name}")
+    references = {refname: REFERENCES[refname] for refname in ("chr1", "chr10", "chr2")}
+    order = list(references)
+    features = sorted(
+        (
+            transcript(rng, refname, length)
+            for refname, (length, count) in references.items()
+            for _ in range(count // 4 + 50)
+        ),
+        key=lambda feature: (order.index(feature.refname), feature.start),
+    )
+    path = tmp_path / "transcripts.bed.gz"
+    with BedWriter.from_path[Bed12](path, index=index) as writer:
+        for feature in features:
+            writer.write(feature)
+
+    sample = rng.sample(features, 100)
+    in_introns = [
+        (feature, query_at(rng, intron.refname, start, end))
+        for feature in sample
+        for intron in introns(feature)
+        for start, end in intron_only(intron)
+    ]
+    assert len(in_introns) > 200
+    lengths = {refname: length for refname, (length, _) in references.items()}
+    queries = [
+        *hostile_queries(rng, features, lengths),
+        *(query for _, query in in_introns),
+        *(
+            query
+            for feature in sample
+            for block in feature.spans()
+            for query in edge_queries(rng, block)
+        ),
+        *(
+            query
+            for feature in sample
+            for gap in introns(feature)
+            for query in edge_queries(rng, gap)
+        ),
+    ]
+    with TabixDetector[Bed12](path) as tabix:
+        tree = TreeDetector(features)
+        assert_detectors_agree(tree, tabix, queries, index.name)
+        for feature, query in in_introns:
+            for detector in (tree, tabix):
+                for stranded in (False, True):
+                    for method in METHODS:
+                        found = list(getattr(detector, method)(query, stranded=stranded))
+                        assert feature not in found, f"{method}({query}) found {feature}"

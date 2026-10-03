@@ -1,4 +1,5 @@
 from array import array
+from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -25,6 +26,9 @@ Refname: TypeAlias = str
 IntervalTree: TypeAlias = IntervalMap
 """A type alias for the untyped interval map."""
 
+SpanTest: TypeAlias = Callable[[int, int, ReferenceSpan], bool]
+"""A test of a span, by its start and end, against a query on the same reference."""
+
 
 def _strand(feature: Any) -> BedStrand | None:
     """Return the strand of a feature, or None if it has none."""
@@ -32,22 +36,69 @@ def _strand(feature: Any) -> BedStrand | None:
     return strand
 
 
-def _closed(feature: ReferenceSpan) -> tuple[int, int]:
-    """Return the closed interval of bases a feature covers, or flanks if it is zero-length."""
-    if feature.start == feature.end:
-        return max(feature.start - 1, 0), feature.start
-    return feature.start, feature.end - 1
+def span_strand(span: ReferenceSpan, strand: BedStrand | None) -> BedStrand | None:
+    """Return the strand of a span, or the given strand of its feature if the span has none."""
+    span_strand = _strand(span)
+    return strand if span_strand is None else span_strand
+
+
+def _closed(start: int, end: int) -> tuple[int, int]:
+    """Return the closed interval of bases a span covers, or flanks if it is zero-length."""
+    if start == end:
+        return max(start - 1, 0), start
+    return start, end - 1
+
+
+def touches(start: int, end: int, query: ReferenceSpan) -> bool:
+    """Return whether a span and a query share a base, a zero-length one by either base beside it.
+
+    This is the test the interval trees answer, since they hold the closed interval of each span.
+    """
+    first, last = _closed(start, end)
+    query_first, query_last = _closed(query.start, query.end)
+    return first <= query_last and query_first <= last
+
+
+def encloses(start: int, end: int, query: ReferenceSpan) -> bool:
+    """Return whether a span encloses a query."""
+    return start <= query.start and query.end <= end
+
+
+def is_enclosed_by(start: int, end: int, query: ReferenceSpan) -> bool:
+    """Return whether a span is enclosed by a query."""
+    return query.start <= start and end <= query.end
+
+
+def span_matches(
+    refname: Refname,
+    start: int,
+    end: int,
+    strand: BedStrand | None,
+    query: ReferenceSpan,
+    test: SpanTest,
+    required_strand: BedStrand | None,
+) -> bool:
+    """Return whether a span is on the query's reference and required strand and passes a test.
+
+    Both detectors match every span with this, so a stranded query requires the query's strand and
+    an unstranded one requires none.
+    """
+    return (
+        refname == query.refname
+        and (required_strand is None or strand is required_strand)
+        and test(start, end, query)
+    )
 
 
 def _is_own_span(feature: Any) -> bool:
     """Return whether a feature is its own only span, as a record that is not BED-like is."""
-    territory = getattr(feature.__class__, "territory", None)
-    return territory is None or territory is SimpleBed.territory or not isinstance(feature, BedLike)
+    spans = getattr(feature.__class__, "spans", None)
+    return spans is None or spans is SimpleBed.spans or not isinstance(feature, BedLike)
 
 
-def _territory(feature: Any) -> tuple[ReferenceSpan, ...] | None:
+def _spans(feature: Any) -> tuple[ReferenceSpan, ...] | None:
     """Return the spans of a feature, or None if the feature is its own only span."""
-    return None if _is_own_span(feature) else tuple(feature.territory())
+    return None if _is_own_span(feature) else tuple(feature.spans())
 
 
 @dataclass(slots=True)
@@ -61,8 +112,8 @@ class _RefIndex:
 class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
-    The overlap detector may be built with any BED record, indexed by every span of its
-    `territory()`, or with any feature-like Python object that has the following properties:
+    The overlap detector may be built with any BED record, indexed by every one of its `spans()`,
+    or with any feature-like Python object that has the following properties:
 
       * `refname`: The reference sequence name
       * `start`: A 0-based start position
@@ -72,8 +123,10 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
 
     A feature overlaps or encloses a query when any of its spans on the query's reference does, so
     a BEDPE record is found by either end, but it is enclosed by a query only when all of its spans
-    are. A query yields each matching feature once, in the order the index finds it, which is
-    repeatable but is not the order the features were added.
+    are. A BED12 record's spans are its blocks, so a query that touches only an intron does not
+    find it; to find a BED12 record by its whole span, add it as a BED6 record. A query yields
+    each matching feature once, in the order the index finds it, which is repeatable but is not
+    the order the features were added.
 
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 
@@ -120,20 +173,20 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if not self._holds_spans and all(map(_is_own_span, features)):
             self._add_features(features)
             return
-        territories = [_territory(feature) for feature in features]
-        for feature, territory in zip(features, territories, strict=True):
-            if territory == ():
+        spans = [_spans(feature) for feature in features]
+        for feature, feature_spans in zip(features, spans, strict=True):
+            if feature_spans == ():
                 raise ValueError(f"A feature must have at least one span: {feature!r}")
         if not self._holds_spans:
             self._hold_spans()
-        self._add_spans(features, territories)
+        self._add_spans(features, spans)
 
     def _add_features(self, features: Iterable[Any]) -> None:
         """Add features that are each their own only span, holding the features in the trees."""
         added = self._features
         refname_to_index = self._refname_to_index
         for feature in features:
-            start, end = _closed(feature)
+            start, end = _closed(feature.start, feature.end)
             index = refname_to_index.get(feature.refname)
             if index is None:
                 index = refname_to_index[feature.refname] = _RefIndex()
@@ -142,7 +195,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             added.append(feature)
 
     def _add_spans(
-        self, features: Iterable[Any], territories: Iterable[tuple[ReferenceSpan, ...] | None]
+        self, features: Iterable[Any], spans: Iterable[tuple[ReferenceSpan, ...] | None]
     ) -> None:
         """Add features by every span, holding the number of each span in the trees."""
         added = self._features
@@ -153,11 +206,11 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         span_strands = self._span_strands
         first_spans = self._first_spans
         refname_to_index = self._refname_to_index
-        for feature, territory in zip(features, territories, strict=True):
+        for feature, feature_spans in zip(features, spans, strict=True):
             number = len(added)
             strand = _strand(feature)
-            for span in (feature,) if territory is None else territory:
-                start, end = _closed(span)
+            for span in (feature,) if feature_spans is None else feature_spans:
+                start, end = _closed(span.start, span.end)
                 index = refname_to_index.get(span.refname)
                 if index is None:
                     index = refname_to_index[span.refname] = _RefIndex()
@@ -167,7 +220,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
                 span_starts.append(span.start)
                 span_ends.append(span.end)
                 span_features.append(number)
-                span_strands.append(_strand(span) or strand)
+                span_strands.append(span_strand(span, strand))
             first_spans.append(len(span_refnames))
             added.append(feature)
 
@@ -198,7 +251,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if tree is None:
             return []
 
-        hits: list[int] = tree.search_values(*_closed(feature))
+        hits: list[int] = tree.search_values(*_closed(feature.start, feature.end))
         if not stranded:
             return hits
 
@@ -214,17 +267,18 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         return list(map(self._features.__getitem__, numbers))
 
     def _is_enclosed(self, number: int, feature: ReferenceSpan, strand: BedStrand | None) -> bool:
-        """Return whether every span of a feature is inside a query, and on a strand if given."""
-        span_refnames = self._span_refnames
-        span_starts = self._span_starts
-        span_ends = self._span_ends
-        span_strands = self._span_strands
+        """Return whether every span of a feature is enclosed by a query, on a strand if given."""
+        refnames, starts, ends = self._span_refnames, self._span_starts, self._span_ends
+        strands = self._span_strands
         for span in range(self._first_spans[number], self._first_spans[number + 1]):
-            if (
-                span_refnames[span] != feature.refname
-                or span_starts[span] < feature.start
-                or span_ends[span] > feature.end
-                or (strand is not None and span_strands[span] is not strand)
+            if not span_matches(
+                refnames[span],
+                starts[span],
+                ends[span],
+                strands[span],
+                feature,
+                is_enclosed_by,
+                strand,
             ):
                 return False
         return True
@@ -241,7 +295,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if tree is None:
             return
 
-        start, end = _closed(feature)
+        start, end = _closed(feature.start, feature.end)
         if not stranded:
             yield from tree.search_values(start, end)
             return
@@ -259,7 +313,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if tree is None:
             return False
 
-        start, end = _closed(feature)
+        start, end = _closed(feature.start, feature.end)
         if not stranded:
             return tree.has_overlaps(start, end)
 
@@ -276,7 +330,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if not self._holds_spans:
             hits: Iterator[Any] = self.overlapping(feature, stranded=stranded)
             for hit in hits:
-                if feature.start >= hit.start and feature.end <= hit.end:
+                if encloses(hit.start, hit.end, feature):
                     yield hit
             return
 
@@ -284,7 +338,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         yield from self._features_of([
             hit
             for hit in self._span_hits(feature, stranded)
-            if feature.start >= starts[hit] and feature.end <= ends[hit]
+            if encloses(starts[hit], ends[hit], feature)
         ])
 
     def enclosed_by(
@@ -294,7 +348,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         if not self._holds_spans:
             hits: Iterator[Any] = self.overlapping(feature, stranded=stranded)
             for hit in hits:
-                if feature.start <= hit.start and feature.end >= hit.end:
+                if is_enclosed_by(hit.start, hit.end, feature):
                     yield hit
             return
 
@@ -304,7 +358,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         strand = _strand(feature) if stranded else None
         checked: set[int] = set()
         for hit in self._span_hits(feature, stranded):
-            if feature.start <= starts[hit] and feature.end >= ends[hit]:
+            if is_enclosed_by(starts[hit], ends[hit], feature):
                 number = span_features[hit]
                 if number not in checked:
                     checked.add(number)
