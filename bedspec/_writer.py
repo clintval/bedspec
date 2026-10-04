@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TextIO
 
 import pybgzf
+from pybgzf import BGZF_SUFFIXES
 from pybgzf import Columns
 from pybgzf import IndexFormat
 from typeline import Comment
@@ -24,9 +25,6 @@ from bedspec._codecs import BED_CODECS
 
 BED_COMMENT_PREFIXES: tuple[str, ...] = ("#", *sorted(COMMENT_PREFIXES - {"#"}))
 """The BED comment prefixes, with the one added to comment lines that have none first."""
-
-BGZF_SUFFIXES: tuple[str, ...] = (".bgz", ".gz")
-"""The file extensions written as BGZF, which is also valid gzip."""
 
 
 class BedWriter(TsvWriter[BedType]):
@@ -97,8 +95,8 @@ class BedWriter(TsvWriter[BedType]):
     ) -> Self:
         """Construct a BED writer from a file path.
 
-        A path ending in `.gz` or `.bgz` is written as BGZF, which any gzip reader can read, and
-        can be indexed with tabix or CSI as it is written, on as many threads as given.
+        A path ending in `.gz`, `.bgz`, or `.bgzf` is written as BGZF, which any gzip reader can
+        read, and can be indexed with tabix or CSI as it is written, on as many threads as given.
         Features must then be sorted by start within each reference, and each reference must be
         contiguous.
         Other paths are written as UTF-8, and compressed when they end in `.bz2` or `.xz`.
@@ -116,7 +114,8 @@ class BedWriter(TsvWriter[BedType]):
         if path.suffix not in BGZF_SUFFIXES:
             if index is not None or index_path is not None or threads != 1:
                 raise ValueError(
-                    f"An index and threads need a BGZF path ending in .gz or .bgz, not: {path}"
+                    "An index and threads need a BGZF path ending in .gz, .bgz, or .bgzf,"
+                    + f" not: {path}"
                 )
             plain: Self = unwrap(super().from_path)(cls, path, **options)
             return plain
