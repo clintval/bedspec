@@ -71,7 +71,7 @@ Bed3(refname='chr1', start=2, end=8)
 
 ### Compressed and Indexed BED
 
-A path ending in `.gz` or `.bgz` is written as BGZF, which any gzip reader can read, and a compressed file is read by its contents.
+A path ending in `.gz`, `.bgz`, or `.bgzf` is written as BGZF, which any gzip reader can read, and a compressed file is read by its contents.
 Ask for a tabix or CSI index to have one written beside the file, with features sorted by reference and start.
 
 ```pycon

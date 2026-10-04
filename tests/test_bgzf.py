@@ -33,9 +33,9 @@ def is_bgzf(path: Path) -> bool:
     return header[:4] == b"\x1f\x8b\x08\x04" and header[12:14] == b"BC"
 
 
-@pytest.mark.parametrize("suffix", [".gz", ".bgz"])
+@pytest.mark.parametrize("suffix", [".gz", ".bgz", ".bgzf"])
 def test_a_compressed_path_is_written_as_bgzf(suffix: str, tmp_path: Path) -> None:
-    """Test that a path ending in `.gz` or `.bgz` is written as BGZF and read back."""
+    """Test that a path ending in `.gz`, `.bgz`, or `.bgzf` is written as BGZF and read back."""
     path = tmp_path / f"test.bed{suffix}"
     with BedWriter.from_path[Bed3](path) as writer:
         for bed in BEDS:
@@ -98,21 +98,21 @@ def test_a_point_bed_is_indexed_as_one_base(tmp_path: Path) -> None:
 @pytest.mark.parametrize("path", ["test.bed", "test.bed.bz2"])
 def test_an_index_needs_a_bgzf_path(path: str, tmp_path: Path) -> None:
     """Test that an index is refused, before any file is made, unless the path is BGZF."""
-    with pytest.raises(ValueError, match=r"\.gz or \.bgz"):
+    with pytest.raises(ValueError, match=r"\.gz, \.bgz, or \.bgzf"):
         _ = BedWriter.from_path[Bed3](tmp_path / path, index=IndexFormat.TBI)
     assert list(tmp_path.iterdir()) == []
 
 
 def test_threads_need_a_bgzf_path(tmp_path: Path) -> None:
     """Test that compression threads are refused, before any file is made, unless BGZF."""
-    with pytest.raises(ValueError, match=r"\.gz or \.bgz"):
+    with pytest.raises(ValueError, match=r"\.gz, \.bgz, or \.bgzf"):
         _ = BedWriter.from_path[Bed3](tmp_path / "test.bed", threads=2)
     assert list(tmp_path.iterdir()) == []
 
 
 def test_an_index_path_needs_a_bgzf_path(tmp_path: Path) -> None:
     """Test that an index path is refused, before any file is made, unless the path is BGZF."""
-    with pytest.raises(ValueError, match=r"\.gz or \.bgz"):
+    with pytest.raises(ValueError, match=r"\.gz, \.bgz, or \.bgzf"):
         _ = BedWriter.from_path[Bed3](
             tmp_path / "test.bed", index=IndexFormat.TBI, index_path=tmp_path / "test.tbi"
         )
