@@ -1,5 +1,7 @@
 from pathlib import Path
+from re import escape
 
+import pytest
 from typeline import Comment
 
 from bedspec import MISSING_FIELD
@@ -28,6 +30,16 @@ def test_bed_reader_can_read_bed_records_from_a_path(tmp_path: Path) -> None:
 
     reader = BedReader.from_path[Bed3](str(tmp_path / "test.bed"))
     assert list(reader) == [bed]
+
+
+def test_bed_reader_names_the_file_and_line_of_a_malformed_record(tmp_path: Path) -> None:
+    """Test that a parse error from a path names the file and line of the malformed record."""
+    path = tmp_path / "test.bed"
+    _ = path.write_text("chr1\t1\t2\nchr1\t1\n")
+
+    message = rf"^Expected 3 columns but found 2 on line 2 of '{escape(str(path))}'"
+    with pytest.raises(ValueError, match=message):
+        _ = list(BedReader.from_path[Bed3](path))
 
 
 def test_bed_reader_can_read_bed_records_with_comments(tmp_path: Path) -> None:
