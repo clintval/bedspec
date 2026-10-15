@@ -674,14 +674,20 @@ def _forget_resolutions() -> None:
 class _Registration(AbstractContextManager[None]):
     """A registration that, used in a `with` statement, restores the one before it on exit."""
 
-    def __init__(self, kind: type, previous: ToBed | None) -> None:
+    def __init__(self, kind: type, to_bed: ToBed, previous: ToBed | None) -> None:
         self._kind: type = kind
+        self._to_bed: ToBed = to_bed
         self._previous: ToBed | None = previous
 
     @override
     def __enter__(self) -> None:
-        """Enter the block this registration holds for."""
+        """Enter the block this registration holds for, registering it again if it was replaced."""
         _ = super().__enter__()
+        current = _REGISTRY.get(self._kind)
+        if current is not self._to_bed:
+            self._previous = current
+            _REGISTRY[self._kind] = self._to_bed
+            _forget_resolutions()
 
     @override
     def __exit__(
@@ -707,7 +713,8 @@ def register_for_bedspec(
     `Bed6` records when strand matters; returning none means the record is found by nothing. It
     is used for the class and its subclasses, before anything else, replacing any earlier
     registration of the class. Used in a `with` statement, the registration holds only until the
-    block exits, when what was registered before, or nothing, is restored.
+    block exits, when what was registered before the block, or nothing, is restored; one replaced
+    before its block is entered holds again for the block.
 
     Raises:
         TypeError: If `kind` is not a class, is `object`, or is a `Protocol`.
@@ -717,7 +724,7 @@ def register_for_bedspec(
     previous = _REGISTRY.get(kind)
     _REGISTRY[kind] = to_bed
     _forget_resolutions()
-    return _Registration(kind, previous)
+    return _Registration(kind, to_bed, previous)
 
 
 class _UnlocatableError(TypeError):

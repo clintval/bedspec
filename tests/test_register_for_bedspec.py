@@ -183,6 +183,24 @@ def test_a_registration_in_a_with_block_is_undone_when_the_block_raises() -> Non
         _ = TreeDetector([SPLICED])
 
 
+def test_a_registration_replaced_before_its_block_holds_for_the_block() -> None:
+    """Test that entering a replaced registration installs it for the block, then yields back."""
+
+    @dataclass(frozen=True)
+    class Local(Read):
+        """A kind of read registered only by this test."""
+
+    spliced = Local("chr1", SPLICED.blocks)
+    with register_for_bedspec(Local, read_blocks):
+        stale = register_for_bedspec(Local, read_extent)
+        _ = register_for_bedspec(Local, read_blocks)
+        with stale:
+            assert TreeDetector([spliced]).overlaps(INTRON)
+        assert not TreeDetector([spliced]).overlaps(INTRON)
+    with pytest.raises(TypeError, match="register_for_bedspec"):
+        _ = TreeDetector([spliced])
+
+
 def test_a_permanent_registration_holds_until_replaced() -> None:
     """Test that a registration made without a with statement holds until replaced."""
     first = register_for_bedspec(Read, read_blocks)
