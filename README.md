@@ -332,6 +332,7 @@ mappy publishes no wheels, so `bedspec[mappy]` builds it from source.
 A registered function must return 0-based half-open spans, so it converts 1-based coordinates itself, as `aux_hit_span` does for pybwa and as a function for gffutils' `Feature` would have to.
 A registration applies to the whole process, during a `with` block too, and a query consumed after its block exits sees the registration in force then.
 A query of several spans finds what any of them overlaps, but cannot be asked what encloses it or what it encloses.
+
 ### Merging, Intersecting, and Subtracting
 
 A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
