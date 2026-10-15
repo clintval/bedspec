@@ -332,12 +332,6 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
 
-To use two modules at once, rename at import, like `from bedspec.ext.cyvcf2 import as_interval as variant_interval`; `from bedspec.ext import pysam` would hide pysam itself.
-mappy publishes no wheels, so `bedspec[mappy]` builds it from source.
-A registered function must return 0-based half-open spans, so it converts 1-based coordinates itself, as `as_interval` does for pybwa and as a function for gffutils' `Feature` would have to.
-A registration applies to the whole process, during a `with` block too, and a query consumed after its block exits sees the registration in force then.
-A query of several spans finds what any of them overlaps, but cannot be asked what encloses it or what it encloses.
-
 ### Merging, Intersecting, and Subtracting
 
 A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
