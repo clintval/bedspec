@@ -110,9 +110,10 @@ class TabixDetector(
         """Yields all the features with any span overlapping the query, or any span of it."""
         spans = _as_spans(feature)
         if len(spans) == 1:
-            return self._matching(spans[0], touches, stranded=stranded, every=False)
+            yield from self._matching(spans[0], touches, stranded=stranded, every=False)
+            return
         lines = (self._matching_lines(span, touches, stranded, every=False) for span in spans)
-        return (record for _, record in _once_each(lines, itemgetter(0)))
+        yield from (record for _, record in _once_each(lines, itemgetter(0)))
 
     def overlaps(self, feature: object, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
@@ -125,9 +126,8 @@ class TabixDetector(
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosing")
-        if query is None:
-            return iter(())
-        return self._matching(query, encloses, stranded=stranded, every=False)
+        if query is not None:
+            yield from self._matching(query, encloses, stranded=stranded, every=False)
 
     def enclosed_by(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
         """Yields all the features with every span enclosed by the query.
@@ -136,9 +136,8 @@ class TabixDetector(
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosed_by")
-        if query is None:
-            return iter(())
-        return self._matching(query, is_enclosed_by, stranded=stranded, every=True)
+        if query is not None:
+            yield from self._matching(query, is_enclosed_by, stranded=stranded, every=True)
 
     def _matching(
         self,

@@ -10,6 +10,7 @@ import pytest
 from pybgzf import IndexFormat
 from typing_extensions import override
 
+from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import Bed12
@@ -419,13 +420,21 @@ def test_features_keep_the_spans_they_were_added_by() -> None:
         _ = detector.overlaps(SPLICED)
 
 
-def test_a_lazy_query_uses_the_registration_when_it_is_consumed() -> None:
-    """Test that a query made in a with block but consumed after it sees no registration."""
-    detector = TreeDetector([EXON1])
-    with register_for_bedspec(Read, read_blocks):
-        hits = detector.overlapping(SPLICED)
-    with pytest.raises(TypeError, match="register_for_bedspec"):
-        _ = list(hits)
+def test_a_lazy_query_uses_the_registration_when_it_is_consumed(tmp_path: Path) -> None:
+    """Test that both detectors read a query's spans only when the query is consumed."""
+    path = tmp_path / "targets.bed.gz"
+    with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
+        writer.write(EXON1)
+    with TabixDetector[Bed3](path) as tabix:
+        for detector in (TreeDetector([EXON1]), tabix):
+            with register_for_bedspec(Read, read_blocks):
+                hits = detector.overlapping(SPLICED)
+            with pytest.raises(TypeError, match="register_for_bedspec"):
+                _ = list(hits)
+            unregistered = (detector.overlapping(SPLICED), detector.enclosing(SPLICED))
+            for query in unregistered:
+                with pytest.raises(TypeError, match="register_for_bedspec"):
+                    _ = list(query)
 
 
 @dataclass(frozen=True)
@@ -475,3 +484,19 @@ def test_a_registered_bed_record_takes_no_strand_from_itself() -> None:
         assert not detector.overlaps(tagged, stranded=True)
         assert not list(detector.enclosed_by(tagged, stranded=True))
         assert not TreeDetector([tagged]).overlaps(plus, stranded=True)
+
+
+def test_a_bed2_query_is_matched_by_its_base(tmp_path: Path) -> None:
+    """Test that both detectors match a point query, which has no end, by its one base."""
+    target = Bed3("chr1", start=100, end=110)
+    path = tmp_path / "targets.bed.gz"
+    with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
+        writer.write(target)
+    held_by_spans = TreeDetector([target, Hollow("chr9", start=0, end=1)])
+    with TabixDetector[Bed3](path) as tabix:
+        for detector in (TreeDetector([target]), held_by_spans, tabix):
+            assert detector.overlaps(Bed2("chr1", start=105))
+            assert [hit for hit in detector.overlapping(Bed2("chr1", start=105))] == [target]
+            assert list(detector.enclosing(Bed2("chr1", start=105))) == [target]
+            assert not detector.overlaps(Bed2("chr1", start=110))
+            assert not detector.overlaps(Bed2("chr2", start=105))

@@ -427,14 +427,23 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             return
 
         if self._holds_spans:
-            yield from self._features_of(self._span_hits(query, stranded))
+            try:
+                hits = self._span_hits(query, stranded)
+            except AttributeError:
+                yield from self._overlapping_any(_query_spans(query), stranded)
+                return
+            yield from self._features_of(hits)
             return
 
         tree = self._tree_for(refname)
         if tree is None:
             return
 
-        start, end = _closed(query.start, query.end)
+        try:
+            start, end = _closed(query.start, query.end)
+        except AttributeError:
+            yield from self._overlapping_any(_query_spans(query), stranded)
+            return
         if not stranded:
             yield from tree.search_values(start, end)
             return
@@ -464,12 +473,12 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             return self._overlaps_any(_query_spans(query, to_bed), stranded)
         try:
             tree = self._tree_for(query.refname)
+            start, end = _closed(query.start, query.end)
         except (AttributeError, KeyError):
             return self._overlaps_any(_query_spans(query), stranded)
         if tree is None:
             return False
 
-        start, end = _closed(query.start, query.end)
         if not stranded:
             return tree.has_overlaps(start, end)
 
