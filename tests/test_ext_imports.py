@@ -6,6 +6,10 @@ import sys
 import pytest
 
 BLOCKED: dict[str, tuple[str, ...]] = {
+    "biopython": ("Bio", "Bio.Align"),
+    "cyvcf2": ("cyvcf2",),
+    "mappy": ("mappy",),
+    "pybedtools": ("pybedtools",),
     "pysam": ("pysam", "pysam.libctabixproxies"),
 }
 """The modules each extra installs, blocked so importing them fails as if they were missing."""

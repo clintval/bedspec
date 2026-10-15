@@ -146,6 +146,7 @@ doctest_optionflags = [
 
 [tool.mypy]
 files                       = ["bedspec/", "tests/", "conftest.py"]
+mypy_path                   = "typings"
 strict_optional             = true
 strict_equality             = true
 check_untyped_defs          = true
@@ -167,12 +168,13 @@ enable_error_code           = [
 
 [tool.pyright]
 include = ["bedspec/", "tests/", "conftest.py"]
+stubPath = "typings"
 reportAny = false
 reportExplicitAny = false
 pythonVersion = "3.11"
 
 [tool.ruff]
-include        = ["bedspec/**", "tests/**", "conftest.py"]
+include        = ["bedspec/**", "tests/**", "conftest.py", "typings/**"]
 line-length    = 100
 target-version = "py311"
 output-format  = "full"
@@ -200,6 +202,9 @@ ignore    = [
     "D104",  # missing docstring in public package
 ]
 unfixable = ["B"]
+
+[tool.ruff.lint.per-file-ignores]
+"typings/**" = ["D", "N802"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 13

@@ -1,0 +1,2 @@
+class SeqRecord:
+    id: str
