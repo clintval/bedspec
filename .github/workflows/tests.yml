@@ -93,7 +93,7 @@ jobs:
         run: uv sync --locked --no-default-groups --group test --extra "${EXTRA}"
 
       - name: Test the ${{ matrix.EXTRA }} extension
-        run: uv run --no-sync pytest "bedspec/ext/${EXTRA}.py" "tests/ext/test_${EXTRA}.py" --cov-fail-under=0
+        run: uv run --no-sync pytest "tests/ext/test_${EXTRA}.py" --cov-fail-under=0
 
       - name: Upload the coverage data
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
