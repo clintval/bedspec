@@ -812,13 +812,13 @@ class Territory(Iterable[Bed3]):
             ValueError: If a span has no reference name, starts before 0, or ends before it starts.
         """
         spans: dict[str, list[tuple[int, int]]] = {}
-        kind: type[Any] | None = None
-        getter: Locate = _NATIVE_LOCATE
         for feature in features:
             for span in _spans(feature):
-                if type(span) is not kind:
-                    kind, getter = type(span), locate(span)
-                refname, start, end = getter(span)
+                native: Any = span
+                try:
+                    refname, start, end = native.refname, native.start, native.end
+                except (AttributeError, KeyError):
+                    refname, start, end = locate(span)(span)
                 _check_span(refname, start, end)
                 if start < end:
                     spans.setdefault(refname, []).append((start, end))

@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field
+from itertools import chain
 from typing import Any
 from typing import Generic
 from typing import TypeAlias
@@ -64,6 +65,14 @@ def as_span(feature: Locatable) -> ReferenceSpan:
         return cast(ReferenceSpan, feature)
     refname, start, end = getter(feature)
     return _Span(refname, start, end, _strand(feature))
+
+
+NOT_NATIVE = (AttributeError, KeyError)
+"""What reading `refname`, `start` or `end` of a feature raises when it names them otherwise.
+
+Each method reads them first and falls back to `locate()` only on these, so a BED record pays
+nothing; pysam's tabix records raise KeyError for an attribute they do not have.
+"""
 
 
 def _closed(start: int, end: int) -> tuple[int, int]:
@@ -209,6 +218,25 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         """Add features that are each their own only span, holding the features in the trees."""
         added = self._features
         refname_to_index = self._refname_to_index
+        remaining = iter(features)
+        for feature in remaining:
+            try:
+                refname, feature_start, feature_end = feature.refname, feature.start, feature.end
+            except NOT_NATIVE:
+                self._add_located(chain((feature,), remaining))
+                return
+            start, end = _closed(feature_start, feature_end)
+            index = refname_to_index.get(refname)
+            if index is None:
+                index = refname_to_index[refname] = _RefIndex()
+            index.tree.add(start, end, feature)
+            index.is_built = False  # mark that this tree needs re-indexing
+            added.append(feature)
+
+    def _add_located(self, features: Iterable[Any]) -> None:
+        """Add features that are each their own only span, reading each class's names once."""
+        added = self._features
+        refname_to_index = self._refname_to_index
         kind: type[Any] | None = None
         getter: Locate = _NATIVE_LOCATE
         for feature in features:
@@ -236,16 +264,14 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         span_strands = self._span_strands
         first_spans = self._first_spans
         refname_to_index = self._refname_to_index
-        kind: type[Any] | None = None
-        getter: Locate = _NATIVE_LOCATE
         for feature, feature_spans in zip(features, spans, strict=True):
             number = len(added)
             strand = _strand(feature)
             for span in (feature,) if feature_spans is None else feature_spans:
-                span_kind: type[Any] = span.__class__
-                if span_kind is not kind:
-                    kind, getter = span_kind, locate(span)
-                refname, span_start, span_end = getter(span)
+                try:
+                    refname, span_start, span_end = span.refname, span.start, span.end
+                except NOT_NATIVE:
+                    refname, span_start, span_end = locate(span)(span)
                 start, end = _closed(span_start, span_end)
                 index = refname_to_index.get(refname)
                 if index is None:
@@ -281,13 +307,18 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             index.is_built = True
         return index.tree
 
-    def _span_hits(self, feature: ReferenceSpan, stranded: bool) -> list[int]:
+    def _span_hits(self, feature: Locatable, stranded: bool) -> list[int]:
         """Return the spans overlapping a query feature, on its strand if stranded."""
-        tree = self._tree_for(feature.refname)
+        native: Any = feature
+        try:
+            refname, start, end = native.refname, native.start, native.end
+        except NOT_NATIVE:
+            return self._span_hits(as_span(feature), stranded)
+        tree = self._tree_for(refname)
         if tree is None:
             return []
 
-        hits: list[int] = tree.search_values(*_closed(feature.start, feature.end))
+        hits: list[int] = tree.search_values(*_closed(start, end))
         if not stranded:
             return hits
 
@@ -321,21 +352,26 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
 
     def overlapping(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
         """Yields all the features with a span that overlaps the given query feature."""
-        query = as_span(feature)
         if self._holds_spans:
-            yield from self._features_of(self._span_hits(query, stranded))
+            yield from self._features_of(self._span_hits(feature, stranded))
             return
 
-        tree = self._tree_for(query.refname)
+        native: Any = feature
+        try:
+            refname, start, end = native.refname, native.start, native.end
+        except NOT_NATIVE:
+            yield from self.overlapping(as_span(feature), stranded=stranded)
+            return
+        tree = self._tree_for(refname)
         if tree is None:
             return
 
-        start, end = _closed(query.start, query.end)
+        start, end = _closed(start, end)
         if not stranded:
             yield from tree.search_values(start, end)
             return
 
-        strand = _strand(query)
+        strand = _strand(feature)
         if strand is None:
             return
         for hit in tree.search_values(start, end):
@@ -344,16 +380,20 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
 
     def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
-        query = as_span(feature)
-        tree = self._tree_for(query.refname)
+        native: Any = feature
+        try:
+            refname, start, end = native.refname, native.start, native.end
+        except NOT_NATIVE:
+            return self.overlaps(as_span(feature), stranded=stranded)
+        tree = self._tree_for(refname)
         if tree is None:
             return False
 
-        start, end = _closed(query.start, query.end)
+        start, end = _closed(start, end)
         if not stranded:
             return tree.has_overlaps(start, end)
 
-        strand = _strand(query)
+        strand = _strand(feature)
         if strand is None:
             return False
         if not self._holds_spans:
