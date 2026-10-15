@@ -8,8 +8,10 @@ import pytest
 BLOCKED: dict[str, tuple[str, ...]] = {
     "biopython": ("Bio", "Bio.Align"),
     "cyvcf2": ("cyvcf2",),
+    "fgpyo": ("fgpyo", "fgpyo.sam"),
     "mappy": ("mappy",),
     "pybedtools": ("pybedtools",),
+    "pybwa": ("pybwa",),
     "pysam": ("pysam", "pysam.libctabixproxies"),
 }
 """The modules each extra installs, blocked so importing them fails as if they were missing."""
