@@ -666,7 +666,9 @@ def _registered_for(kind: type) -> ToBed | None:
     try:
         return _RESOLVED[kind]
     except KeyError:
-        to_bed = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
+        to_bed: ToBed | None = None
+        if not issubclass(kind, BedLike):
+            to_bed = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
         _RESOLVED[kind] = to_bed
         if to_bed is None:
             _UNREGISTERED.add(kind)
@@ -746,13 +748,22 @@ def register_locatable(
     is used for the class and its subclasses, before anything else, replacing any earlier
     registration of the class. Used in a `with` statement, the registration holds only until the
     block exits, when what was registered before the block, or nothing, is restored; one replaced
-    before its block is entered holds again for the block.
+    before its block is entered holds again for the block. A BED record is always found by its
+    own `spans()`, even when a parent class of it is registered.
 
     Raises:
-        TypeError: If `kind` is not a class, is `object`, or is a `Protocol`.
+        TypeError: If `kind` is not a class, is `object`, a `Protocol`, or a BED class, or if
+            `to_bed` is not callable.
     """
     if not isinstance(kind, type) or kind is object or is_protocol(kind):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f"Only a class of records can be registered, not {kind!r}!")
+    if issubclass(kind, BedLike):
+        raise TypeError(
+            "A BED record is found by its own spans: override spans() in a subclass of"
+            + f" {kind.__name__} instead of registering it!"
+        )
+    if not callable(to_bed):
+        raise TypeError(f"to_bed must be a function returning spans, not {to_bed!r}!")  # pyright: ignore[reportUnreachable]
     registration = _Registration(kind, to_bed, (_REGISTRY.get(kind), _INSTALLERS.get(kind)))
     _install(kind, (to_bed, registration))
     return registration

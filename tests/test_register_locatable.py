@@ -450,37 +450,6 @@ def test_a_query_without_a_refname_is_matched_by_its_spans() -> None:
     assert list(detector.overlapping(pair)) == [EXON1, EXON2]
 
 
-def itself(record: Bed12) -> list[Bed12]:
-    """Return a BED12 record as its own only span, so it is found by its whole extent."""
-    return [record]
-
-
-TRANSCRIPT = Bed12(
-    "chr1",
-    start=100,
-    end=210,
-    name=None,
-    score=None,
-    strand=None,
-    thick_start=None,
-    thick_end=None,
-    item_rgb=None,
-    block_count=2,
-    block_sizes=(10, 10),
-    block_starts=(0, 100),
-)
-
-
-def test_a_bed_type_registered_to_return_itself_is_found_by_its_whole_extent() -> None:
-    """Test that registering a BED type beats its spans, even returning instances of itself."""
-    with register_locatable(Bed12, itself):
-        assert TreeDetector([TRANSCRIPT]).overlaps(INTRON)
-        assert TreeDetector([INTRON]).overlaps(TRANSCRIPT)
-        assert list(TreeDetector([INTRON]).enclosed_by(TRANSCRIPT)) == [INTRON]
-        assert list(Territory([TRANSCRIPT])) == [Bed3("chr1", start=100, end=210)]
-    assert not TreeDetector([TRANSCRIPT]).overlaps(INTRON)
-
-
 def test_features_keep_the_spans_they_were_added_by() -> None:
     """Test that features stay indexed by the spans registered when they were added."""
     with register_locatable(Read, read_blocks):
@@ -536,29 +505,6 @@ def test_a_query_with_spans_on_two_references_finds_targets_on_both(tmp_path: Pa
         assert list(tabix.overlapping(pair)) == targets
 
 
-@dataclass(frozen=True)
-class Tagged(Bed6):
-    """A kind of BED6 record, registered to be found without its strand."""
-
-
-def unstranded(record: Bed6) -> list[Bed3]:
-    """Return the extent of a BED6 record, without its strand."""
-    return [Bed3(record.refname, start=record.start, end=record.end)]
-
-
-def test_a_registered_bed_record_takes_no_strand_from_itself() -> None:
-    """Test that the spans of a registered BED record keep only their own strand, as queries too."""
-    plus = Bed6("chr1", start=100, end=110, name=None, score=None, strand=BedStrand.Positive)
-    tagged = Tagged("chr1", start=100, end=110, name=None, score=None, strand=BedStrand.Positive)
-    detector = TreeDetector([plus])
-    assert detector.overlaps(tagged, stranded=True)
-    with register_locatable(Tagged, unstranded):
-        assert detector.overlaps(tagged)
-        assert not detector.overlaps(tagged, stranded=True)
-        assert not list(detector.enclosed_by(tagged, stranded=True))
-        assert not TreeDetector([tagged]).overlaps(plus, stranded=True)
-
-
 def test_a_bed2_query_is_matched_by_its_base(tmp_path: Path) -> None:
     """Test that both detectors match a point query, which has no end, by its one base."""
     target = Bed3("chr1", start=100, end=110)
@@ -603,3 +549,94 @@ def test_a_plain_record_beside_a_registered_one_is_found_by_its_own_span() -> No
         detector: TreeDetector[Locatable] = TreeDetector([SPLICED, plain])
         assert list(detector.overlapping(Bed3("chr1", start=305, end=306))) == [plain]
         assert list(detector.overlapping(EXON1)) == [SPLICED]
+
+
+@dataclass(frozen=True)
+class Tagged(Bed6):
+    """A kind of BED6 record, which is found by its own spans."""
+
+
+@pytest.mark.parametrize("kind", [Bed3, Bed12, Tagged])
+def test_a_bed_class_cannot_be_registered(kind: Any) -> None:
+    """Test that registering a BED class raises, since a BED record is found by its own spans."""
+    with pytest.raises(TypeError, match=r"override spans\(\) in a subclass"):
+        _ = register_locatable(kind, read_extent)
+
+
+class Mixin:
+    """A class of records registered for its subclasses, one of them a BED record."""
+
+
+@dataclass(frozen=True)
+class MixedBed(Mixin, Bed3):
+    """A BED record whose parent class is registered."""
+
+
+def test_a_bed_record_is_found_by_its_own_spans_beside_a_registered_parent() -> None:
+    """Test that a BED record is found by its own spans even when a parent class is registered."""
+    record = MixedBed("chr1", start=100, end=110)
+    with register_locatable(Mixin, lambda _: [Bed3("chr2", start=0, end=10)]):
+        assert TreeDetector([record]).overlaps(EXON1)
+        assert TreeDetector([EXON1]).overlaps(record)
+        assert list(Territory([record])) == [Bed3("chr1", start=100, end=110)]
+
+
+def test_only_a_function_can_be_registered() -> None:
+    """Test that registering something that is not a function raises."""
+    not_a_function: Any = None
+    with pytest.raises(TypeError, match="must be a function returning spans"):
+        _ = register_locatable(Read, not_a_function)
+    with pytest.raises(TypeError, match="register_locatable"):
+        _ = TreeDetector([SPLICED])
+
+
+@pytest.mark.parametrize(
+    ("bad", "error"), [(("chr1", 20, 30), AttributeError), (Plain("chr1", 30, 20), ValueError)]
+)
+def test_adding_features_adds_none_when_a_registered_function_returns_a_bad_span(
+    bad: object, error: type[Exception]
+) -> None:
+    """Test that a bad span adds none of the features, leaving the detector as it was."""
+    detector: TreeDetector[Bed3 | Read] = TreeDetector([EXON1])
+
+    def spans(_: Read) -> Any:
+        return [Bed3("chr1", start=0, end=10), bad]
+
+    with register_locatable(Read, spans), pytest.raises(error):
+        detector.add(INTRON, SPLICED)
+    assert list(detector) == [EXON1]
+    assert list(detector.overlapping(Bed3("chr1", start=0, end=300))) == [EXON1]
+    detector.add(EXON2)
+    assert set(detector.overlapping(Bed3("chr1", start=0, end=300))) == {EXON1, EXON2}
+
+
+class Disguised(Plain):
+    """A record with a refname, start and end whose `__class__` claims it is a `Read`."""
+
+    @override
+    def __getattribute__(self, name: str) -> Any:
+        """Claim to be a `Read`."""
+        return Read if name == "__class__" else super().__getattribute__(name)
+
+
+def test_a_record_is_located_by_its_type_when_added_and_when_queried() -> None:
+    """Test that adding and querying both locate a record by its type, not by its `__class__`."""
+    disguised = Disguised("chr1", start=100, end=110)
+    with register_locatable(Read, read_extent):
+        assert TreeDetector([disguised]).overlaps(EXON1)
+        assert TreeDetector([EXON1]).overlaps(disguised)
+        assert list(Territory([disguised])) == [Bed3("chr1", start=100, end=110)]
+
+
+def test_a_span_of_a_registered_class_is_used_as_it_is() -> None:
+    """Test that a span a registered function returns is not located again by its own class."""
+    read = Read("chr1", ((100, 110),))
+    base_before = Bed3("chr1", start=99, end=100)
+
+    def as_one_based(read: Read) -> Any:
+        return [OneBased("chr1", *read.blocks[0])]
+
+    with register_locatable(OneBased, one_based), register_locatable(Read, as_one_based):
+        assert TreeDetector([base_before]).overlaps(OneBased("chr1", 100, 110))
+        assert not TreeDetector([base_before]).overlaps(read)
+        assert not TreeDetector([read]).overlaps(base_before)

@@ -22,6 +22,7 @@ from bedspec._bedspec import Locatable
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
 from bedspec._bedspec import ToBed
+from bedspec._bedspec import _check_span  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _registered_for  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _spans  # pyright: ignore[reportPrivateUsage]
 
@@ -117,7 +118,7 @@ def _is_own_span(feature: Any) -> bool:
     An unregistered linear BED record is, and so is an unregistered record that is not BED-like
     and has a `refname`, `start` and `end`.
     """
-    kind = feature.__class__
+    kind: type = type(feature)
     if _REGISTRY and kind not in _UNREGISTERED and _registered_for(kind) is not None:
         return False
     if getattr(kind, "spans", None) is SimpleBed.spans:
@@ -141,7 +142,7 @@ def _located(feature: Any) -> Located | None:
     A feature that is its own only span has no spans of its own here, and only the spans of a BED
     record take its strand.
     """
-    kind = feature.__class__
+    kind: type = type(feature)
     if _REGISTRY and kind not in _UNREGISTERED:
         to_bed = _registered_for(kind)
         if to_bed is not None:
@@ -159,7 +160,7 @@ def _located(feature: Any) -> Located | None:
 
 def _registration(feature: Locatable) -> ToBed | None:
     """Return the function registered for a feature's class, if any."""
-    kind = type(feature)
+    kind: type = type(feature)
     return None if kind in _UNREGISTERED or not _REGISTRY else _registered_for(kind)
 
 
@@ -311,6 +312,10 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             self._add_features(features)
             return
         located = [_located(feature) for feature in features]
+        for spans_and_strand in located:
+            if spans_and_strand is not None:
+                for span in spans_and_strand[0]:
+                    _check_span(span.refname, span.start, span.end)
         if not self._holds_spans:
             self._hold_spans()
         self._add_spans(features, located)
