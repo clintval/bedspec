@@ -202,6 +202,44 @@ def test_a_registration_replaced_before_its_block_holds_for_the_block() -> None:
         _ = TreeDetector([spliced])
 
 
+def test_entering_a_registration_keeps_its_own_function_registered_again_before() -> None:
+    """Test that entering a registration restores what was registered before the block."""
+
+    @dataclass(frozen=True)
+    class Local(Read):
+        """A kind of read registered only by this test."""
+
+    spliced = Local("chr1", SPLICED.blocks)
+    with register_locatable(Local, read_extent):
+        scoped = register_locatable(Local, read_blocks)
+        _ = register_locatable(Local, read_extent)
+        _ = register_locatable(Local, read_blocks)
+        with scoped:
+            assert not TreeDetector([spliced]).overlaps(INTRON)
+        assert not TreeDetector([spliced]).overlaps(INTRON)
+    with pytest.raises(TypeError, match="register_locatable"):
+        _ = TreeDetector([spliced])
+
+
+def test_entering_a_registration_twice_restores_each_level() -> None:
+    """Test that entering the same registration twice restores at each block's exit."""
+
+    @dataclass(frozen=True)
+    class Local(Read):
+        """A kind of read registered only by this test."""
+
+    spliced = Local("chr1", SPLICED.blocks)
+    with register_locatable(Local, read_extent):
+        registration = register_locatable(Local, read_blocks)
+        with registration:
+            with registration:
+                assert not TreeDetector([spliced]).overlaps(INTRON)
+            assert not TreeDetector([spliced]).overlaps(INTRON)
+        assert TreeDetector([spliced]).overlaps(INTRON)
+    with pytest.raises(TypeError, match="register_locatable"):
+        _ = TreeDetector([spliced])
+
+
 def test_a_permanent_registration_holds_until_replaced() -> None:
     """Test that a registration made without a with statement holds until replaced."""
     first = register_locatable(Read, read_blocks)

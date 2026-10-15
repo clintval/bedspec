@@ -679,23 +679,47 @@ def _forget_resolutions() -> None:
     _UNREGISTERED.clear()
 
 
+_INSTALLERS: dict[type, "_Registration"] = {}
+"""The registration that installed the function registered for each class."""
+
+_Installed: TypeAlias = tuple[ToBed | None, "_Registration | None"]
+"""A function registered for a class, or None, and the registration that installed it, or None."""
+
+
+def _install(kind: type, installed: _Installed) -> None:
+    """Register a function for a class with the registration that installed it, or neither."""
+    to_bed, installer = installed
+    if to_bed is None:
+        _ = _REGISTRY.pop(kind, None)
+    else:
+        _REGISTRY[kind] = to_bed
+    if installer is None:
+        _ = _INSTALLERS.pop(kind, None)
+    else:
+        _INSTALLERS[kind] = installer
+    _forget_resolutions()
+
+
 class _Registration(AbstractContextManager[None]):
     """A registration that, used in a `with` statement, restores the one before it on exit."""
 
-    def __init__(self, kind: type, to_bed: ToBed, previous: ToBed | None) -> None:
+    def __init__(self, kind: type, to_bed: ToBed, displaced: _Installed) -> None:
         self._kind: type = kind
         self._to_bed: ToBed = to_bed
-        self._previous: ToBed | None = previous
+        self._displaced_by_call: _Installed | None = displaced
+        self._displaced_by_blocks: list[_Installed] = []
 
     @override
     def __enter__(self) -> None:
         """Enter the block this registration holds for, registering it again if it was replaced."""
         _ = super().__enter__()
-        current = _REGISTRY.get(self._kind)
-        if current is not self._to_bed:
-            self._previous = current
-            _REGISTRY[self._kind] = self._to_bed
-            _forget_resolutions()
+        kind = self._kind
+        if _INSTALLERS.get(kind) is self and self._displaced_by_call is not None:
+            self._displaced_by_blocks.append(self._displaced_by_call)
+            self._displaced_by_call = None
+        else:
+            self._displaced_by_blocks.append((_REGISTRY.get(kind), _INSTALLERS.get(kind)))
+            _install(kind, (self._to_bed, self))
 
     @override
     def __exit__(
@@ -704,12 +728,12 @@ class _Registration(AbstractContextManager[None]):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Restore what was registered for the class before this, including nothing."""
-        if self._previous is None:
-            _ = _REGISTRY.pop(self._kind, None)
-        else:
-            _REGISTRY[self._kind] = self._previous
-        _forget_resolutions()
+        """Restore what was registered for the class before the block, including nothing."""
+        if self._displaced_by_blocks:
+            _install(self._kind, self._displaced_by_blocks.pop())
+        elif self._displaced_by_call is not None:
+            _install(self._kind, self._displaced_by_call)
+            self._displaced_by_call = None
 
 
 def register_locatable(
@@ -729,10 +753,9 @@ def register_locatable(
     """
     if not isinstance(kind, type) or kind is object or is_protocol(kind):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f"Only a class of records can be registered, not {kind!r}!")
-    previous = _REGISTRY.get(kind)
-    _REGISTRY[kind] = to_bed
-    _forget_resolutions()
-    return _Registration(kind, to_bed, previous)
+    registration = _Registration(kind, to_bed, (_REGISTRY.get(kind), _INSTALLERS.get(kind)))
+    _install(kind, (to_bed, registration))
+    return registration
 
 
 class _UnlocatableError(TypeError):
