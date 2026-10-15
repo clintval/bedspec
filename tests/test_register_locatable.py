@@ -531,3 +531,12 @@ def test_records_of_every_locatable_kind_go_in_together() -> None:
             Bed3("chr1", start=100, end=110),
             Bed3("chr1", start=200, end=210),
         ]
+
+
+def test_locatable_is_a_type_alias_and_not_a_class() -> None:
+    """Test that Locatable cannot be mistaken for a class: isinstance and subclassing refuse it."""
+    alias: Any = Locatable
+    with pytest.raises(TypeError):
+        _ = isinstance(SPLICED, alias)
+    with pytest.raises(TypeError):
+        _ = type("Mine", (alias,), {})

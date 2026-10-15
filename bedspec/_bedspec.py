@@ -25,6 +25,7 @@ from typing import runtime_checkable
 
 from typeline import ExtraColumns
 from typing_extensions import Self
+from typing_extensions import TypeAliasType
 from typing_extensions import is_protocol
 from typing_extensions import override
 
@@ -643,9 +644,12 @@ RecordType = TypeVar("RecordType")
 ToBed: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
 """A function returning the 0-based half-open spans a record is found by."""
 
-Locatable: TypeAlias = object
+Locatable = TypeAliasType("Locatable", object)
 """A record bedspec can locate: a BED record, an object with a `refname`, `start` and `end`, a
-record with a `spans()` method, or a record of a class registered with `register_locatable`."""
+record with a `spans()` method, or a record of a class registered with `register_locatable`.
+
+It is a type alias of `object`, since a registration happens at runtime, and not a class.
+"""
 
 _REGISTRY: dict[type, ToBed] = {}
 """The function registered for each class with `register_locatable`."""
