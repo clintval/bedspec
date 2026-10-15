@@ -376,7 +376,6 @@ def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_
         for segment in (on1, on2, half1, half2, off1, off2, lost1, lost2):
             _ = out.write(segment)
 
-    off_target: list[ReferenceSpan] = []
     with (
         register_locatable(pysam.AlignedSegment, as_paired_intervals),
         TabixDetector[Bed4](panel_path) as panel,
@@ -384,6 +383,7 @@ def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_
         pysam.AlignmentFile(str(tmp_path / "on-target.bam"), "wb", template=bam) as on_target,
         BedWriter.from_path[Bed3](tmp_path / "off-target.bed.gz", index=IndexFormat.TBI) as writer,
     ):
+        off_target: list[ReferenceSpan] = []
         for segment in bam:
             if names := {str(target.name) for target in panel.overlapping(segment)}:
                 segment.set_tag("tg", ",".join(sorted(names)))
