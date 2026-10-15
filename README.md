@@ -22,11 +22,10 @@ pip install bedspec
 
 ### Building a BED Feature
 
-```pycon
->>> from bedspec import Bed3
->>> 
->>> bed = Bed3("chr1", start=2, end=8)
+```python
+from bedspec import Bed3
 
+bed = Bed3("chr1", start=2, end=8)
 ```
 
 Records are checked against the BED spec when they are built.
@@ -36,37 +35,34 @@ A feature may start where it ends, as an insertion does.
 Records are immutable and hashable.
 Use `dataclasses.replace` to build a changed copy, which is checked like any other record:
 
-```pycon
->>> from dataclasses import replace
->>>
->>> replace(bed, end=10)
-Bed3(refname='chr1', start=2, end=10)
+```python
+from dataclasses import replace
 
+assert replace(bed, end=10) == Bed3("chr1", start=2, end=10)
 ```
 
 ### Writing
 
-```pycon
->>> from bedspec import BedWriter
->>> from tempfile import NamedTemporaryFile
->>> 
->>> temp_file = NamedTemporaryFile(mode="w+t", suffix=".txt")
->>>
->>> with BedWriter.from_path[Bed3](temp_file.name) as writer:
-...     writer.write(bed)
+```python
+from tempfile import NamedTemporaryFile
 
+from bedspec import BedWriter
+
+temp_file = NamedTemporaryFile(mode="w+t", suffix=".txt")
+
+with BedWriter.from_path[Bed3](temp_file.name) as writer:
+    writer.write(bed)
 ```
 
 ### Reading
 
-```pycon
->>> from bedspec import BedReader
->>> 
->>> with BedReader.from_path[Bed3](temp_file.name) as reader:
-...     for bed in reader:
-...         print(bed)
-Bed3(refname='chr1', start=2, end=8)
+```python
+from bedspec import BedReader
 
+with BedReader.from_path[Bed3](temp_file.name) as reader:
+    beds = list(reader)
+
+assert beds == [Bed3("chr1", start=2, end=8)]
 ```
 
 ### Compressed and Indexed BED
@@ -74,28 +70,28 @@ Bed3(refname='chr1', start=2, end=8)
 A path ending in `.gz`, `.bgz`, or `.bgzf` is written as BGZF, which any gzip reader can read, and a compressed file is read by its contents.
 Ask for a tabix or CSI index to have one written beside the file, with features sorted by reference and start.
 
-```pycon
->>> from pybgzf import IndexFormat
->>>
->>> with BedWriter.from_path[Bed3](f"{temp_file.name}.gz", index=IndexFormat.TBI, threads=4) as writer:
-...     writer.write(Bed3("chr1", start=2, end=8))
-...     writer.write(Bed3("chr1", start=6, end=9))
->>>
->>> with BedReader.from_path[Bed3](f"{temp_file.name}.gz") as reader:
-...     print(list(reader))
-[Bed3(refname='chr1', start=2, end=8), Bed3(refname='chr1', start=6, end=9)]
+```python
+from pybgzf import IndexFormat
 
+with BedWriter.from_path[Bed3](f"{temp_file.name}.gz", index=IndexFormat.TBI, threads=4) as writer:
+    writer.write(Bed3("chr1", start=2, end=8))
+    writer.write(Bed3("chr1", start=6, end=9))
+
+with BedReader.from_path[Bed3](f"{temp_file.name}.gz") as reader:
+    beds = list(reader)
+
+assert beds == [Bed3("chr1", start=2, end=8), Bed3("chr1", start=6, end=9)]
 ```
 
 Query an indexed file on disk with the same operations as the [overlap detector](#overlap-detection):
 
-```pycon
->>> from bedspec.overlap import TabixDetector
->>>
->>> with TabixDetector[Bed3](f"{temp_file.name}.gz") as detector:
-...     print(list(detector.enclosing(Bed3("chr1", start=7, end=8))))
-[Bed3(refname='chr1', start=2, end=8), Bed3(refname='chr1', start=6, end=9)]
+```python
+from bedspec.overlap import TabixDetector
 
+with TabixDetector[Bed3](f"{temp_file.name}.gz") as detector:
+    enclosing = list(detector.enclosing(Bed3("chr1", start=7, end=8)))
+
+assert enclosing == [Bed3("chr1", start=2, end=8), Bed3("chr1", start=6, end=9)]
 ```
 
 No index query returns a zero-length feature at the start of a reference, so writing one to an indexed file warns.
@@ -104,26 +100,24 @@ No index query returns a zero-length feature at the start of a reference, so wri
 
 This package provides builtin classes for the following BED formats:
 
-```pycon
->>> from bedspec import Bed2
->>> from bedspec import Bed3
->>> from bedspec import Bed4
->>> from bedspec import Bed5
->>> from bedspec import Bed6
->>> from bedspec import Bed9
->>> from bedspec import Bed12
->>> from bedspec import BedGraph
->>> from bedspec import BedPE
-
+```python
+from bedspec import Bed2
+from bedspec import Bed3
+from bedspec import Bed4
+from bedspec import Bed5
+from bedspec import Bed6
+from bedspec import Bed9
+from bedspec import Bed12
+from bedspec import BedGraph
+from bedspec import BedPE
 ```
 
 It also provides the ENCODE peak formats:
 
-```pycon
->>> from bedspec import BroadPeak
->>> from bedspec import GappedPeak
->>> from bedspec import NarrowPeak
-
+```python
+from bedspec import BroadPeak
+from bedspec import GappedPeak
+from bedspec import NarrowPeak
 ```
 
 ENCODE writes -1 for a p-value, q-value, or summit that is not given, and so do these types.
@@ -131,16 +125,18 @@ ENCODE writes -1 for a p-value, q-value, or summit that is not given, and so do 
 For BED files with extra columns (BEDn+m), use `Bed3N`, `Bed4N`, `Bed5N`, `Bed6N`, `Bed9N`, or `Bed12N`.
 Each is its BED type plus an `extra` field that keeps any further columns as text.
 
-```pycon
->>> from bedspec import Bed6N
->>>
->>> _ = open(temp_file.name, "w").write("chr1\t5\t9\tpeak\t7\t-\t3.2\t0.01\n")
->>>
->>> with BedReader.from_path[Bed6N](temp_file.name) as reader:
-...     for bed in reader:
-...         print(bed.name, bed.extra)
-peak ('3.2', '0.01')
+```python
+from pathlib import Path
 
+from bedspec import Bed6N
+
+Path(temp_file.name).write_text("chr1\t5\t9\tpeak\t7\t-\t3.2\t0.01\n")
+
+with BedReader.from_path[Bed6N](temp_file.name) as reader:
+    beds = list(reader)
+
+assert beds[0].name == "peak"
+assert beds[0].extra == ("3.2", "0.01")
 ```
 
 ### Spans and Territory
@@ -148,70 +144,74 @@ peak ('3.2', '0.01')
 Every BED record yields its pieces on reference sequences with `spans()`, each with its strand.
 A `Bed2` yields its one base, a `Bed3` to `Bed9` yields itself, a `BedPE` yields both of its ends, and a `Bed12` yields its blocks, so its introns are not part of it:
 
-```pycon
->>> from bedspec import BedStrand
->>>
->>> transcript = Bed12(
-...     "chr1",
-...     start=100,
-...     end=200,
-...     name="tx",
-...     score=None,
-...     strand=BedStrand.Positive,
-...     thick_start=None,
-...     thick_end=None,
-...     item_rgb=None,
-...     block_count=2,
-...     block_sizes=(10, 20),
-...     block_starts=(0, 80),
-... )
->>> for span in transcript.spans():
-...     print(span.refname, span.start, span.end, span.strand)
-chr1 100 110 +
-chr1 180 200 +
+```python
+from bedspec import BedStrand
 
+transcript = Bed12(
+    "chr1",
+    start=100,
+    end=200,
+    name="tx",
+    score=None,
+    strand=BedStrand.Positive,
+    thick_start=None,
+    thick_end=None,
+    item_rgb=None,
+    block_count=2,
+    block_sizes=(10, 20),
+    block_starts=(0, 80),
+)
+
+pieces = [(span.refname, span.start, span.end, span.strand) for span in transcript.spans()]
+
+assert pieces == [
+    ("chr1", 100, 110, BedStrand.Positive),
+    ("chr1", 180, 200, BedStrand.Positive),
+]
 ```
 
 `territory()` returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
 
-```pycon
->>> transcript.territory()
-Territory([Bed3(refname='chr1', start=100, end=110), Bed3(refname='chr1', start=180, end=200)])
->>> transcript.territory().length
-30
+```python
+from bedspec import Territory
 
+assert transcript.territory() == Territory([
+    Bed3("chr1", start=100, end=110),
+    Bed3("chr1", start=180, end=200),
+])
+assert transcript.territory().length == 30
 ```
 
 `thick_territory()` returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
 
-```pycon
->>> from dataclasses import replace
->>>
->>> coding = replace(transcript, thick_start=105, thick_end=190)
->>> coding.thick_territory()
-Territory([Bed3(refname='chr1', start=105, end=110), Bed3(refname='chr1', start=180, end=190)])
->>> transcript.thick_territory()
-Territory([])
+```python
+from dataclasses import replace
 
+coding = replace(transcript, thick_start=105, thick_end=190)
+
+assert coding.thick_territory() == Territory([
+    Bed3("chr1", start=105, end=110),
+    Bed3("chr1", start=180, end=190),
+])
+assert transcript.thick_territory() == Territory([])
 ```
 
 ### Overlap Detection
 
 Use a fast overlap detector for any collection of interval types, including third-party:
 
-```pycon
->>> from bedspec import Bed3, Bed4
->>> from bedspec.overlap import TreeDetector
->>>
->>> bed1 = Bed3("chr1", start=1, end=4)
->>> bed2 = Bed3("chr1", start=5, end=9)
->>> 
->>> detector = TreeDetector[Bed3]([bed1, bed2])
->>> 
->>> my_feature = Bed4("chr1", start=2, end=3, name="hi-mom")
->>> detector.overlaps(my_feature)
-True
+```python
+from bedspec import Bed3, Bed4
+from bedspec.overlap import TreeDetector
 
+bed1 = Bed3("chr1", start=1, end=4)
+bed2 = Bed3("chr1", start=5, end=9)
+
+detector = TreeDetector[Bed3]([bed1, bed2])
+
+my_feature = Bed4("chr1", start=2, end=3, name="hi-mom")
+
+assert detector.overlaps(my_feature)
 ```
 
 The overlap detector supports the following operations:
@@ -226,22 +226,21 @@ A zero-length feature overlaps the features that hold either base beside it.
 A BED record is found by any of its `spans()`, so `Bed2` points and `BedPE` pairs are supported, a `BedPE` is found by either end, and a `Bed12` is found by its blocks.
 A query that touches only an intron of a `Bed12` does not find it, so to find a `Bed12` by its whole span, add it as a `Bed6`:
 
-```pycon
->>> intron = Bed3("chr1", start=150, end=160)
->>>
->>> list(TreeDetector[Bed12]([transcript]).overlapping(intron))
-[]
->>> whole = Bed6(
-...     transcript.refname,
-...     start=transcript.start,
-...     end=transcript.end,
-...     name=transcript.name,
-...     score=transcript.score,
-...     strand=transcript.strand,
-... )
->>> list(TreeDetector[Bed6]([whole]).overlapping(intron)) == [whole]
-True
+```python
+intron = Bed3("chr1", start=150, end=160)
 
+assert list(TreeDetector[Bed12]([transcript]).overlapping(intron)) == []
+
+whole = Bed6(
+    transcript.refname,
+    start=transcript.start,
+    end=transcript.end,
+    name=transcript.name,
+    score=transcript.score,
+    strand=transcript.strand,
+)
+
+assert list(TreeDetector[Bed6]([whole]).overlapping(intron)) == [whole]
 ```
 
 Each matching feature is returned once, even when several of its spans match.
@@ -254,19 +253,19 @@ Each operation takes `stranded=True` to find only features on the same strand as
 For a `BedPE`, each end is compared by its own strand, and each block of a `Bed12` by the record's strand.
 For the opposite strand, flip the query's strand with `dataclasses.replace`:
 
-```pycon
->>> from dataclasses import replace
->>> from bedspec import Bed6, BedStrand
->>>
->>> plus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Positive)
->>> minus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Negative)
->>> stranded = TreeDetector[Bed6]([plus, minus])
->>>
->>> list(stranded.overlapping(plus, stranded=True)) == [plus]
-True
->>> list(stranded.overlapping(replace(plus, strand=plus.strand.opposite()), stranded=True)) == [minus]
-True
+```python
+from dataclasses import replace
 
+from bedspec import Bed6, BedStrand
+
+plus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Positive)
+minus = Bed6("chr1", start=1, end=4, name=None, score=None, strand=BedStrand.Negative)
+stranded = TreeDetector[Bed6]([plus, minus])
+
+opposite = replace(plus, strand=plus.strand.opposite())
+
+assert list(stranded.overlapping(plus, stranded=True)) == [plus]
+assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 ```
 
 ### Merging, Intersecting, and Subtracting
@@ -274,45 +273,39 @@ True
 A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
 Spans that overlap or abut are joined, and a zero-length span holds no bases:
 
-```pycon
->>> from bedspec import Territory
->>>
->>> targets = Territory([
-...     Bed3("chr1", start=0, end=10),
-...     Bed3("chr1", start=5, end=20),
-...     Bed3("chr1", start=20, end=30),
-...     Bed3("chr2", start=0, end=5),
-... ])
->>> list(targets)
-[Bed3(refname='chr1', start=0, end=30), Bed3(refname='chr2', start=0, end=5)]
->>> targets.length
-35
+```python
+from bedspec import Territory
 
+targets = Territory([
+    Bed3("chr1", start=0, end=10),
+    Bed3("chr1", start=5, end=20),
+    Bed3("chr1", start=20, end=30),
+    Bed3("chr2", start=0, end=5),
+])
+
+assert list(targets) == [Bed3("chr1", start=0, end=30), Bed3("chr2", start=0, end=5)]
+assert targets.length == 35
 ```
 
 Territories combine like sets of bases, with `|` for the union, `&` for the intersection, and `-` for the difference.
 For example, the bases of the targets that a gene holds, less a mask of bases to ignore:
 
-```pycon
->>> gene = Territory([Bed3("chr1", start=25, end=40)])
->>> mask = Territory([Bed3("chr1", start=27, end=28)])
->>>
->>> share = (targets & gene) - mask
->>> share
-Territory([Bed3(refname='chr1', start=25, end=27), Bed3(refname='chr1', start=28, end=30)])
->>> share.length
-4
+```python
+gene = Territory([Bed3("chr1", start=25, end=40)])
+mask = Territory([Bed3("chr1", start=27, end=28)])
 
+share = (targets & gene) - mask
+
+assert list(share) == [Bed3("chr1", start=25, end=27), Bed3("chr1", start=28, end=30)]
+assert share.length == 4
 ```
 
 Test one base with `contains`, or whether every base of a span or BED record is held with `in`:
 
-```pycon
->>> share.contains("chr1", 26), share.contains("chr1", 27)
-(True, False)
->>> Bed3("chr1", start=25, end=27) in share
-True
-
+```python
+assert share.contains("chr1", 26)
+assert not share.contains("chr1", 27)
+assert Bed3("chr1", start=25, end=27) in share
 ```
 
 A BED record adds every one of its spans, so a `BedPE` adds both of its ends and a `Bed12` only its blocks, the same bases as its own `territory()`.
@@ -327,34 +320,33 @@ A record of several pieces overrides `spans()` to yield them, and its `territory
 
 For example, to create a custom BED3+1 class:
 
-```pycon
->>> from dataclasses import dataclass
->>> 
->>> from bedspec import SimpleBed
->>> 
->>> @dataclass(frozen=True)
-... class Bed3Plus1(SimpleBed):
-...     refname: str
-...     start: int
-...     end: int
-...     my_custom_field: float | None
+```python
+from dataclasses import dataclass
 
+from bedspec import SimpleBed
+
+@dataclass(frozen=True)
+class Bed3Plus1(SimpleBed):
+    refname: str
+    start: int
+    end: int
+    my_custom_field: float | None
 ```
 
 You can also inherit and extend a pre-existing BED class:
 
-```pycon
->>> from dataclasses import dataclass
->>>
->>> from bedspec import Bed3
->>>
->>> @dataclass(frozen=True)
-... class Bed3Plus1(Bed3):
-...     my_custom_field: float | None
->>>
->>> Bed3Plus1(refname="chr1", start=2, end=3, my_custom_field=0.1)
-Bed3Plus1(refname='chr1', start=2, end=3, my_custom_field=0.1)
+```python
+from dataclasses import dataclass
 
+from bedspec import Bed3
+
+@dataclass(frozen=True)
+class Bed3Plus1(Bed3):
+    my_custom_field: float | None
+
+record = Bed3Plus1(refname="chr1", start=2, end=3, my_custom_field=0.1)
+
+assert record.my_custom_field == 0.1
 ```
 
 ## Development and Testing
