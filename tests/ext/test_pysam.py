@@ -17,6 +17,7 @@ from bedspec import Bed4
 from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import BedWriter
+from bedspec import ReferenceSpan
 from bedspec import Territory
 from bedspec import register_locatable
 from bedspec.ext.pysam import as_blocks
@@ -343,3 +344,64 @@ def test_a_mate_at_no_position_adds_nothing() -> None:
     segment.next_reference_start = -1
     assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
     assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]
+
+
+def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_territory(
+    tmp_path: Path,
+) -> None:
+    """Test the README's headline: pairs touching the panel are kept, the rest written as BED."""
+    panel_path = tmp_path / "panel.bed.gz"
+    with BedWriter.from_path[Bed4](panel_path, index=IndexFormat.TBI) as writer:
+        writer.write(Bed4("chr1", start=1_000, end=1_100, name="BRCA1_ex2"))
+        writer.write(Bed4("chr1", start=5_000, end=5_100, name="BRCA1_ex3"))
+
+    on1, on2 = read(1_050, "50M"), read(1_300, "50M", reverse=True)
+    off1, off2 = read(20_000, "50M"), read(20_300, "50M", reverse=True)
+    half1, half2 = read(5_020, "50M"), read(None)
+    half2.reference_name, half2.reference_start = "chr1", 5_020
+    lost1, lost2 = read(None), read(None)
+    mated(on1, "chr1", 1_300, "50M")
+    mated(on2, "chr1", 1_050, "50M")
+    mated(off1, "chr1", 20_300, "50M")
+    mated(off2, "chr1", 20_000, "50M")
+    mated(half1, "chr1", 5_020, None)
+    mated(half2, "chr1", 5_020, "50M")
+    for name, segments in {"on": (on1, on2), "off": (off1, off2), "half": (half1, half2)}.items():
+        for segment in segments:
+            segment.query_name = name
+    for segment in (lost1, lost2):
+        segment.query_name, segment.is_paired, segment.mate_is_unmapped = "lost", True, True
+    bam_path = tmp_path / "sorted.bam"
+    with pysam.AlignmentFile(str(bam_path), "wb", header=HEADER) as out:
+        for segment in (on1, on2, half1, half2, off1, off2, lost1, lost2):
+            _ = out.write(segment)
+
+    off_target: list[ReferenceSpan] = []
+    with (
+        register_locatable(pysam.AlignedSegment, as_paired_intervals),
+        TabixDetector[Bed4](panel_path) as panel,
+        pysam.AlignmentFile(str(bam_path)) as bam,
+        pysam.AlignmentFile(str(tmp_path / "on-target.bam"), "wb", template=bam) as on_target,
+        BedWriter.from_path[Bed3](tmp_path / "off-target.bed.gz", index=IndexFormat.TBI) as writer,
+    ):
+        for segment in bam:
+            if names := {str(target.name) for target in panel.overlapping(segment)}:
+                segment.set_tag("tg", ",".join(sorted(names)))
+                _ = on_target.write(segment)
+            else:
+                off_target.extend(as_interval(segment))
+        writer.write_all(Territory(off_target))
+
+    with pysam.AlignmentFile(str(tmp_path / "on-target.bam")) as kept:
+        assert [(segment.query_name, segment.get_tag("tg")) for segment in kept] == [
+            ("on", "BRCA1_ex2"),
+            ("on", "BRCA1_ex2"),
+            ("half", "BRCA1_ex3"),
+            ("half", "BRCA1_ex3"),
+        ]
+    with TabixDetector[Bed3](tmp_path / "off-target.bed.gz") as written:
+        assert list(written.overlapping(Bed3("chr1", start=0, end=10_000))) == []
+        assert list(written.overlapping(Bed3("chr1", start=10_000, end=30_000))) == [
+            Bed3("chr1", start=20_000, end=20_050),
+            Bed3("chr1", start=20_300, end=20_350),
+        ]

@@ -18,6 +18,40 @@ The package can be installed with `pip`:
 pip install bedspec
 ```
 
+## At a Glance
+
+Split a capture-panel BAM in one pass: keep and tag every pair either mate of which touches a panel target, and write the regions off-target reads cover as a sorted, tabix-indexed BED for a genome browser:
+
+<!-- skip: next -->
+```python
+import pysam
+from pybgzf import IndexFormat
+
+from bedspec import Bed3, Bed4, BedWriter, Territory, register_locatable
+from bedspec.ext.pysam import as_interval, as_paired_intervals
+from bedspec.overlap import TabixDetector
+
+off_target = []
+
+with (
+    register_locatable(pysam.AlignedSegment, as_paired_intervals),
+    TabixDetector[Bed4]("panel.bed.gz") as panel,
+    pysam.AlignmentFile("sorted.bam") as bam,
+    pysam.AlignmentFile("on-target.bam", "wb", template=bam) as on_target,
+    BedWriter.from_path[Bed3]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
+):
+    for read in bam:
+        if names := {target.name for target in panel.overlapping(read)}:
+            read.set_tag("tg", ",".join(sorted(names)))
+            on_target.write(read)
+        else:
+            off_target.extend(as_interval(read))
+    writer.write_all(Territory(off_target))
+```
+
+An unmapped read whose mate touches a target is found by its mate's interval and kept with it, and one whose mate does not adds nothing.
+The territory joins the off-target reads that overlap and is written sorted, so the BED it writes can be indexed and queried by a `TabixDetector` in turn.
+
 ## Quickstart
 
 ### Building a BED Feature
@@ -297,7 +331,72 @@ with (
             kept.write(read)
 ```
 
-A function can be a `lambda`, and pybedtools already reads a GFF file's coordinates as 0-based half-open:
+Find reads by their aligned blocks, so a read spliced right over an exon does not count, and on the read's strand against stranded exons:
+
+<!-- skip: next -->
+```python
+from bedspec import Bed6
+from bedspec.ext.pysam import as_blocks
+
+with (
+    register_locatable(pysam.AlignedSegment, as_blocks),
+    TabixDetector[Bed6]("exons.bed.gz") as exons,
+    pysam.AlignmentFile("rna.bam") as bam,
+):
+    on_their_exons = [read for read in bam if exons.overlaps(read, stranded=True)]
+```
+
+Hold variants in a detector and get the `VariantRecord`s back, with no wrapper class:
+
+<!-- skip: next -->
+```python
+from bedspec import Bed3
+from bedspec.ext.pysam import as_interval
+from bedspec.overlap import TreeDetector
+
+with (
+    register_locatable(pysam.VariantRecord, as_interval),
+    pysam.VariantFile("calls.vcf.gz") as vcf,
+):
+    variants = TreeDetector(vcf)
+    in_exon = list(variants.overlapping(Bed3("chr1", start=1_000, end=1_200)))
+```
+
+Build the territory a BAM's reads cover, keeping only the merged bases and not the reads, and ask what it holds:
+
+<!-- skip: next -->
+```python
+from bedspec import Territory
+
+with (
+    register_locatable(pysam.AlignedSegment, as_blocks),
+    pysam.AlignmentFile("sorted.bam") as bam,
+):
+    covered = Territory(bam)
+
+assert Bed3("chr1", start=1_050, end=1_060) in covered
+```
+
+Keep whole templates, supplementary alignments included, from a BAM grouped by read name:
+
+<!-- skip: next -->
+```python
+from fgpyo.sam import Template
+
+from bedspec.ext.fgpyo import as_paired_blocks
+
+with (
+    register_locatable(Template, as_paired_blocks),
+    TabixDetector[Bed4]("targets.bed.gz") as targets,
+    pysam.AlignmentFile("grouped.bam") as bam,
+    pysam.AlignmentFile("kept.bam", "wb", template=bam) as kept,
+):
+    for template in Template.iterator(bam):
+        if targets.overlaps(template):
+            template.write_to(kept)
+```
+
+Register any other type with a function of your own, which can be a `lambda`; here pybedtools, which already reads a GFF file's coordinates as 0-based half-open, though `bedspec.ext.pybedtools.as_interval` does the same and keeps strand:
 
 <!-- skip: next -->
 ```python
@@ -331,6 +430,14 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand |
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
+
+Every module names its functions the same way, so rename at import to use two together:
+
+<!-- skip: next -->
+```python
+from bedspec.ext.cyvcf2 import as_interval as variant_interval
+from bedspec.ext.pysam import as_blocks as read_blocks
+```
 
 ### Merging, Intersecting, and Subtracting
 
