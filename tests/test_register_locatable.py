@@ -216,20 +216,27 @@ def test_a_permanent_registration_holds_until_replaced() -> None:
 
 
 def test_a_registration_beats_a_refname_start_and_end(tmp_path: Path) -> None:
-    """Test that a registered class with native-looking attributes is read through its function."""
+    """Test that a registered class with native-looking attributes is read through its function.
+
+    Read natively the hit would be [11, 20); its registration reads it as [10, 20), so every
+    assertion here fails if its own attributes win.
+    """
     hit = OneBased("chr1", start=11, end=20)
+    first_base = Bed3("chr1", start=10, end=11)
     path = tmp_path / "targets.bed.gz"
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
-        writer.write(Bed3("chr1", start=19, end=20))
+        writer.write(first_base)
     with register_locatable(OneBased, one_based):
-        assert TreeDetector([hit]).overlaps(Bed3("chr1", start=10, end=11))
-        assert TreeDetector([Bed3("chr1", start=10, end=11)]).overlaps(hit)
-        assert list(TreeDetector([Bed3("chr1", start=0, end=30)]).enclosing(hit)) != []
+        assert TreeDetector([hit]).overlaps(first_base)
+        assert TreeDetector([first_base]).overlaps(hit)
+        assert list(TreeDetector([first_base]).enclosed_by(hit)) == [first_base]
+        assert list(TreeDetector([Bed3("chr1", start=11, end=30)]).enclosing(hit)) == []
         assert list(Territory([hit])) == [Bed3("chr1", start=10, end=20)]
-        assert hit in Territory([Bed3("chr1", start=10, end=20)])
+        assert hit not in Territory([Bed3("chr1", start=11, end=20)])
         with TabixDetector[Bed3](path) as detector:
             assert detector.overlaps(hit)
-    assert not TreeDetector([hit]).overlaps(Bed3("chr1", start=10, end=11))
+            assert list(detector.enclosed_by(hit)) == [first_base]
+    assert not TreeDetector([hit]).overlaps(first_base)
 
 
 @pytest.mark.parametrize("kind", [SPLICED, object, Placed, "Read"])
