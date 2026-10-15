@@ -1,4 +1,3 @@
-import re
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -613,16 +612,16 @@ def test_adding_a_feature_whose_spans_raise_adds_nothing() -> None:
     assert list(detector.enclosed_by(query)) == [bed]
 
 
-def test_adding_a_feature_without_spans_is_refused() -> None:
-    """Test that adding a feature with no spans raises, naming it, and adds nothing."""
-    hollow = Hollow(refname="chr1", start=10, end=20)
+def test_a_feature_without_spans_is_held_but_never_found() -> None:
+    """Test that a feature with no spans is added and iterated, but no query finds it."""
+    bed, hollow = Bed3(refname="chr1", start=0, end=5), Hollow(refname="chr1", start=10, end=20)
     detector: TreeDetector[Bed3] = TreeDetector()
 
-    with pytest.raises(ValueError, match=re.escape(repr(hollow))):
-        detector.add(Bed3(refname="chr1", start=0, end=5), hollow)
+    detector.add(bed, hollow)
 
-    assert list(detector) == []
-    assert not detector.overlaps(Bed3(refname="chr1", start=0, end=100))
+    assert list(detector) == [bed, hollow]
+    assert list(detector.overlapping(Bed3(refname="chr1", start=0, end=100))) == [bed]
+    assert list(detector.enclosed_by(Bed3(refname="chr1", start=0, end=100))) == [bed]
 
 
 STRANDS = (BedStrand.Positive, BedStrand.Negative, None)

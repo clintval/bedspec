@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from functools import cached_property
 from io import StringIO
+from operator import itemgetter
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -19,7 +20,10 @@ from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
 from bedspec._reader import BedReader
 from bedspec.overlap._overlap import SpanTest
+from bedspec.overlap._overlap import _as_spans  # pyright: ignore[reportPrivateUsage]
 from bedspec.overlap._overlap import _closed  # pyright: ignore[reportPrivateUsage]
+from bedspec.overlap._overlap import _once_each  # pyright: ignore[reportPrivateUsage]
+from bedspec.overlap._overlap import _one_span  # pyright: ignore[reportPrivateUsage]
 from bedspec.overlap._overlap import _strand  # pyright: ignore[reportPrivateUsage]
 from bedspec.overlap._overlap import encloses
 from bedspec.overlap._overlap import is_enclosed_by
@@ -102,43 +106,61 @@ class TabixDetector(
         """Close the file."""
         self._reader.close()
 
-    def overlapping(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[IntervalBedType]:
-        """Yields all the features with any span overlapping the query."""
-        return self._matching(feature, touches, stranded=stranded, every=False)
+    def overlapping(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+        """Yields all the features with any span overlapping the query, or any span of it."""
+        spans = _as_spans(feature)
+        if len(spans) == 1:
+            return self._matching(spans[0], touches, stranded=stranded, every=False)
+        lines = (self._matching_lines(span, touches, stranded, every=False) for span in spans)
+        return (record for _, record in _once_each(lines, itemgetter(0)))
 
-    def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
+    def overlaps(self, feature: object, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         return next(self.overlapping(feature, stranded=stranded), None) is not None
 
-    def enclosing(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[IntervalBedType]:
-        """Yields all the features with any span enclosing the query."""
-        return self._matching(feature, encloses, stranded=stranded, every=False)
+    def enclosing(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+        """Yields all the features with any span enclosing the query.
 
-    def enclosed_by(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[IntervalBedType]:
-        """Yields all the features with every span enclosed by the query."""
-        return self._matching(feature, is_enclosed_by, stranded=stranded, every=True)
+        Raises:
+            ValueError: If the query has more than one span.
+        """
+        query = _one_span(feature, "enclosing")
+        if query is None:
+            return iter(())
+        return self._matching(query, encloses, stranded=stranded, every=False)
+
+    def enclosed_by(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+        """Yields all the features with every span enclosed by the query.
+
+        Raises:
+            ValueError: If the query has more than one span.
+        """
+        query = _one_span(feature, "enclosed_by")
+        if query is None:
+            return iter(())
+        return self._matching(query, is_enclosed_by, stranded=stranded, every=True)
 
     def _matching(
         self,
-        feature: ReferenceSpan,
+        query: ReferenceSpan,
         test: SpanTest,
         *,
         stranded: bool,
         every: bool,
     ) -> Iterator[IntervalBedType]:
         """Yield the records near a query whose spans pass a test, any or every one of them."""
-        strand = _strand(feature)
+        return (record for _, record in self._matching_lines(query, test, stranded, every))
+
+    def _matching_lines(
+        self, query: ReferenceSpan, test: SpanTest, stranded: bool, every: bool
+    ) -> Iterator[tuple[str, IntervalBedType]]:
+        """Yield each line near a query, with its record, whose spans pass a test."""
+        strand = _strand(query)
         if stranded and strand is None:
             return
         required_strand = strand if stranded else None
-        start, end = _closed(feature.start, feature.end)
-        for line in self._reader.query(feature.refname, max(start - 1, 0), end + 2):
+        start, end = _closed(query.start, query.end)
+        for line in self._reader.query(query.refname, max(start - 1, 0), end + 2):
             record = self._decoder.decode(line)
             record_strand = _strand(record)
             passed = (
@@ -147,11 +169,11 @@ class TabixDetector(
                     span.start,
                     span.end,
                     span_strand(span, record_strand),
-                    feature,
+                    query,
                     test,
                     required_strand,
                 )
                 for span in record.spans()
             )
             if all(passed) if every else any(passed):
-                yield record
+                yield line, record

@@ -6,22 +6,26 @@ from bisect import bisect_right
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import Field
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from enum import unique
 from itertools import chain
+from types import TracebackType
 from typing import Any
 from typing import ClassVar
 from typing import Protocol
 from typing import TypeAlias
 from typing import TypeVar
+from typing import cast
 from typing import final
 from typing import runtime_checkable
 
 from typeline import ExtraColumns
 from typing_extensions import Self
+from typing_extensions import is_protocol
 from typing_extensions import override
 
 COMMENT_PREFIXES: set[str] = {"#", "browser", "track"}
@@ -633,9 +637,125 @@ _NONE: "array[int]" = array("q")
 """The bounds of a reference that holds no bases."""
 
 
-def _spans(feature: BedLike | ReferenceSpan) -> Iterable[ReferenceSpan]:
-    """Return the spans of a BED record, or the feature if it is not a BED record."""
-    return feature.spans() if isinstance(feature, BedLike) else (feature,)
+RecordType = TypeVar("RecordType")
+"""A type variable for a class of records registered with `register_for_bedspec`."""
+
+ToBed: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
+"""A function returning the 0-based half-open spans a record is found by."""
+
+_REGISTRY: dict[type, ToBed] = {}
+"""The function registered for each class with `register_for_bedspec`."""
+
+_RESOLVED: dict[type, ToBed | None] = {}
+"""The registered function each class resolves to through its MRO, or None, until it changes."""
+
+_UNREGISTERED: set[type] = set()
+"""The classes known to resolve to no registered function, until the registry changes."""
+
+
+def _registered_for(kind: type) -> ToBed | None:
+    """Return the function registered for a class or the nearest class in its MRO, if any."""
+    try:
+        return _RESOLVED[kind]
+    except KeyError:
+        to_bed = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
+        _RESOLVED[kind] = to_bed
+        if to_bed is None:
+            _UNREGISTERED.add(kind)
+        return to_bed
+
+
+def _forget_resolutions() -> None:
+    """Forget which function each class resolves to, after the registry changes."""
+    _RESOLVED.clear()
+    _UNREGISTERED.clear()
+
+
+class _Registration(AbstractContextManager[None]):
+    """A registration that, used in a `with` statement, restores the one before it on exit."""
+
+    def __init__(self, kind: type, previous: ToBed | None) -> None:
+        self._kind: type = kind
+        self._previous: ToBed | None = previous
+
+    @override
+    def __enter__(self) -> None:
+        """Enter the block this registration holds for."""
+        _ = super().__enter__()
+
+    @override
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Restore what was registered for the class before this, including nothing."""
+        if self._previous is None:
+            _ = _REGISTRY.pop(self._kind, None)
+        else:
+            _REGISTRY[self._kind] = self._previous
+        _forget_resolutions()
+
+
+def register_for_bedspec(
+    kind: type[RecordType], to_bed: Callable[[RecordType], Iterable[ReferenceSpan]]
+) -> AbstractContextManager[None]:
+    """Register how detectors and territories find the spans of a class of records.
+
+    `to_bed` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
+    `Bed6` records when strand matters; returning none means the record is found by nothing. It
+    is used for the class and its subclasses, before anything else, replacing any earlier
+    registration of the class. Used in a `with` statement, the registration holds only until the
+    block exits, when what was registered before, or nothing, is restored.
+
+    Raises:
+        TypeError: If `kind` is not a class, is `object`, or is a `Protocol`.
+    """
+    if not isinstance(kind, type) or kind is object or is_protocol(kind):  # pyright: ignore[reportUnnecessaryIsInstance]
+        raise TypeError(f"Only a class of records can be registered, not {kind!r}!")
+    previous = _REGISTRY.get(kind)
+    _REGISTRY[kind] = to_bed
+    _forget_resolutions()
+    return _Registration(kind, previous)
+
+
+class _UnlocatableError(TypeError):
+    """Raised for a record whose spans cannot be found."""
+
+
+def _spans(feature: object) -> Iterable[ReferenceSpan]:
+    """Return the spans a feature is found by.
+
+    In order: the function registered for its class, the spans of a BED record, the feature itself
+    if it has a `refname`, `start` and `end`, or what its `spans()` method returns.
+
+    Raises:
+        TypeError: If none of these finds the spans of the feature.
+    """
+    if _REGISTRY:
+        kind = type(feature)
+        to_bed = None if kind in _UNREGISTERED else _registered_for(kind)
+        if to_bed is not None:
+            return to_bed(feature)
+    if isinstance(feature, BedLike):
+        return feature.spans()
+    record: Any = feature
+    try:
+        _ = record.refname, record.start, record.end
+        return (record,)
+    except (AttributeError, KeyError):
+        pass
+    try:
+        spans: Any = record.spans
+    except (AttributeError, KeyError):
+        spans = None
+    if callable(spans):
+        return cast("Iterable[ReferenceSpan]", spans())
+    raise _UnlocatableError(
+        f"Cannot find the spans of a {type(feature).__name__}: register a function returning them"
+        + " with register_for_bedspec(), or use one from bedspec.ext!"
+    )
 
 
 def _merged(spans: list[tuple[int, int]]) -> "array[int]":
@@ -674,8 +794,9 @@ class Territory(Iterable[Bed3]):
     """An immutable set of bases on reference sequences, built from spans and BED records.
 
     A BED record adds every one of its `spans()`, so a `Bed2` adds its base, a `BedPE` both of its
-    ends, and a `Bed12` its blocks and not its introns, and any other object with a `refname`,
-    `start` and `end` adds itself. A BED record's `territory()` is the territory of its spans.
+    ends, and a `Bed12` its blocks and not its introns, any other object with a `refname`,
+    `start` and `end` adds itself, and a record registered with `register_for_bedspec` adds the
+    spans its function returns. A BED record's `territory()` is the territory of its spans.
     Spans that overlap or abut are joined, since they hold the same bases either way, a
     zero-length span holds no bases and adds none, and strands are not kept.
 
@@ -693,10 +814,11 @@ class Territory(Iterable[Bed3]):
 
     __slots__ = ("_bounds",)
 
-    def __init__(self, features: Iterable[BedLike | ReferenceSpan] = ()) -> None:
-        """Build the territory of the given spans and BED records.
+    def __init__(self, features: Iterable[object] = ()) -> None:
+        """Build the territory of the given spans, BED records, and registered records.
 
         Raises:
+            TypeError: If the spans of a feature cannot be found.
             ValueError: If a span has no reference name, starts before 0, or ends before it starts.
         """
         spans: dict[str, list[tuple[int, int]]] = {}
@@ -722,11 +844,16 @@ class Territory(Iterable[Bed3]):
     def __contains__(self, feature: object) -> bool:
         """Return whether this territory holds every base of every span of a feature.
 
-        A zero-length span is held when either base beside it is.
+        A zero-length span is held when either base beside it is. A feature with no spans, like an
+        unmapped read, or whose spans cannot be found, is not held.
         """
-        if not isinstance(feature, BedLike | ReferenceSpan):
+        try:
+            spans = tuple(_spans(feature))
+        except _UnlocatableError:
             return False
-        for span in _spans(feature):
+        if not spans:
+            return False
+        for span in spans:
             bounds = self._bounds.get(span.refname, _NONE)
             index = bisect_right(bounds, span.start)
             if index % 2 == 1:
