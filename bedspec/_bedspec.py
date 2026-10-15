@@ -661,7 +661,7 @@ _UNREGISTERED: set[type] = set()
 """The classes known to resolve to no registered function, until the registry changes."""
 
 
-def _registered_for(kind: type) -> ToBed | None:
+def _registered_for(kind: type[Any]) -> ToBed | None:
     """Return the function registered for a class or the nearest class in its MRO, if any."""
     try:
         return _RESOLVED[kind]

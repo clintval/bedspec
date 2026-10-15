@@ -112,21 +112,22 @@ class _QuerySpan:
     strand: BedStrand | None
 
 
-def _is_own_span(feature: Any) -> bool:
+def _is_own_span(feature: Locatable) -> bool:
     """Return whether a feature is its own only span.
 
     An unregistered linear BED record is, and so is an unregistered record that is not BED-like
     and has a `refname`, `start` and `end`.
     """
-    kind: type = type(feature)
+    kind = type(feature)
     if _REGISTRY and kind not in _UNREGISTERED and _registered_for(kind) is not None:
         return False
     if getattr(kind, "spans", None) is SimpleBed.spans:
         return True
     if isinstance(feature, BedLike):
         return False
+    record: Any = feature
     try:
-        _ = feature.refname, feature.start, feature.end
+        _ = record.refname, record.start, record.end
     except (AttributeError, KeyError):
         return False
     return True
@@ -136,13 +137,13 @@ Located: TypeAlias = tuple[tuple[ReferenceSpan, ...], BedStrand | None]
 """The spans of a feature that is not its own only span, and the strand those without one take."""
 
 
-def _located(feature: Any) -> Located | None:
+def _located(feature: Locatable) -> Located | None:
     """Return a feature's spans and the strand its spans without one take, or None if it has none.
 
     A feature that is its own only span has no spans of its own here, and only the spans of a BED
     record take its strand.
     """
-    kind: type = type(feature)
+    kind = type(feature)
     if _REGISTRY and kind not in _UNREGISTERED:
         to_bed = _registered_for(kind)
         if to_bed is not None:
@@ -151,8 +152,9 @@ def _located(feature: Any) -> Located | None:
         return None
     if isinstance(feature, BedLike):
         return tuple(feature.spans()), _strand(feature)
+    record: Any = feature
     try:
-        _ = feature.refname, feature.start, feature.end
+        _ = record.refname, record.start, record.end
     except (AttributeError, KeyError):
         return tuple(_spans(feature)), None
     return None
@@ -160,7 +162,7 @@ def _located(feature: Any) -> Located | None:
 
 def _registration(feature: Locatable) -> ToBed | None:
     """Return the function registered for a feature's class, if any."""
-    kind: type = type(feature)
+    kind = type(feature)
     return None if kind in _UNREGISTERED or not _REGISTRY else _registered_for(kind)
 
 
