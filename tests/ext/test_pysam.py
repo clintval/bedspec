@@ -319,3 +319,27 @@ def test_an_alignment_with_an_insertion_is_one_span_as_a_query() -> None:
     target = Bed3("chr1", start=0, end=1_000)
     with register_locatable(pysam.AlignedSegment, as_blocks):
         assert list(TreeDetector([target]).enclosing(read(100, "50M2I50M"))) == [target]
+
+
+@pytest.mark.parametrize("cigar", ["10S", "5I"])
+def test_an_alignment_on_no_reference_bases_has_no_interval_and_no_blocks(cigar: str) -> None:
+    """Test that a mapped read whose CIGAR consumes no reference bases is found by nothing."""
+    assert as_interval(read(100, cigar)) == []
+    assert as_blocks(read(100, cigar)) == []
+
+
+def test_a_mate_without_a_cigar_adds_nothing() -> None:
+    """Test that a mate CIGAR of * adds no interval and no blocks for the mate."""
+    segment = read(100)
+    mated(segment, "chr1", 300, "*")
+    assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
+    assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]
+
+
+def test_a_mate_at_no_position_adds_nothing() -> None:
+    """Test that a mate at no position adds no interval and no blocks, rather than raising."""
+    segment = read(100)
+    mated(segment, "chr1", 300, "20M")
+    segment.next_reference_start = -1
+    assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
+    assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]

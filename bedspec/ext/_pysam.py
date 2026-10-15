@@ -17,6 +17,12 @@ from bedspec.ext._stranded import stranded
 _CIGAR = re.compile(r"(\d+)([MIDNSHP=X])")
 _ALIGNED = "M=X"
 _ON_REFERENCE = "M=XDN"
+_ON_REFERENCE_CODES = frozenset({0, 2, 3, 7, 8})
+
+
+def _consumes_reference(read: pysam.AlignedSegment) -> bool:
+    """Return whether a read's CIGAR consumes a reference base, which htslib assumes one does."""
+    return any(code in _ON_REFERENCE_CODES for code, _ in read.cigartuples or ())
 
 
 def as_interval(
@@ -31,6 +37,8 @@ def as_interval(
     if isinstance(record, pysam.AlignedSegment):
         refname, end = record.reference_name, record.reference_end
         if record.is_unmapped or refname is None or end is None:
+            return []
+        if end - record.reference_start == 1 and not _consumes_reference(record):
             return []
         return [stranded(refname, record.reference_start, end, "-" if record.is_reverse else "+")]
     if isinstance(record, pysam.VariantRecord):
@@ -52,7 +60,7 @@ def as_blocks(read: pysam.AlignedSegment) -> list[Bed6]:
 
 
 def _mate(read: pysam.AlignedSegment) -> tuple[str, int, list[tuple[int, str]]] | None:
-    """Return the reference, start and CIGAR operations of a read's mate, or None if unmapped.
+    """Return the reference, start and CIGAR operations of a read's mate, or None if it has none.
 
     Raises:
         ValueError: If the read is paired, its mate is mapped, and it has no MC tag.
@@ -60,9 +68,13 @@ def _mate(read: pysam.AlignedSegment) -> tuple[str, int, list[tuple[int, str]]] 
     refname = read.next_reference_name
     if not read.is_paired or read.mate_is_unmapped or refname is None:
         return None
+    if read.next_reference_start < 0:
+        return None
     if not read.has_tag("MC"):
         raise ValueError(f"{read.query_name} has no MC tag: run `samtools fixmate -m` first!")
     mate_cigar = str(read.get_tag("MC"))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    if mate_cigar == "*":
+        return None
     operations = [(int(length), operator) for length, operator in _CIGAR.findall(mate_cigar)]
     return refname, read.next_reference_start, operations
 
