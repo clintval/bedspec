@@ -282,11 +282,11 @@ Everything detectors and territories take, registered records included, is typed
 import pysam
 
 from bedspec import Bed4, register_locatable
-from bedspec.ext.pysam import as_paired_blocks
+from bedspec.ext.pysam import as_paired_intervals
 from bedspec.overlap import TabixDetector
 
 with (
-    register_locatable(pysam.AlignedSegment, as_paired_blocks),
+    register_locatable(pysam.AlignedSegment, as_paired_intervals),
     TabixDetector[Bed4]("targets.bed.gz") as targets,
     pysam.AlignmentFile("sorted.bam") as bam,
     pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,

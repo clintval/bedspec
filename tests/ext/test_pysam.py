@@ -260,7 +260,7 @@ def test_the_readme_example_keeps_and_tags_both_mates_of_pairs_on_target(tmp_pat
             _ = out.write(segment)
 
     with (
-        register_locatable(pysam.AlignedSegment, as_paired_blocks),
+        register_locatable(pysam.AlignedSegment, as_paired_intervals),
         TabixDetector[Bed4](targets_path) as targets,
         pysam.AlignmentFile(str(sorted_path)) as bam,
         pysam.AlignmentFile(str(kept_path), "wb", template=bam) as kept,
