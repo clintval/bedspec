@@ -49,6 +49,15 @@ class OneBased:
 
 
 @dataclass(frozen=True)
+class Plain:
+    """A record that is not a BED record but has a refname, start and end."""
+
+    refname: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
 class Located:
     """A record that is not a BED record but says what its spans are."""
 
@@ -585,3 +594,12 @@ def test_locatable_is_a_type_alias_and_not_a_class() -> None:
         _ = isinstance(SPLICED, alias)
     with pytest.raises(TypeError):
         _ = type("Mine", (alias,), {})
+
+
+def test_a_plain_record_beside_a_registered_one_is_found_by_its_own_span() -> None:
+    """Test that a record with a refname, start and end is its own span beside registered ones."""
+    plain = Plain("chr1", start=300, end=310)
+    with register_locatable(Read, read_blocks):
+        detector: TreeDetector[Locatable] = TreeDetector([SPLICED, plain])
+        assert list(detector.overlapping(Bed3("chr1", start=305, end=306))) == [plain]
+        assert list(detector.overlapping(EXON1)) == [SPLICED]
