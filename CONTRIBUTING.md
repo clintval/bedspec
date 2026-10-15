@@ -2,11 +2,13 @@
 
 ## Setup
 
-Install [uv](https://docs.astral.sh/uv/), then install the library and its development tools:
+Install [uv](https://docs.astral.sh/uv/), then install the library, its development tools, and every library `bedspec.ext` supports:
 
 ```console
 uv sync
 ```
+
+mappy publishes no wheels, so it builds from source and needs a C compiler and zlib.
 
 ## Primary Development Commands
 

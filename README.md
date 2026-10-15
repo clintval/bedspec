@@ -246,7 +246,7 @@ assert list(TreeDetector[Bed6]([whole]).overlapping(intron)) == [whole]
 Each matching feature is returned once, even when several of its spans match.
 A feature encloses the input feature when any one of its spans does.
 A feature is enclosed by the input feature only when all of its spans are, so a `BedPE` needs both ends inside.
-Queries must be spans with an `end`, so a `Bed2` can be added but cannot be used as a query.
+A query with a `refname`, `start`, and `end` is matched by its whole extent, so a `Bed12` query is matched across its introns, and any other query by its spans, so a `Bed2` query is matched by its base and a `BedPE` query by either end.
 A `TabixDetector` answers every query the same way: its index finds each record by its whole extent, and each record found is then tested by its spans, so a query in an intron finds nothing there either.
 
 Each operation takes `stranded=True` to find only features on the same strand as the query.
@@ -268,6 +268,70 @@ assert list(stranded.overlapping(plus, stranded=True)) == [plus]
 assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 ```
 
+### Other Libraries' Records
+
+Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_for_bedspec()` is given a function returning the 0-based half-open spans a class of records is found by.
+Called on its own, a registration holds until it is replaced; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
+A function may return no spans, as for an unmapped read, and the record is then held but never found.
+
+`bedspec.ext.pysam` has functions for pysam's records, so a coordinate-sorted BAM can be filtered to the pairs either mate of which touches a target, tagging both mates with the names of the targets:
+
+<!-- skip: next -->
+```python
+import pysam
+
+from bedspec import Bed4, register_for_bedspec
+from bedspec.ext.pysam import pair_blocks
+from bedspec.overlap import TabixDetector
+
+with (
+    register_for_bedspec(pysam.AlignedSegment, pair_blocks),
+    TabixDetector[Bed4]("targets.bed.gz") as targets,
+    pysam.AlignmentFile("sorted.bam") as bam,
+    pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,
+):
+    for read in bam:
+        if names := {target.name for target in targets.overlapping(read)}:
+            read.set_tag("tg", ",".join(sorted(names)))
+            kept.write(read)
+```
+
+A function can be a `lambda`, and pybedtools already reads a GFF file's coordinates as 0-based half-open:
+
+<!-- skip: next -->
+```python
+from pybedtools import BedTool, Interval
+
+from bedspec import Bed3, register_for_bedspec
+from bedspec.overlap import TreeDetector
+
+register_for_bedspec(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)])
+
+genes = TreeDetector(BedTool("genes.gff"))
+genes.overlaps(Interval("chr1", 100, 200))
+```
+
+`bedspec.ext` has functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`:
+
+| Module | Function | Finds |
+| --- | --- | --- |
+| `bedspec.ext.pysam` | `read_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
+| | `read_span` | an `AlignedSegment` by its whole alignment, on its strand |
+| | `pair_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag |
+| | `variant_span` | a `VariantRecord` by its reference allele |
+| | `tabix_span` | a tabix GTF, GFF3, or BED line, on its strand |
+| `bedspec.ext.pybedtools` | `interval_span` | an `Interval`, on its strand |
+| `bedspec.ext.fgpyo` | `template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records |
+| | `supplementary_span` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
+| `bedspec.ext.cyvcf2` | `variant_span` | a `Variant` by its reference allele |
+| `bedspec.ext.mappy` | `alignment_blocks` | an `Alignment` by its aligned blocks, on its strand |
+| `bedspec.ext.pybwa` | `aux_hit_span` | an `AuxHit` from an `XA` tag, on its strand |
+| `bedspec.ext.biopython` | `alignment_blocks` | a `Bio.Align.Alignment`, like a BED12 line, by its blocks, on its strand |
+
+mappy publishes no wheels, so `bedspec[mappy]` builds it from source.
+A registered function must return 0-based half-open spans, so it converts 1-based coordinates itself, as `aux_hit_span` does for pybwa and as a function for gffutils' `Feature` would have to.
+A registration applies to the whole process, during a `with` block too, and a query consumed after its block exits sees the registration in force then.
+A query of several spans finds what any of them overlaps, but cannot be asked what encloses it or what it encloses.
 ### Merging, Intersecting, and Subtracting
 
 A `Territory` is the set of bases held by any number of spans and BED records, kept as the fewest spans that hold them.
