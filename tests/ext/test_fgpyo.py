@@ -4,6 +4,7 @@ from fgpyo.sam import SupplementaryAlignment
 from fgpyo.sam import Template
 from fgpyo.sam.builder import SamBuilder
 
+import bedspec.ext.fgpyo
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
@@ -48,3 +49,10 @@ def test_registered_templates_are_kept_whole_when_either_read_is_on_target() -> 
     targets = TreeDetector([Bed3("chr1", start=950, end=960)])
     with register_for_bedspec(Template, template_blocks):
         assert [template for template in (on, off) if targets.overlaps(template)] == [on]
+
+
+def test_bedspec_ext_fgpyo_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.fgpyo holds its functions and none of the names it imports."""
+    module = bedspec.ext.fgpyo
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["supplementary_span", "template_blocks"]

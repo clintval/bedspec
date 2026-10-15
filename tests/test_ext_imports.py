@@ -25,5 +25,6 @@ def test_a_module_of_bedspec_ext_names_its_extra_when_its_library_is_missing(
     for module in modules:
         monkeypatch.setitem(sys.modules, module, None)
     monkeypatch.delitem(sys.modules, f"bedspec.ext.{extra}", raising=False)
+    monkeypatch.delitem(sys.modules, f"bedspec.ext._{extra}", raising=False)
     with pytest.raises(ImportError, match=rf"pip install 'bedspec\[{extra}\]'"):
         _ = importlib.import_module(f"bedspec.ext.{extra}")

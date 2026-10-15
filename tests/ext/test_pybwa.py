@@ -3,6 +3,7 @@
 from pybwa import AuxHit
 from pybwa import to_xa_hits
 
+import bedspec.ext.pybwa
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
@@ -31,3 +32,10 @@ def test_a_registered_hit_is_found_by_its_first_base() -> None:
     assert not first_base.overlaps(minus)
     with register_for_bedspec(AuxHit, aux_hit_span):
         assert first_base.overlaps(minus)
+
+
+def test_bedspec_ext_pybwa_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.pybwa holds its functions and none of the names it imports."""
+    module = bedspec.ext.pybwa
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["aux_hit_span"]

@@ -6,6 +6,7 @@ from pybedtools import BedTool
 from pybedtools import Interval
 from pybedtools import create_interval_from_list
 
+import bedspec.ext.pybedtools
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
@@ -50,3 +51,10 @@ def test_the_readme_example_finds_the_genes_of_a_gff_file(tmp_path: Path) -> Non
         assert genes.overlaps(Interval("chr1", 100, 200))
         assert genes.overlaps(Interval("chr1", 199, 250))
         assert not genes.overlaps(Interval("chr1", 200, 300))
+
+
+def test_bedspec_ext_pybedtools_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.pybedtools holds its functions and none of the names it imports."""
+    module = bedspec.ext.pybedtools
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["interval_span"]

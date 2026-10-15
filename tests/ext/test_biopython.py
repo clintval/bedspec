@@ -5,6 +5,7 @@ from pathlib import Path
 from Bio import Align
 from Bio.Align import Alignment
 
+import bedspec.ext.biopython
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
@@ -40,3 +41,10 @@ def test_registered_alignments_are_not_found_in_their_introns(tmp_path: Path) ->
         detector = TreeDetector(alignments)
         assert list(detector.overlapping(Bed3("chr1", start=250, end=251))) == [alignments[0]]
         assert not detector.overlaps(Bed3("chr1", start=200, end=210))
+
+
+def test_bedspec_ext_biopython_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.biopython holds its functions and none of the names it imports."""
+    module = bedspec.ext.biopython
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["alignment_blocks"]

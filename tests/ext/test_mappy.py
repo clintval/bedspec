@@ -6,6 +6,7 @@ from pathlib import Path
 from mappy import Aligner
 from mappy import Alignment
 
+import bedspec.ext.mappy
 from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import register_for_bedspec
@@ -47,3 +48,10 @@ def test_registered_alignments_are_not_found_in_their_deletions(tmp_path: Path) 
         assert not detector.overlaps(
             Bed6("chr1", start=720, end=730, name=None, score=None, strand=None)
         )
+
+
+def test_bedspec_ext_mappy_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.mappy holds its functions and none of the names it imports."""
+    module = bedspec.ext.mappy
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["alignment_blocks"]

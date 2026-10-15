@@ -11,6 +11,7 @@ import pytest
 from pybgzf import IndexFormat
 from pysam.libctabixproxies import GTFProxy
 
+import bedspec.ext.pysam
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import Bed6
@@ -261,3 +262,14 @@ def test_an_unregistered_tabix_line_raises_a_type_error_not_a_key_error() -> Non
     with pytest.raises(TypeError, match="register_for_bedspec"):
         _ = TreeDetector([Bed3("chr1", start=0, end=10)]).overlaps(exon)
     assert exon not in Territory([Bed3("chr1", start=0, end=100)])
+
+
+def test_bedspec_ext_pysam_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.pysam holds its functions and none of the names it imports."""
+    module = bedspec.ext.pysam
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert (
+        public
+        == sorted(module.__all__)
+        == ["pair_blocks", "read_blocks", "read_span", "tabix_span", "variant_span"]
+    )

@@ -5,6 +5,7 @@ from pathlib import Path
 from cyvcf2 import VCF
 from cyvcf2 import Variant
 
+import bedspec.ext.cyvcf2
 from bedspec import Bed3
 from bedspec import register_for_bedspec
 from bedspec.ext.cyvcf2 import variant_span
@@ -37,3 +38,10 @@ def test_registered_variants_are_found_as_themselves(tmp_path: Path) -> None:
         (found,) = detector.overlapping(Bed3("chr1", start=101, end=102))
         assert found is variants[0]
         assert TreeDetector([Bed3("chr1", start=499, end=500)]).overlaps(variants[1])
+
+
+def test_bedspec_ext_cyvcf2_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.cyvcf2 holds its functions and none of the names it imports."""
+    module = bedspec.ext.cyvcf2
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["variant_span"]
