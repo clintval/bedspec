@@ -1,15 +1,13 @@
 """Functions reading pysam's records as spans, to register with `register_locatable`."""
 
-from bedspec.ext._pysam import pair_blocks
-from bedspec.ext._pysam import read_blocks
-from bedspec.ext._pysam import read_span
-from bedspec.ext._pysam import tabix_span
-from bedspec.ext._pysam import variant_span
+from bedspec.ext._pysam import as_blocks
+from bedspec.ext._pysam import as_interval
+from bedspec.ext._pysam import as_paired_blocks
+from bedspec.ext._pysam import as_paired_intervals
 
 __all__ = [
-    "pair_blocks",
-    "read_blocks",
-    "read_span",
-    "tabix_span",
-    "variant_span",
+    "as_blocks",
+    "as_interval",
+    "as_paired_blocks",
+    "as_paired_intervals",
 ]

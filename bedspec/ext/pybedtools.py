@@ -1,7 +1,7 @@
 """Functions reading pybedtools' records as spans, to register with `register_locatable`."""
 
-from bedspec.ext._pybedtools import interval_span
+from bedspec.ext._pybedtools import as_interval
 
 __all__ = [
-    "interval_span",
+    "as_interval",
 ]

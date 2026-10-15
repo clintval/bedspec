@@ -282,11 +282,11 @@ Everything detectors and territories take, registered records included, is typed
 import pysam
 
 from bedspec import Bed4, register_locatable
-from bedspec.ext.pysam import pair_blocks
+from bedspec.ext.pysam import as_paired_blocks
 from bedspec.overlap import TabixDetector
 
 with (
-    register_locatable(pysam.AlignedSegment, pair_blocks),
+    register_locatable(pysam.AlignedSegment, as_paired_blocks),
     TabixDetector[Bed4]("targets.bed.gz") as targets,
     pysam.AlignmentFile("sorted.bam") as bam,
     pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,
@@ -312,25 +312,29 @@ genes = TreeDetector(BedTool("genes.gff"))
 genes.overlaps(Interval("chr1", 100, 200))
 ```
 
-`bedspec.ext` has functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`:
+`bedspec.ext` has functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`.
+Each module names them the same way: `as_interval` finds a record by its interval, from its first base to its last, `as_blocks` by the aligned blocks within it, and `as_paired_intervals` and `as_paired_blocks` add those of its mate, an interval each, never joined into one.
 
 | Module | Function | Finds |
 | --- | --- | --- |
-| `bedspec.ext.pysam` | `read_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
-| | `read_span` | an `AlignedSegment` by its whole alignment, on its strand |
-| | `pair_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag |
-| | `variant_span` | a `VariantRecord` by its reference allele |
-| | `tabix_span` | a tabix GTF, GFF3, or BED line, on its strand |
-| `bedspec.ext.pybedtools` | `interval_span` | an `Interval`, on its strand |
-| `bedspec.ext.fgpyo` | `template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records |
-| | `supplementary_span` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
-| `bedspec.ext.cyvcf2` | `variant_span` | a `Variant` by its reference allele |
-| `bedspec.ext.mappy` | `alignment_blocks` | an `Alignment` by its aligned blocks, on its strand |
-| `bedspec.ext.pybwa` | `aux_hit_span` | an `AuxHit` from an `XA` tag, on its strand |
-| `bedspec.ext.biopython` | `alignment_blocks` | a `Bio.Align.Alignment`, like a BED12 line, by its blocks, on its strand |
+| `bedspec.ext.pysam` | `as_interval` | an `AlignedSegment` by its whole alignment, on its strand; a `VariantRecord` by its reference allele; a tabix GTF, GFF3, or BED line, on its strand |
+| | `as_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
+| | `as_paired_intervals` | an `AlignedSegment` by its interval and its mate's, from its `MC` tag |
+| | `as_paired_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag |
+| `bedspec.ext.pybedtools` | `as_interval` | an `Interval`, on its strand |
+| `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
+| | `as_paired_intervals` | a `Template` by the intervals of its primary and supplementary records |
+| | `as_paired_blocks` | a `Template` by the aligned blocks of its primary and supplementary records |
+| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` by its reference allele |
+| `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
+| | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
+| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand |
+| `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
+| | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
 
+To use two modules at once, rename at import, like `from bedspec.ext.cyvcf2 import as_interval as variant_interval`; `from bedspec.ext import pysam` would hide pysam itself.
 mappy publishes no wheels, so `bedspec[mappy]` builds it from source.
-A registered function must return 0-based half-open spans, so it converts 1-based coordinates itself, as `aux_hit_span` does for pybwa and as a function for gffutils' `Feature` would have to.
+A registered function must return 0-based half-open spans, so it converts 1-based coordinates itself, as `as_interval` does for pybwa and as a function for gffutils' `Feature` would have to.
 A registration applies to the whole process, during a `with` block too, and a query consumed after its block exits sees the registration in force then.
 A query of several spans finds what any of them overlaps, but cannot be asked what encloses it or what it encloses.
 

@@ -6,6 +6,6 @@ except ImportError as error:
 from bedspec import Bed3
 
 
-def variant_span(variant: Variant) -> list[Bed3]:
-    """Return the reference bases a variant spans."""
+def as_interval(variant: Variant) -> list[Bed3]:
+    """Return the interval of a variant, its reference allele."""
     return [Bed3(variant.CHROM, start=variant.start, end=variant.end)]

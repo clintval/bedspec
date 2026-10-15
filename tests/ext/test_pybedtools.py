@@ -12,7 +12,7 @@ from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import Territory
 from bedspec import register_locatable
-from bedspec.ext.pybedtools import interval_span
+from bedspec.ext.pybedtools import as_interval
 from bedspec.overlap import TreeDetector
 
 
@@ -21,19 +21,19 @@ def span(start: int, end: int, strand: BedStrand | None) -> Bed6:
     return Bed6("chr1", start=start, end=end, name=None, score=None, strand=strand)
 
 
-def test_interval_span_reads_bed_and_gff_intervals_as_0_based() -> None:
+def test_as_interval_reads_bed_and_gff_intervals_as_0_based() -> None:
     """Test that BED and GFF intervals are read 0-based, on their strand or on none."""
     bed = create_interval_from_list(["chr1", "10", "20", "name", "0", "-"])
     gff = create_interval_from_list(["chr1", "src", "gene", "11", "20", ".", "+", ".", "ID=g"])
-    assert interval_span(bed) == [span(10, 20, BedStrand.Negative)]
-    assert interval_span(gff) == [span(10, 20, BedStrand.Positive)]
-    assert interval_span(Interval("chr1", 10, 20)) == [span(10, 20, None)]
+    assert as_interval(bed) == [span(10, 20, BedStrand.Negative)]
+    assert as_interval(gff) == [span(10, 20, BedStrand.Positive)]
+    assert as_interval(Interval("chr1", 10, 20)) == [span(10, 20, None)]
 
 
 def test_registered_intervals_are_found_on_their_strand() -> None:
     """Test that intervals registered by their spans are found as themselves, on their strand."""
     minus = create_interval_from_list(["chr1", "10", "20", "name", "0", "-"])
-    with register_locatable(Interval, interval_span):
+    with register_locatable(Interval, as_interval):
         detector = TreeDetector([minus])
         assert list(detector.overlapping(span(15, 16, BedStrand.Negative), stranded=True)) == [
             minus
@@ -57,4 +57,4 @@ def test_bedspec_ext_pybedtools_holds_only_the_functions_it_exports() -> None:
     """Test that bedspec.ext.pybedtools holds its functions and none of the names it imports."""
     module = bedspec.ext.pybedtools
     public = sorted(name for name in vars(module) if not name.startswith("_"))
-    assert public == sorted(module.__all__) == ["interval_span"]
+    assert public == sorted(module.__all__) == ["as_interval"]
