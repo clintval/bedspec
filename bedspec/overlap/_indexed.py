@@ -14,13 +14,14 @@ from pybgzf import IndexedReader
 from typing_extensions import Self
 from typing_extensions import override
 
+from bedspec._bedspec import Locatable
 from bedspec._bedspec import PointBed
-from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
 from bedspec._reader import BedReader
 from bedspec.overlap._overlap import SpanTest
 from bedspec.overlap._overlap import _closed  # pyright: ignore[reportPrivateUsage]
 from bedspec.overlap._overlap import _strand  # pyright: ignore[reportPrivateUsage]
+from bedspec.overlap._overlap import as_span
 from bedspec.overlap._overlap import encloses
 from bedspec.overlap._overlap import is_enclosed_by
 from bedspec.overlap._overlap import span_matches
@@ -103,42 +104,41 @@ class TabixDetector(
         self._reader.close()
 
     def overlapping(
-        self, feature: ReferenceSpan, *, stranded: bool = False
+        self, feature: Locatable, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
         """Yields all the features with any span overlapping the query."""
         return self._matching(feature, touches, stranded=stranded, every=False)
 
-    def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
+    def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         return next(self.overlapping(feature, stranded=stranded), None) is not None
 
-    def enclosing(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[IntervalBedType]:
+    def enclosing(self, feature: Locatable, *, stranded: bool = False) -> Iterator[IntervalBedType]:
         """Yields all the features with any span enclosing the query."""
         return self._matching(feature, encloses, stranded=stranded, every=False)
 
     def enclosed_by(
-        self, feature: ReferenceSpan, *, stranded: bool = False
+        self, feature: Locatable, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
         """Yields all the features with every span enclosed by the query."""
         return self._matching(feature, is_enclosed_by, stranded=stranded, every=True)
 
     def _matching(
         self,
-        feature: ReferenceSpan,
+        feature: Locatable,
         test: SpanTest,
         *,
         stranded: bool,
         every: bool,
     ) -> Iterator[IntervalBedType]:
         """Yield the records near a query whose spans pass a test, any or every one of them."""
-        strand = _strand(feature)
+        query = as_span(feature)
+        strand = _strand(query)
         if stranded and strand is None:
             return
         required_strand = strand if stranded else None
-        start, end = _closed(feature.start, feature.end)
-        for line in self._reader.query(feature.refname, max(start - 1, 0), end + 2):
+        start, end = _closed(query.start, query.end)
+        for line in self._reader.query(query.refname, max(start - 1, 0), end + 2):
             record = self._decoder.decode(line)
             record_strand = _strand(record)
             passed = (
@@ -147,7 +147,7 @@ class TabixDetector(
                     span.start,
                     span.end,
                     span_strand(span, record_strand),
-                    feature,
+                    query,
                     test,
                     required_strand,
                 )

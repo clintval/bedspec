@@ -1,4 +1,5 @@
 from ._bedspec import MISSING_FIELD
+from ._bedspec import AlignmentSpan
 from ._bedspec import Bed2
 from ._bedspec import Bed3
 from ._bedspec import Bed3N
@@ -19,7 +20,10 @@ from ._bedspec import BedPE
 from ._bedspec import BedStrand
 from ._bedspec import BedType
 from ._bedspec import BroadPeak
+from ._bedspec import ChromSpan
+from ._bedspec import ContigSpan
 from ._bedspec import GappedPeak
+from ._bedspec import Locatable
 from ._bedspec import Named
 from ._bedspec import NarrowPeak
 from ._bedspec import PairBed
@@ -28,6 +32,8 @@ from ._bedspec import ReferenceSpan
 from ._bedspec import SimpleBed
 from ._bedspec import Stranded
 from ._bedspec import Territory
+from ._bedspec import VariantSpan
+from ._bedspec import locate
 from ._reader import BedReader
 from ._writer import BedWriter
 
@@ -58,6 +64,12 @@ __all__ = [
     "Named",
     "PairBed",
     "PointBed",
+    "AlignmentSpan",
+    "ChromSpan",
+    "ContigSpan",
+    "Locatable",
+    "VariantSpan",
+    "locate",
     "ReferenceSpan",
     "SimpleBed",
     "Stranded",

@@ -12,6 +12,7 @@ from dataclasses import field
 from enum import Enum
 from enum import unique
 from itertools import chain
+from operator import attrgetter
 from typing import Any
 from typing import ClassVar
 from typing import Protocol
@@ -110,6 +111,117 @@ class ReferenceSpan(Protocol):
     refname: str
     start: int
     end: int
+
+
+class ChromSpan(Protocol):
+    """A 0-based half-open feature whose reference is `chrom`, as in pybedlite's records."""
+
+    @property
+    def chrom(self) -> str: ...
+    @property
+    def start(self) -> int: ...
+    @property
+    def end(self) -> int: ...
+
+
+class ContigSpan(Protocol):
+    """A 0-based half-open feature whose reference is `contig`, as in pysam's tabix records."""
+
+    @property
+    def contig(self) -> str: ...
+    @property
+    def start(self) -> int: ...
+    @property
+    def end(self) -> int: ...
+
+
+class VariantSpan(Protocol):
+    """A 0-based half-open feature that ends at `stop`, as in pysam's `VariantRecord`."""
+
+    @property
+    def contig(self) -> str: ...
+    @property
+    def start(self) -> int: ...
+    @property
+    def stop(self) -> int: ...
+
+
+class AlignmentSpan(Protocol):
+    """A 0-based half-open alignment to a reference, as in pysam's `AlignedSegment`."""
+
+    @property
+    def reference_name(self) -> str | None: ...
+    @property
+    def reference_start(self) -> int: ...
+    @property
+    def reference_end(self) -> int | None: ...
+
+
+Locatable: TypeAlias = ReferenceSpan | ChromSpan | ContigSpan | VariantSpan | AlignmentSpan
+"""A feature whose reference, start and end are read under any of the names `locate()` knows."""
+
+REFNAME_NAMES: tuple[str, ...] = ("refname", "contig", "chrom", "reference_name")
+"""The names a feature's reference sequence name is read from, the first one it has."""
+
+START_NAMES: tuple[str, ...] = ("start", "reference_start")
+"""The names a feature's 0-based start is read from, the first one it has."""
+
+END_NAMES: tuple[str, ...] = ("end", "stop", "reference_end")
+"""The names a feature's 0-based half-open end is read from, the first one it has."""
+
+Locate: TypeAlias = Callable[[Any], tuple[str, int, int]]
+"""A getter of a feature's reference sequence name, 0-based start and 0-based half-open end."""
+
+_NATIVE_LOCATE: Locate = attrgetter("refname", "start", "end")
+_LOCATES: dict[type, Locate] = {}
+
+
+def _placed(getter: Callable[[Any], tuple[Any, Any, Any]], kind: type) -> Locate:
+    """Wrap a getter so a feature placed on no reference, like an unmapped read, raises."""
+
+    def locate_placed(feature: Any) -> tuple[str, int, int]:
+        refname, start, end = getter(feature)
+        if refname is None or start is None or end is None or start < 0:
+            raise ValueError(f"A {kind.__name__} must be placed on a reference: {feature!r}")
+        return refname, start, end
+
+    return locate_placed
+
+
+def _has(feature: object, name: str) -> bool:
+    """Return whether a feature has an attribute; pysam's tabix records raise KeyError if not."""
+    try:
+        getattr(feature, name)
+    except (AttributeError, KeyError):
+        return False
+    return True
+
+
+def locate(feature: object) -> Locate:
+    """Return the getter of a feature's reference sequence name, start and end.
+
+    The names are found once per class, from `REFNAME_NAMES`, `START_NAMES` and `END_NAMES`, so
+    a BED record and any `ReferenceSpan` are read as before, and pysam's `VariantRecord`,
+    `AlignedSegment` and tabix records, and other libraries' records, are read without wrapping.
+
+    Raises:
+        AttributeError: If the feature has none of the names for its reference, start or end.
+    """
+    kind = type(feature)
+    getter = _LOCATES.get(kind)
+    if getter is None:
+        names: list[str] = []
+        for candidates in (REFNAME_NAMES, START_NAMES, END_NAMES):
+            name = next((name for name in candidates if _has(feature, name)), None)
+            if name is None:
+                raise AttributeError(
+                    f"{kind.__name__} has none of the attributes {', '.join(candidates)}"
+                )
+            names.append(name)
+        native = names == ["refname", "start", "end"]
+        getter = _NATIVE_LOCATE if native else _placed(attrgetter(*names), kind)
+        _LOCATES[kind] = getter
+    return getter
 
 
 @runtime_checkable
@@ -633,7 +745,7 @@ _NONE: "array[int]" = array("q")
 """The bounds of a reference that holds no bases."""
 
 
-def _spans(feature: BedLike | ReferenceSpan) -> Iterable[ReferenceSpan]:
+def _spans(feature: BedLike | Locatable) -> Iterable[Locatable]:
     """Return the spans of a BED record, or the feature if it is not a BED record."""
     return feature.spans() if isinstance(feature, BedLike) else (feature,)
 
@@ -693,18 +805,23 @@ class Territory(Iterable[Bed3]):
 
     __slots__ = ("_bounds",)
 
-    def __init__(self, features: Iterable[BedLike | ReferenceSpan] = ()) -> None:
+    def __init__(self, features: Iterable[BedLike | Locatable] = ()) -> None:
         """Build the territory of the given spans and BED records.
 
         Raises:
             ValueError: If a span has no reference name, starts before 0, or ends before it starts.
         """
         spans: dict[str, list[tuple[int, int]]] = {}
+        kind: type[Any] | None = None
+        getter: Locate = _NATIVE_LOCATE
         for feature in features:
             for span in _spans(feature):
-                _check_span(span.refname, span.start, span.end)
-                if span.start < span.end:
-                    spans.setdefault(span.refname, []).append((span.start, span.end))
+                if type(span) is not kind:
+                    kind, getter = type(span), locate(span)
+                refname, start, end = getter(span)
+                _check_span(refname, start, end)
+                if start < end:
+                    spans.setdefault(refname, []).append((start, end))
         self._bounds: dict[str, array[int]] = {
             refname: _merged(starts_and_ends) for refname, starts_and_ends in spans.items()
         }
@@ -724,15 +841,22 @@ class Territory(Iterable[Bed3]):
 
         A zero-length span is held when either base beside it is.
         """
-        if not isinstance(feature, BedLike | ReferenceSpan):
-            return False
-        for span in _spans(feature):
-            bounds = self._bounds.get(span.refname, _NONE)
-            index = bisect_right(bounds, span.start)
+        if isinstance(feature, BedLike):
+            spans: Iterable[object] = feature.spans()
+        else:
+            try:
+                _ = locate(feature)
+            except AttributeError:
+                return False
+            spans = (feature,)
+        for span in spans:
+            refname, start, end = locate(span)(span)
+            bounds = self._bounds.get(refname, _NONE)
+            index = bisect_right(bounds, start)
             if index % 2 == 1:
-                if span.end > bounds[index]:
+                if end > bounds[index]:
                     return False
-            elif not (span.start == span.end and index > 0 and bounds[index - 1] == span.start):
+            elif not (start == end and index > 0 and bounds[index - 1] == start):
                 return False
         return True
 
