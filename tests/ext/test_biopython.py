@@ -62,3 +62,13 @@ def test_bedspec_ext_biopython_holds_only_the_functions_it_exports() -> None:
     module = bedspec.ext.biopython
     public = sorted(name for name in vars(module) if not name.startswith("_"))
     assert public == sorted(module.__all__) == ["as_blocks", "as_interval"]
+
+
+def test_as_blocks_joins_blocks_across_an_insertion(tmp_path: Path) -> None:
+    """Test that an insertion in a SAM record parsed by Bio.Align does not split its blocks."""
+    path = tmp_path / "read.sam"
+    _ = path.write_text("@SQ\tSN:chr1\tLN:1000\nread\t0\tchr1\t101\t60\t50M2I50M\t*\t0\t0\t*\t*\n")
+    (alignment,) = list(Align.parse(str(path), "sam"))
+    assert as_blocks(alignment) == [
+        Bed6("chr1", start=100, end=200, name=None, score=None, strand=BedStrand.Positive)
+    ]

@@ -296,3 +296,26 @@ def test_bedspec_ext_pysam_holds_only_the_functions_it_exports() -> None:
         == sorted(module.__all__)
         == ["as_blocks", "as_interval", "as_paired_blocks", "as_paired_intervals"]
     )
+
+
+@pytest.mark.parametrize("cigar", ["50M2I50M", "50=1X49=", "10S50M2I50M10S"])
+def test_as_blocks_joins_blocks_that_abut_across_an_insertion_or_mismatch(cigar: str) -> None:
+    """Test that an insertion or a mismatch operator does not split an alignment's blocks."""
+    assert as_blocks(read(100, cigar)) == [stranded(100, 200, BedStrand.Positive)]
+
+
+def test_as_paired_blocks_joins_the_blocks_of_a_mate_across_an_insertion() -> None:
+    """Test that an insertion in the mate's CIGAR does not split the mate's blocks."""
+    first = read(100, "20M")
+    mated(first, "chr1", 300, "50M2I50=1X49=")
+    assert as_paired_blocks(first) == [
+        Bed3("chr1", start=100, end=120),
+        Bed3("chr1", start=300, end=450),
+    ]
+
+
+def test_an_alignment_with_an_insertion_is_one_span_as_a_query() -> None:
+    """Test that an alignment with an insertion can be asked what encloses it."""
+    target = Bed3("chr1", start=0, end=1_000)
+    with register_locatable(pysam.AlignedSegment, as_blocks):
+        assert list(TreeDetector([target]).enclosing(read(100, "50M2I50M"))) == [target]

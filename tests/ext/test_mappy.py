@@ -63,3 +63,17 @@ def test_bedspec_ext_mappy_holds_only_the_functions_it_exports() -> None:
     module = bedspec.ext.mappy
     public = sorted(name for name in vars(module) if not name.startswith("_"))
     assert public == sorted(module.__all__) == ["as_blocks", "as_interval"]
+
+
+def test_as_blocks_joins_blocks_across_an_insertion(tmp_path: Path) -> None:
+    """Test that a real alignment's insertion does not split its blocks."""
+    rng = random.Random(1)
+    reference = "".join(rng.choice("ACGT") for _ in range(2000))
+    fasta = tmp_path / "reference.fa"
+    _ = fasta.write_text(f">chr1\n{reference}\n")
+    query = reference[500:700] + "TTT" + reference[700:900]
+    alignment = next(Aligner(str(fasta), preset="sr").map(query))
+    assert alignment.cigar_str == "200M3I200M"
+    assert as_blocks(alignment) == [
+        Bed6("chr1", start=500, end=900, name=None, score=None, strand=BedStrand.Positive)
+    ]

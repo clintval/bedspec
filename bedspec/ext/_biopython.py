@@ -6,6 +6,7 @@ except ImportError as error:
     ) from error
 
 from bedspec import Bed6
+from bedspec.ext._blocks import joined_blocks
 from bedspec.ext._stranded import stranded
 
 
@@ -25,4 +26,5 @@ def as_interval(alignment: Alignment) -> list[Bed6]:
 def as_blocks(alignment: Alignment) -> list[Bed6]:
     """Return the aligned blocks of an alignment on its target, on the strand of its query."""
     refname, strand = alignment.target.id, _strand(alignment)
-    return [stranded(refname, int(start), int(end), strand) for start, end in alignment.aligned[0]]
+    blocks = joined_blocks((int(start), int(end)) for start, end in alignment.aligned[0])
+    return [stranded(refname, start, end, strand) for start, end in blocks]

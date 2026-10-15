@@ -11,6 +11,7 @@ except ImportError as error:
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import ReferenceSpan
+from bedspec.ext._blocks import joined_blocks
 from bedspec.ext._stranded import stranded
 
 _CIGAR = re.compile(r"(\d+)([MIDNSHP=X])")
@@ -46,7 +47,8 @@ def as_blocks(read: pysam.AlignedSegment) -> list[Bed6]:
     if read.is_unmapped or read.reference_name is None:
         return []
     strand = "-" if read.is_reverse else "+"
-    return [stranded(read.reference_name, start, end, strand) for start, end in read.get_blocks()]
+    blocks = joined_blocks(read.get_blocks())
+    return [stranded(read.reference_name, start, end, strand) for start, end in blocks]
 
 
 def _mate(read: pysam.AlignedSegment) -> tuple[str, int, list[tuple[int, str]]] | None:
@@ -92,9 +94,11 @@ def as_paired_blocks(read: pysam.AlignedSegment) -> list[Bed3]:
     if mate is None:
         return blocks
     refname, start, operations = mate
+    mate_blocks: list[tuple[int, int]] = []
     for length, operator in operations:
         if operator in _ALIGNED:
-            blocks.append(Bed3(refname, start=start, end=start + length))
+            mate_blocks.append((start, start + length))
         if operator in _ON_REFERENCE:
             start += length
+    blocks.extend(Bed3(refname, start=start, end=end) for start, end in joined_blocks(mate_blocks))
     return blocks
