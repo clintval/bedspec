@@ -182,6 +182,19 @@ Territory([Bed3(refname='chr1', start=100, end=110), Bed3(refname='chr1', start=
 
 ```
 
+`thick_territory()` returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
+
+```pycon
+>>> from dataclasses import replace
+>>>
+>>> coding = replace(transcript, thick_start=105, thick_end=190)
+>>> coding.thick_territory()
+Territory([Bed3(refname='chr1', start=105, end=110), Bed3(refname='chr1', start=180, end=190)])
+>>> transcript.thick_territory()
+Territory([])
+
+```
+
 ### Overlap Detection
 
 Use a fast overlap detector for any collection of interval types, including third-party:

@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
+from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
 from random import Random
@@ -11,7 +12,9 @@ from typing_extensions import override
 from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import Bed9
 from bedspec import Bed12
+from bedspec import Bed12N
 from bedspec import BedPE
 from bedspec import BedReader
 from bedspec import BedStrand
@@ -355,6 +358,94 @@ def bed12(start: int, blocks: tuple[tuple[int, int], ...]) -> Bed12:
         block_sizes=tuple(size for _, size in blocks),
         block_starts=tuple(offset for offset, _ in blocks),
     )
+
+
+@pytest.mark.parametrize(
+    ("thick_start", "thick_end", "expected"),
+    [
+        pytest.param(
+            105,
+            195,
+            [("chr1", 105, 110), ("chr1", 140, 160), ("chr1", 190, 195)],
+            id="across-introns",
+        ),
+        pytest.param(
+            100,
+            200,
+            [("chr1", 100, 110), ("chr1", 140, 160), ("chr1", 190, 200)],
+            id="whole-record",
+        ),
+        pytest.param(145, 150, [("chr1", 145, 150)], id="inside-one-block"),
+        pytest.param(110, 140, [], id="inside-an-intron"),
+        pytest.param(150, 150, [], id="zero-length"),
+        pytest.param(None, None, [], id="unset"),
+    ],
+)
+def test_a_bed12_thick_territory_is_its_blocks_within_its_thick_part(
+    thick_start: int | None, thick_end: int | None, expected: list[tuple[str, int, int]]
+) -> None:
+    """Test that a BED12 record's thick territory holds its blocks' bases in its thick part."""
+    record = replace(
+        bed12(100, ((0, 10), (40, 20), (90, 10))), thick_start=thick_start, thick_end=thick_end
+    )
+    assert bounds(record.thick_territory()) == expected
+    assert record.thick_territory() == record.territory() & record.thick_territory()
+
+
+def test_a_bed12_without_blocks_has_its_thick_part_as_its_thick_territory() -> None:
+    """Test that a BED12 record without blocks is one span, so its thick part is all thick bases."""
+    record = Bed12(
+        "chr1",
+        start=100,
+        end=200,
+        name=None,
+        score=None,
+        strand=None,
+        thick_start=120,
+        thick_end=180,
+        item_rgb=None,
+        block_count=None,
+        block_sizes=None,
+        block_starts=None,
+    )
+    assert bounds(record.thick_territory()) == [("chr1", 120, 180)]
+
+
+@pytest.mark.parametrize(
+    ("thick_start", "thick_end", "expected"),
+    [
+        pytest.param(120, 180, [("chr1", 120, 180)], id="inside"),
+        pytest.param(100, 100, [], id="zero-length"),
+        pytest.param(None, None, [], id="unset"),
+    ],
+)
+def test_a_bed9_thick_territory_is_its_thick_part(
+    thick_start: int | None, thick_end: int | None, expected: list[tuple[str, int, int]]
+) -> None:
+    """Test that a BED9 record's thick territory holds the bases of its thick part."""
+    record = Bed9(
+        "chr1",
+        start=100,
+        end=200,
+        name=None,
+        score=None,
+        strand=None,
+        thick_start=thick_start,
+        thick_end=thick_end,
+        item_rgb=None,
+    )
+    assert bounds(record.thick_territory()) == expected
+
+
+def test_a_bed12n_inherits_its_thick_territory() -> None:
+    """Test that a BED12+N record has the thick territory of its BED12 fields."""
+    record = bed12(100, ((0, 10), (90, 10)))
+    extended = Bed12N(
+        **{name: getattr(record, name) for name in record.__dataclass_fields__},
+        extra=("x",),
+    )
+    extended = replace(extended, thick_start=105, thick_end=195)
+    assert bounds(extended.thick_territory()) == [("chr1", 105, 110), ("chr1", 190, 195)]
 
 
 def test_a_bed12_adds_its_blocks_and_not_its_introns() -> None:

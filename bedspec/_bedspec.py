@@ -58,6 +58,15 @@ def _check_thick(start: int, end: int, thick_start: int | None, thick_end: int |
             )
 
 
+def _thick_territory(
+    record: "BedLike", refname: str, thick_start: int | None, thick_end: int | None
+) -> "Territory":
+    """Return the bases of a record's spans from its thick start to its thick end."""
+    if thick_start is None or thick_end is None:
+        return Territory()
+    return record.territory() & Territory([Bed3(refname, start=thick_start, end=thick_end)])
+
+
 def _check_score(score: int | None) -> None:
     """Check that a score, if given, is between 0 and 1000."""
     if score is not None and not 0 <= score <= 1000:
@@ -364,6 +373,10 @@ class Bed9(SimpleBed, Named, Stranded):
         _check_score(self.score)
         _check_thick(self.start, self.end, self.thick_start, self.thick_end)
 
+    def thick_territory(self) -> "Territory":
+        """Return the bases of this record in its thick part, none if the thick part is unset."""
+        return _thick_territory(self, self.refname, self.thick_start, self.thick_end)
+
 
 @dataclass(slots=True, frozen=True)
 class Bed12(SimpleBed, Named, Stranded):
@@ -413,6 +426,10 @@ class Bed12(SimpleBed, Named, Stranded):
                 raise ValueError("Blocks must be in ascending order and must not overlap!")
             if (self.start + self.block_starts[-1] + self.block_sizes[-1]) != self.end:
                 raise ValueError("The last defined block's end must be equal to the BED end!")
+
+    def thick_territory(self) -> "Territory":
+        """Return the bases of this record's blocks in its thick part, none if it is unset."""
+        return _thick_territory(self, self.refname, self.thick_start, self.thick_end)
 
     @override
     def spans(self) -> Iterator[ReferenceSpan]:
