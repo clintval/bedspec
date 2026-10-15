@@ -2,8 +2,12 @@
 
 from pathlib import Path
 
+import numpy as np
+import pytest
 from Bio import Align
 from Bio.Align import Alignment
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 import bedspec.ext.biopython
 from bedspec import Bed3
@@ -72,3 +76,20 @@ def test_as_blocks_joins_blocks_across_an_insertion(tmp_path: Path) -> None:
     assert as_blocks(alignment) == [
         Bed6("chr1", start=100, end=200, name=None, score=None, strand=BedStrand.Positive)
     ]
+
+
+def test_an_alignment_on_the_reverse_of_its_target_is_on_the_minus_strand() -> None:
+    """Test that an alignment running backward along its target is found on the minus strand."""
+    target, query = SeqRecord(Seq("A" * 20), id="chr1"), SeqRecord(Seq("A" * 8), id="query")
+    alignment = Alignment([target, query], coordinates=np.array([[12, 4], [0, 8]]))
+    expected = [Bed6("chr1", start=4, end=12, name=None, score=None, strand=BedStrand.Negative)]
+    assert as_interval(alignment) == expected
+    assert as_blocks(alignment) == expected
+
+
+def test_an_alignment_without_a_named_target_is_refused() -> None:
+    """Test that an alignment of plain strings, whose target has no name, raises naming why."""
+    alignment = Alignment(["ACGT", "ACGT"], coordinates=np.array([[0, 4], [0, 4]]))
+    for function in (as_interval, as_blocks):
+        with pytest.raises(ValueError, match="SeqRecord"):
+            _ = function(alignment)
