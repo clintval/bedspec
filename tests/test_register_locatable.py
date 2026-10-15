@@ -17,9 +17,10 @@ from bedspec import Bed12
 from bedspec import BedPE
 from bedspec import BedStrand
 from bedspec import BedWriter
+from bedspec import Locatable
 from bedspec import ReferenceSpan
 from bedspec import Territory
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.overlap import TabixDetector
 from bedspec.overlap import TreeDetector
 
@@ -109,7 +110,7 @@ EXON1, INTRON, EXON2 = (
 def test_a_registered_record_is_found_by_its_spans_and_returned_as_itself() -> None:
     """Test that a registered record is indexed by the spans its function returns."""
     elsewhere = Read("chr2", ((0, 10),))
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         detector = TreeDetector([SPLICED, elsewhere])
         assert list(detector) == [SPLICED, elsewhere]
         assert list(detector.overlapping(EXON1)) == [SPLICED]
@@ -124,7 +125,7 @@ def test_a_registered_query_finds_what_any_of_its_spans_overlaps_once() -> None:
     across = Bed3("chr1", start=100, end=210)
     targets = [EXON1, INTRON, EXON2, across]
     hollow = Hollow("chr9", start=0, end=1)
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         for detector in (TreeDetector(targets), TreeDetector([*targets, hollow])):
             assert detector.overlaps(SPLICED)
             assert sorted(detector.overlapping(SPLICED), key=str) == sorted(
@@ -135,7 +136,7 @@ def test_a_registered_query_finds_what_any_of_its_spans_overlaps_once() -> None:
 
 def test_a_feature_added_twice_is_found_twice_by_a_query_of_several_spans() -> None:
     """Test that a query of several spans yields a repeated feature as often as one span does."""
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         detector = TreeDetector([EXON1, EXON1])
         assert list(detector.overlapping(SPLICED)) == [EXON1, EXON1]
 
@@ -143,9 +144,9 @@ def test_a_feature_added_twice_is_found_twice_by_a_query_of_several_spans() -> N
 def test_a_subclass_uses_the_registration_of_its_parent() -> None:
     """Test that a subclass of a registered class is read by its parent's function."""
     spliced = Spliced("chr1", ((100, 110), (200, 210)))
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         assert not TreeDetector([spliced]).overlaps(INTRON)
-        with register_for_bedspec(Spliced, read_extent):
+        with register_locatable(Spliced, read_extent):
             assert TreeDetector([spliced]).overlaps(INTRON)
             assert not TreeDetector([SPLICED]).overlaps(INTRON)
         assert not TreeDetector([spliced]).overlaps(INTRON)
@@ -153,19 +154,19 @@ def test_a_subclass_uses_the_registration_of_its_parent() -> None:
 
 def test_a_registration_in_a_with_block_is_undone_when_the_block_exits() -> None:
     """Test that a registration made for a block holds only inside it."""
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         assert TreeDetector([SPLICED]).overlaps(EXON1)
-    with pytest.raises(TypeError, match="register_for_bedspec"):
+    with pytest.raises(TypeError, match="register_locatable"):
         _ = TreeDetector([SPLICED])
 
 
 def test_a_registration_in_a_with_block_restores_the_one_before_it() -> None:
     """Test that leaving nested blocks restores each earlier registration in turn."""
-    registration = register_for_bedspec(Read, read_blocks)
+    registration = register_locatable(Read, read_blocks)
     try:
-        with register_for_bedspec(Read, read_extent):
+        with register_locatable(Read, read_extent):
             assert TreeDetector([SPLICED]).overlaps(INTRON)
-            with register_for_bedspec(Read, read_blocks):
+            with register_locatable(Read, read_blocks):
                 assert not TreeDetector([SPLICED]).overlaps(INTRON)
             assert TreeDetector([SPLICED]).overlaps(INTRON)
         assert not TreeDetector([SPLICED]).overlaps(INTRON)
@@ -177,7 +178,7 @@ def test_a_registration_in_a_with_block_restores_the_one_before_it() -> None:
 
 def test_a_registration_in_a_with_block_is_undone_when_the_block_raises() -> None:
     """Test that a registration made for a block is undone even when the block raises."""
-    with pytest.raises(RuntimeError), register_for_bedspec(Read, read_blocks):
+    with pytest.raises(RuntimeError), register_locatable(Read, read_blocks):
         raise RuntimeError("the block failed")
     with pytest.raises(TypeError):
         _ = TreeDetector([SPLICED])
@@ -191,22 +192,22 @@ def test_a_registration_replaced_before_its_block_holds_for_the_block() -> None:
         """A kind of read registered only by this test."""
 
     spliced = Local("chr1", SPLICED.blocks)
-    with register_for_bedspec(Local, read_blocks):
-        stale = register_for_bedspec(Local, read_extent)
-        _ = register_for_bedspec(Local, read_blocks)
+    with register_locatable(Local, read_blocks):
+        stale = register_locatable(Local, read_extent)
+        _ = register_locatable(Local, read_blocks)
         with stale:
             assert TreeDetector([spliced]).overlaps(INTRON)
         assert not TreeDetector([spliced]).overlaps(INTRON)
-    with pytest.raises(TypeError, match="register_for_bedspec"):
+    with pytest.raises(TypeError, match="register_locatable"):
         _ = TreeDetector([spliced])
 
 
 def test_a_permanent_registration_holds_until_replaced() -> None:
     """Test that a registration made without a with statement holds until replaced."""
-    first = register_for_bedspec(Read, read_blocks)
+    first = register_locatable(Read, read_blocks)
     try:
         assert not TreeDetector([SPLICED]).overlaps(INTRON)
-        second = register_for_bedspec(Read, read_extent)
+        second = register_locatable(Read, read_extent)
         assert TreeDetector([SPLICED]).overlaps(INTRON)
         _ = second.__exit__(None, None, None)
         assert not TreeDetector([SPLICED]).overlaps(INTRON)
@@ -220,7 +221,7 @@ def test_a_registration_beats_a_refname_start_and_end(tmp_path: Path) -> None:
     path = tmp_path / "targets.bed.gz"
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         writer.write(Bed3("chr1", start=19, end=20))
-    with register_for_bedspec(OneBased, one_based):
+    with register_locatable(OneBased, one_based):
         assert TreeDetector([hit]).overlaps(Bed3("chr1", start=10, end=11))
         assert TreeDetector([Bed3("chr1", start=10, end=11)]).overlaps(hit)
         assert list(TreeDetector([Bed3("chr1", start=0, end=30)]).enclosing(hit)) != []
@@ -235,7 +236,7 @@ def test_a_registration_beats_a_refname_start_and_end(tmp_path: Path) -> None:
 def test_only_a_class_of_records_can_be_registered(kind: Any) -> None:
     """Test that registering an instance, object itself, or a protocol raises."""
     with pytest.raises(TypeError, match="Only a class of records can be registered"):
-        _ = register_for_bedspec(kind, read_blocks)
+        _ = register_locatable(kind, read_blocks)
 
 
 def test_a_record_whose_spans_cannot_be_found_raises(tmp_path: Path) -> None:
@@ -243,7 +244,7 @@ def test_a_record_whose_spans_cannot_be_found_raises(tmp_path: Path) -> None:
     path = tmp_path / "targets.bed.gz"
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         writer.write(Bed3("chr1", start=0, end=10))
-    message = r"register_for_bedspec\(\), or use one from bedspec\.ext"
+    message = r"register_locatable\(\), or use one from bedspec\.ext"
     with pytest.raises(TypeError, match=message):
         _ = TreeDetector([SPLICED])
     with pytest.raises(TypeError, match=message):
@@ -258,7 +259,7 @@ def test_a_record_whose_spans_cannot_be_found_raises(tmp_path: Path) -> None:
 def test_adding_features_adds_none_when_a_registered_function_raises() -> None:
     """Test that adding features adds none of them when one feature's function raises."""
     detector: TreeDetector[Bed3 | Read] = TreeDetector([EXON1])
-    with register_for_bedspec(Read, read_extent), pytest.raises(IndexError):
+    with register_locatable(Read, read_extent), pytest.raises(IndexError):
         detector.add(SPLICED, Read("chr1", ()))
     assert list(detector) == [EXON1]
 
@@ -276,7 +277,7 @@ def test_a_feature_with_no_spans_is_held_but_never_found() -> None:
     """Test that a feature with no spans, like an unmapped read, is held and iterated."""
     unmapped, hollow = Read(None, ()), Hollow("chr1", start=0, end=1000)
     everything = Bed3("chr1", start=0, end=1000)
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         detector = TreeDetector([unmapped, hollow, SPLICED])
         assert list(detector) == [unmapped, hollow, SPLICED]
         assert list(detector.overlapping(everything)) == [SPLICED]
@@ -289,7 +290,7 @@ def test_a_query_with_no_spans_finds_nothing(tmp_path: Path) -> None:
     path = tmp_path / "targets.bed.gz"
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         writer.write(Bed3("chr1", start=0, end=1000))
-    with register_for_bedspec(Read, read_blocks), TabixDetector[Bed3](path) as tabix:
+    with register_locatable(Read, read_blocks), TabixDetector[Bed3](path) as tabix:
         tree = TreeDetector([Bed3("chr1", start=0, end=1000)])
         for detector in (tree, tabix):
             for query in (unmapped, Located(())):
@@ -304,7 +305,7 @@ def test_a_territory_adds_no_bases_for_and_holds_no_feature_with_no_spans() -> N
     """Test that a feature with no spans adds nothing to a territory and is never in one."""
     unmapped, hollow = Read(None, ()), Hollow("chr1", start=0, end=10)
     whole = Territory([Bed3("chr1", start=0, end=1000)])
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         assert list(Territory([unmapped, hollow, SPLICED])) == [
             Bed3("chr1", start=100, end=110),
             Bed3("chr1", start=200, end=210),
@@ -319,11 +320,11 @@ def test_a_stranded_query_matches_each_of_its_spans_by_its_own_strand() -> None:
     plus = Bed6("chr1", start=100, end=110, name=None, score=None, strand=BedStrand.Positive)
     minus = Bed6("chr1", start=200, end=210, name=None, score=None, strand=BedStrand.Negative)
     detector = TreeDetector([plus, minus])
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         assert list(detector.overlapping(SPLICED, stranded=True)) == [plus]
         reverse = Read("chr1", SPLICED.blocks, reverse=True)
         assert list(detector.overlapping(reverse, stranded=True)) == [minus]
-    with register_for_bedspec(Read, read_extent):
+    with register_locatable(Read, read_extent):
         assert not detector.overlaps(SPLICED, stranded=True)
 
 
@@ -333,7 +334,7 @@ def test_enclosing_and_enclosed_by_refuse_a_query_of_several_spans(tmp_path: Pat
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         writer.write(Bed3("chr1", start=0, end=1000))
     one_block = Read("chr1", ((100, 110),))
-    with register_for_bedspec(Read, read_blocks), TabixDetector[Bed3](path) as tabix:
+    with register_locatable(Read, read_blocks), TabixDetector[Bed3](path) as tabix:
         tree = TreeDetector([Bed3("chr1", start=0, end=1000)])
         for detector in (tree, tabix):
             for method in ("enclosing", "enclosed_by"):
@@ -350,7 +351,7 @@ def test_a_tabix_detector_finds_each_record_any_span_of_a_query_overlaps(tmp_pat
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         for record in (across, EXON1, EXON1, INTRON, EXON2):
             writer.write(record)
-    with register_for_bedspec(Read, read_blocks), TabixDetector[Bed3](path) as detector:
+    with register_locatable(Read, read_blocks), TabixDetector[Bed3](path) as detector:
         assert list(detector.overlapping(SPLICED)) == [across, EXON1, EXON1, EXON2]
         assert detector.overlaps(SPLICED)
         assert not detector.overlaps(Read("chr1", ((300, 310),)))
@@ -418,7 +419,7 @@ TRANSCRIPT = Bed12(
 
 def test_a_bed_type_registered_to_return_itself_is_found_by_its_whole_extent() -> None:
     """Test that registering a BED type beats its spans, even returning instances of itself."""
-    with register_for_bedspec(Bed12, itself):
+    with register_locatable(Bed12, itself):
         assert TreeDetector([TRANSCRIPT]).overlaps(INTRON)
         assert TreeDetector([INTRON]).overlaps(TRANSCRIPT)
         assert list(TreeDetector([INTRON]).enclosed_by(TRANSCRIPT)) == [INTRON]
@@ -428,13 +429,13 @@ def test_a_bed_type_registered_to_return_itself_is_found_by_its_whole_extent() -
 
 def test_features_keep_the_spans_they_were_added_by() -> None:
     """Test that features stay indexed by the spans registered when they were added."""
-    with register_for_bedspec(Read, read_blocks):
+    with register_locatable(Read, read_blocks):
         detector = TreeDetector([SPLICED])
     assert detector.overlaps(EXON1)
     assert not detector.overlaps(INTRON)
-    with register_for_bedspec(Read, read_extent):
+    with register_locatable(Read, read_extent):
         assert not detector.overlaps(INTRON)
-    with pytest.raises(TypeError, match="register_for_bedspec"):
+    with pytest.raises(TypeError, match="register_locatable"):
         _ = detector.overlaps(SPLICED)
 
 
@@ -445,13 +446,13 @@ def test_a_lazy_query_uses_the_registration_when_it_is_consumed(tmp_path: Path) 
         writer.write(EXON1)
     with TabixDetector[Bed3](path) as tabix:
         for detector in (TreeDetector([EXON1]), tabix):
-            with register_for_bedspec(Read, read_blocks):
+            with register_locatable(Read, read_blocks):
                 hits = detector.overlapping(SPLICED)
-            with pytest.raises(TypeError, match="register_for_bedspec"):
+            with pytest.raises(TypeError, match="register_locatable"):
                 _ = list(hits)
             unregistered = (detector.overlapping(SPLICED), detector.enclosing(SPLICED))
             for query in unregistered:
-                with pytest.raises(TypeError, match="register_for_bedspec"):
+                with pytest.raises(TypeError, match="register_locatable"):
                     _ = list(query)
 
 
@@ -476,7 +477,7 @@ def test_a_query_with_spans_on_two_references_finds_targets_on_both(tmp_path: Pa
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         for target in targets:
             writer.write(target)
-    with register_for_bedspec(Mated, mated_spans), TabixDetector[Bed3](path) as tabix:
+    with register_locatable(Mated, mated_spans), TabixDetector[Bed3](path) as tabix:
         assert list(TreeDetector(targets).overlapping(pair)) == targets
         assert list(tabix.overlapping(pair)) == targets
 
@@ -497,7 +498,7 @@ def test_a_registered_bed_record_takes_no_strand_from_itself() -> None:
     tagged = Tagged("chr1", start=100, end=110, name=None, score=None, strand=BedStrand.Positive)
     detector = TreeDetector([plus])
     assert detector.overlaps(tagged, stranded=True)
-    with register_for_bedspec(Tagged, unstranded):
+    with register_locatable(Tagged, unstranded):
         assert detector.overlaps(tagged)
         assert not detector.overlaps(tagged, stranded=True)
         assert not list(detector.enclosed_by(tagged, stranded=True))
@@ -518,3 +519,15 @@ def test_a_bed2_query_is_matched_by_its_base(tmp_path: Path) -> None:
             assert list(detector.enclosing(Bed2("chr1", start=105))) == [target]
             assert not detector.overlaps(Bed2("chr1", start=110))
             assert not detector.overlaps(Bed2("chr2", start=105))
+
+
+def test_records_of_every_locatable_kind_go_in_together() -> None:
+    """Test that BED records, records with spans() and registered records mix as Locatable."""
+    records: list[Locatable] = [EXON1, Located((EXON2,)), SPLICED]
+    with register_locatable(Read, read_blocks):
+        detector: TreeDetector[Locatable] = TreeDetector(records)
+        assert set(detector.overlapping(Bed3("chr1", start=0, end=1000))) == set(records)
+        assert list(Territory(records)) == [
+            Bed3("chr1", start=100, end=110),
+            Bed3("chr1", start=200, end=210),
+        ]

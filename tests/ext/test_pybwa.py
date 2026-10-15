@@ -7,7 +7,7 @@ import bedspec.ext.pybwa
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.pybwa import aux_hit_span
 from bedspec.overlap import TreeDetector
 
@@ -30,7 +30,7 @@ def test_a_registered_hit_is_found_by_its_first_base() -> None:
     minus, _ = to_xa_hits(XA)
     first_base = TreeDetector([Bed3("chr4", start=97592046, end=97592047)])
     assert not first_base.overlaps(minus)
-    with register_for_bedspec(AuxHit, aux_hit_span):
+    with register_locatable(AuxHit, aux_hit_span):
         assert first_base.overlaps(minus)
 
 

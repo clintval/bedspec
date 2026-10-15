@@ -15,6 +15,7 @@ from pybgzf import IndexedReader
 from typing_extensions import Self
 from typing_extensions import override
 
+from bedspec._bedspec import Locatable
 from bedspec._bedspec import PointBed
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
@@ -106,7 +107,9 @@ class TabixDetector(
         """Close the file."""
         self._reader.close()
 
-    def overlapping(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+    def overlapping(
+        self, feature: Locatable, *, stranded: bool = False
+    ) -> Iterator[IntervalBedType]:
         """Yields all the features with any span overlapping the query, or any span of it."""
         spans = _as_spans(feature)
         if len(spans) == 1:
@@ -115,11 +118,11 @@ class TabixDetector(
         lines = (self._matching_lines(span, touches, stranded, every=False) for span in spans)
         yield from (record for _, record in _once_each(lines, itemgetter(0)))
 
-    def overlaps(self, feature: object, *, stranded: bool = False) -> bool:
+    def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         return next(self.overlapping(feature, stranded=stranded), None) is not None
 
-    def enclosing(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+    def enclosing(self, feature: Locatable, *, stranded: bool = False) -> Iterator[IntervalBedType]:
         """Yields all the features with any span enclosing the query.
 
         Raises:
@@ -129,7 +132,9 @@ class TabixDetector(
         if query is not None:
             yield from self._matching(query, encloses, stranded=stranded, every=False)
 
-    def enclosed_by(self, feature: object, *, stranded: bool = False) -> Iterator[IntervalBedType]:
+    def enclosed_by(
+        self, feature: Locatable, *, stranded: bool = False
+    ) -> Iterator[IntervalBedType]:
         """Yields all the features with every span enclosed by the query.
 
         Raises:

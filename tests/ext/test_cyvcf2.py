@@ -7,7 +7,7 @@ from cyvcf2 import Variant
 
 import bedspec.ext.cyvcf2
 from bedspec import Bed3
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.cyvcf2 import variant_span
 from bedspec.overlap import TreeDetector
 
@@ -33,7 +33,7 @@ def test_registered_variants_are_found_as_themselves(tmp_path: Path) -> None:
     path = tmp_path / "variants.vcf"
     _ = path.write_text(VCF_TEXT)
     variants = list(VCF(str(path)))
-    with register_for_bedspec(Variant, variant_span):
+    with register_locatable(Variant, variant_span):
         detector = TreeDetector(variants)
         (found,) = detector.overlapping(Bed3("chr1", start=101, end=102))
         assert found is variants[0]

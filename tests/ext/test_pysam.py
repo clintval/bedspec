@@ -18,7 +18,7 @@ from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import BedWriter
 from bedspec import Territory
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.pysam import pair_blocks
 from bedspec.ext.pysam import read_blocks
 from bedspec.ext.pysam import read_span
@@ -162,7 +162,7 @@ def test_tabix_span_reads_gtf_gff3_and_bed_lines(
 def test_registered_reads_are_found_by_their_blocks_and_not_their_introns() -> None:
     """Test that reads registered by their blocks are found by them in a tree detector."""
     spliced, other = read(100, "10M500N10M"), read(1000)
-    with register_for_bedspec(pysam.AlignedSegment, read_blocks):
+    with register_locatable(pysam.AlignedSegment, read_blocks):
         detector = TreeDetector([spliced, other])
         assert list(detector.overlapping(Bed3("chr1", start=615, end=616))) == [spliced]
         assert not detector.overlaps(Bed3("chr1", start=300, end=310))
@@ -173,20 +173,20 @@ def test_registered_reads_query_targets_by_their_blocks_and_strand() -> None:
     """Test that reads registered by their blocks find targets by them, on their strand."""
     plus, minus = stranded(100, 200, BedStrand.Positive), stranded(600, 700, BedStrand.Negative)
     targets = TreeDetector([plus, minus])
-    with register_for_bedspec(pysam.AlignedSegment, read_blocks):
+    with register_locatable(pysam.AlignedSegment, read_blocks):
         assert list(targets.overlapping(read(150, "10M500N10M"))) == [plus, minus]
         assert list(targets.overlapping(read(150, "10M500N10M"), stranded=True)) == [plus]
         assert list(targets.overlapping(read(None))) == []
     in_intron = TreeDetector([Bed3("chr1", start=300, end=310)])
-    with register_for_bedspec(pysam.AlignedSegment, read_span):
+    with register_locatable(pysam.AlignedSegment, read_span):
         assert in_intron.overlaps(read(250, "10M300N10M"))
-    with register_for_bedspec(pysam.AlignedSegment, read_blocks):
+    with register_locatable(pysam.AlignedSegment, read_blocks):
         assert not in_intron.overlaps(read(250, "10M300N10M"))
 
 
 def test_a_territory_of_registered_reads_holds_their_blocks() -> None:
     """Test that a territory of reads registered by their blocks holds their blocks only."""
-    with register_for_bedspec(pysam.AlignedSegment, read_blocks):
+    with register_locatable(pysam.AlignedSegment, read_blocks):
         territory = Territory([read(100, "10M500N10M"), read(None)])
         assert list(territory) == [
             Bed3("chr1", start=100, end=110),
@@ -203,8 +203,8 @@ def test_registered_tabix_lines_and_variants_are_found() -> None:
     header.add_line("##contig=<ID=chr1,length=1000>")
     snv = header.new_record(contig="chr1", start=14, alleles=("C", "T"))
     with (
-        register_for_bedspec(GTFProxy, tabix_span),
-        register_for_bedspec(pysam.VariantRecord, variant_span),
+        register_locatable(GTFProxy, tabix_span),
+        register_locatable(pysam.VariantRecord, variant_span),
     ):
         detector = TreeDetector([exon, snv])
         assert list(detector.overlapping(stranded(14, 15, BedStrand.Negative), stranded=True)) == [
@@ -237,7 +237,7 @@ def test_the_readme_example_keeps_and_tags_both_mates_of_pairs_on_target(tmp_pat
             _ = out.write(segment)
 
     with (
-        register_for_bedspec(pysam.AlignedSegment, pair_blocks),
+        register_locatable(pysam.AlignedSegment, pair_blocks),
         TabixDetector[Bed4](targets_path) as targets,
         pysam.AlignmentFile(str(sorted_path)) as bam,
         pysam.AlignmentFile(str(kept_path), "wb", template=bam) as kept,
@@ -257,9 +257,9 @@ def test_the_readme_example_keeps_and_tags_both_mates_of_pairs_on_target(tmp_pat
 def test_an_unregistered_tabix_line_raises_a_type_error_not_a_key_error() -> None:
     """Test that a tabix line, whose missing attributes raise KeyError, is refused clearly."""
     (exon,) = tabix_records(['chr1\tsrc\texon\t11\t20\t.\t-\t.\tgene_id "g";'], pysam.asGTF())
-    with pytest.raises(TypeError, match="register_for_bedspec"):
+    with pytest.raises(TypeError, match="register_locatable"):
         _ = TreeDetector([exon])
-    with pytest.raises(TypeError, match="register_for_bedspec"):
+    with pytest.raises(TypeError, match="register_locatable"):
         _ = TreeDetector([Bed3("chr1", start=0, end=10)]).overlaps(exon)
     assert exon not in Territory([Bed3("chr1", start=0, end=100)])
 

@@ -9,7 +9,7 @@ import bedspec.ext.biopython
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.biopython import alignment_blocks
 from bedspec.overlap import TreeDetector
 
@@ -37,7 +37,7 @@ def test_registered_alignments_are_not_found_in_their_introns(tmp_path: Path) ->
     path = tmp_path / "genes.bed"
     _ = path.write_text(BED12)
     alignments = list(Align.parse(str(path), "bed"))
-    with register_for_bedspec(Alignment, alignment_blocks):
+    with register_locatable(Alignment, alignment_blocks):
         detector = TreeDetector(alignments)
         assert list(detector.overlapping(Bed3("chr1", start=250, end=251))) == [alignments[0]]
         assert not detector.overlaps(Bed3("chr1", start=200, end=210))

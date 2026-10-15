@@ -20,7 +20,7 @@ from bedspec import BedStrand
 from bedspec import BedWriter
 from bedspec import ReferenceSpan
 from bedspec import SimpleBed
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.overlap import TabixDetector
 from bedspec.overlap import TreeDetector
 
@@ -387,7 +387,7 @@ def test_both_detectors_agree_on_queries_of_two_spans(index: IndexFormat, tmp_pa
         *(Paired(rng.choice(singles), rng.choice(singles)) for _ in range(500)),
         *(Paired(single, single) for single in rng.sample(singles, 50)),
     ]
-    with register_for_bedspec(Paired, paired_spans), TabixDetector[Bed6](path) as tabix:
+    with register_locatable(Paired, paired_spans), TabixDetector[Bed6](path) as tabix:
         tree = TreeDetector(features)
         for query in queries:
             for stranded in (False, True):

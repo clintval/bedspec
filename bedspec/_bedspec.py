@@ -638,13 +638,17 @@ _NONE: "array[int]" = array("q")
 
 
 RecordType = TypeVar("RecordType")
-"""A type variable for a class of records registered with `register_for_bedspec`."""
+"""A type variable for a class of records registered with `register_locatable`."""
 
 ToBed: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
 """A function returning the 0-based half-open spans a record is found by."""
 
+Locatable: TypeAlias = object
+"""A record bedspec can locate: a BED record, an object with a `refname`, `start` and `end`, a
+record with a `spans()` method, or a record of a class registered with `register_locatable`."""
+
 _REGISTRY: dict[type, ToBed] = {}
-"""The function registered for each class with `register_for_bedspec`."""
+"""The function registered for each class with `register_locatable`."""
 
 _RESOLVED: dict[type, ToBed | None] = {}
 """The registered function each class resolves to through its MRO, or None, until it changes."""
@@ -704,7 +708,7 @@ class _Registration(AbstractContextManager[None]):
         _forget_resolutions()
 
 
-def register_for_bedspec(
+def register_locatable(
     kind: type[RecordType], to_bed: Callable[[RecordType], Iterable[ReferenceSpan]]
 ) -> AbstractContextManager[None]:
     """Register how detectors and territories find the spans of a class of records.
@@ -731,7 +735,7 @@ class _UnlocatableError(TypeError):
     """Raised for a record whose spans cannot be found."""
 
 
-def _spans(feature: object) -> Iterable[ReferenceSpan]:
+def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
     """Return the spans a feature is found by.
 
     In order: the function registered for its class, the spans of a BED record, the feature itself
@@ -761,7 +765,7 @@ def _spans(feature: object) -> Iterable[ReferenceSpan]:
         return cast("Iterable[ReferenceSpan]", spans())
     raise _UnlocatableError(
         f"Cannot find the spans of a {type(feature).__name__}: register a function returning them"
-        + " with register_for_bedspec(), or use one from bedspec.ext!"
+        + " with register_locatable(), or use one from bedspec.ext!"
     )
 
 
@@ -802,7 +806,7 @@ class Territory(Iterable[Bed3]):
 
     A BED record adds every one of its `spans()`, so a `Bed2` adds its base, a `BedPE` both of its
     ends, and a `Bed12` its blocks and not its introns, any other object with a `refname`,
-    `start` and `end` adds itself, and a record registered with `register_for_bedspec` adds the
+    `start` and `end` adds itself, and a record registered with `register_locatable` adds the
     spans its function returns. A BED record's `territory()` is the territory of its spans.
     Spans that overlap or abut are joined, since they hold the same bases either way, a
     zero-length span holds no bases and adds none, and strands are not kept.
@@ -821,7 +825,7 @@ class Territory(Iterable[Bed3]):
 
     __slots__ = ("_bounds",)
 
-    def __init__(self, features: Iterable[object] = ()) -> None:
+    def __init__(self, features: Iterable[Locatable] = ()) -> None:
         """Build the territory of the given spans, BED records, and registered records.
 
         Raises:

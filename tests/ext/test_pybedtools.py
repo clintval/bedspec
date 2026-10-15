@@ -11,7 +11,7 @@ from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
 from bedspec import Territory
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.pybedtools import interval_span
 from bedspec.overlap import TreeDetector
 
@@ -33,7 +33,7 @@ def test_interval_span_reads_bed_and_gff_intervals_as_0_based() -> None:
 def test_registered_intervals_are_found_on_their_strand() -> None:
     """Test that intervals registered by their spans are found as themselves, on their strand."""
     minus = create_interval_from_list(["chr1", "10", "20", "name", "0", "-"])
-    with register_for_bedspec(Interval, interval_span):
+    with register_locatable(Interval, interval_span):
         detector = TreeDetector([minus])
         assert list(detector.overlapping(span(15, 16, BedStrand.Negative), stranded=True)) == [
             minus
@@ -46,7 +46,7 @@ def test_the_readme_example_finds_the_genes_of_a_gff_file(tmp_path: Path) -> Non
     """Test that the README's lambda registers intervals read from a GFF file."""
     path = tmp_path / "genes.gff"
     _ = path.write_text("chr1\tsrc\tgene\t101\t200\t.\t+\t.\tID=g1\n")
-    with register_for_bedspec(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)]):
+    with register_locatable(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)]):
         genes = TreeDetector(BedTool(str(path)))
         assert genes.overlaps(Interval("chr1", 100, 200))
         assert genes.overlaps(Interval("chr1", 199, 250))

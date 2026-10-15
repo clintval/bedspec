@@ -270,9 +270,10 @@ assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 
 ### Other Libraries' Records
 
-Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_for_bedspec()` is given a function returning the 0-based half-open spans a class of records is found by.
+Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_locatable()` is given a function returning the 0-based half-open spans a class of records is found by.
 Called on its own, a registration holds until it is replaced; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
 A function may return no spans, as for an unmapped read, and the record is then held but never found.
+Everything detectors and territories take, registered records included, is typed `Locatable`.
 
 `bedspec.ext.pysam` has functions for pysam's records, so a coordinate-sorted BAM can be filtered to the pairs either mate of which touches a target, tagging both mates with the names of the targets:
 
@@ -280,12 +281,12 @@ A function may return no spans, as for an unmapped read, and the record is then 
 ```python
 import pysam
 
-from bedspec import Bed4, register_for_bedspec
+from bedspec import Bed4, register_locatable
 from bedspec.ext.pysam import pair_blocks
 from bedspec.overlap import TabixDetector
 
 with (
-    register_for_bedspec(pysam.AlignedSegment, pair_blocks),
+    register_locatable(pysam.AlignedSegment, pair_blocks),
     TabixDetector[Bed4]("targets.bed.gz") as targets,
     pysam.AlignmentFile("sorted.bam") as bam,
     pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,
@@ -302,10 +303,10 @@ A function can be a `lambda`, and pybedtools already reads a GFF file's coordina
 ```python
 from pybedtools import BedTool, Interval
 
-from bedspec import Bed3, register_for_bedspec
+from bedspec import Bed3, register_locatable
 from bedspec.overlap import TreeDetector
 
-register_for_bedspec(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)])
+register_locatable(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)])
 
 genes = TreeDetector(BedTool("genes.gff"))
 genes.overlaps(Interval("chr1", 100, 200))

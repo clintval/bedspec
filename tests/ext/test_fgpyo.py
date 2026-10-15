@@ -8,7 +8,7 @@ import bedspec.ext.fgpyo
 from bedspec import Bed3
 from bedspec import Bed6
 from bedspec import BedStrand
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.fgpyo import supplementary_span
 from bedspec.ext.fgpyo import template_blocks
 from bedspec.overlap import TreeDetector
@@ -47,7 +47,7 @@ def test_registered_templates_are_kept_whole_when_either_read_is_on_target() -> 
     on = Template.build(builder.add_pair(chrom="chr1", start1=100, start2=900))
     off = Template.build(builder.add_pair(chrom="chr1", start1=100, start2=300))
     targets = TreeDetector([Bed3("chr1", start=950, end=960)])
-    with register_for_bedspec(Template, template_blocks):
+    with register_locatable(Template, template_blocks):
         assert [template for template in (on, off) if targets.overlaps(template)] == [on]
 
 

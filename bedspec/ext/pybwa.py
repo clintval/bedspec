@@ -1,4 +1,4 @@
-"""Functions reading pybwa's records as spans, to register with `register_for_bedspec`."""
+"""Functions reading pybwa's records as spans, to register with `register_locatable`."""
 
 from bedspec.ext._pybwa import aux_hit_span
 

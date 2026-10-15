@@ -18,13 +18,14 @@ from bedspec._bedspec import _REGISTRY  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _UNREGISTERED  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import BedLike
 from bedspec._bedspec import BedStrand
+from bedspec._bedspec import Locatable
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
 from bedspec._bedspec import ToBed
 from bedspec._bedspec import _registered_for  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _spans  # pyright: ignore[reportPrivateUsage]
 
-FeatureType = TypeVar("FeatureType")
+FeatureType = TypeVar("FeatureType", bound=Locatable)
 """Type variable for features stored within the overlap detector."""
 
 HitType = TypeVar("HitType")
@@ -156,7 +157,7 @@ def _located(feature: Any) -> Located | None:
     return None
 
 
-def _registration(feature: object) -> ToBed | None:
+def _registration(feature: Locatable) -> ToBed | None:
     """Return the function registered for a feature's class, if any."""
     kind = type(feature)
     return None if kind in _UNREGISTERED or not _REGISTRY else _registered_for(kind)
@@ -201,7 +202,7 @@ def _as_spans(feature: Any) -> tuple[ReferenceSpan, ...]:
     return _query_spans(feature, to_bed)
 
 
-def _one_span(feature: object, method: str) -> ReferenceSpan | None:
+def _one_span(feature: Locatable, method: str) -> ReferenceSpan | None:
     """Return the only span of a query, or None if it has none.
 
     Raises:
@@ -240,7 +241,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
     The overlap detector may be built with any BED record, indexed by every one of its `spans()`,
-    with any record registered with `register_for_bedspec`, indexed by the spans its function
+    with any record registered with `register_locatable`, indexed by the spans its function
     returns, or with any feature-like Python object that has the following properties:
 
       * `refname`: The reference sequence name
@@ -414,7 +415,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
                 return False
         return True
 
-    def overlapping(self, feature: object, *, stranded: bool = False) -> Iterator[FeatureType]:
+    def overlapping(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
         """Yields all the features with a span that overlaps the given query feature."""
         query: Any = feature
         if _REGISTRY and (to_bed := _registration(feature)) is not None:
@@ -466,7 +467,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             return
         yield from _once_each((self.overlapping(span, stranded=stranded) for span in spans), id)
 
-    def overlaps(self, feature: object, *, stranded: bool = False) -> bool:
+    def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         query: Any = feature
         if _REGISTRY and (to_bed := _registration(feature)) is not None:
@@ -496,7 +497,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             return self.overlaps(spans[0], stranded=stranded)
         return any(self.overlaps(span, stranded=stranded) for span in spans)
 
-    def enclosing(self, feature: object, *, stranded: bool = False) -> Iterator[FeatureType]:
+    def enclosing(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
         """Yields all the features with a span that completely encloses the given query feature.
 
         Raises:
@@ -520,7 +521,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             if encloses(starts[hit], ends[hit], query)
         ])
 
-    def enclosed_by(self, feature: object, *, stranded: bool = False) -> Iterator[FeatureType]:
+    def enclosed_by(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
         """Yields all the features with every span enclosed by the given query feature.
 
         Raises:

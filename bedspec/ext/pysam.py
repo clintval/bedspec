@@ -1,4 +1,4 @@
-"""Functions reading pysam's records as spans, to register with `register_for_bedspec`."""
+"""Functions reading pysam's records as spans, to register with `register_locatable`."""
 
 from bedspec.ext._pysam import pair_blocks
 from bedspec.ext._pysam import read_blocks

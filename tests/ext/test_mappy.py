@@ -9,7 +9,7 @@ from mappy import Alignment
 import bedspec.ext.mappy
 from bedspec import Bed6
 from bedspec import BedStrand
-from bedspec import register_for_bedspec
+from bedspec import register_locatable
 from bedspec.ext.mappy import alignment_blocks
 from bedspec.overlap import TreeDetector
 
@@ -38,7 +38,7 @@ def test_alignment_blocks_skip_a_deletion_on_the_alignment_strand(tmp_path: Path
 def test_registered_alignments_are_not_found_in_their_deletions(tmp_path: Path) -> None:
     """Test that alignments registered by their blocks are found by them and not their gaps."""
     alignment = aligned(tmp_path)
-    with register_for_bedspec(Alignment, alignment_blocks):
+    with register_locatable(Alignment, alignment_blocks):
         detector = TreeDetector([alignment])
         assert list(
             detector.overlapping(
