@@ -223,6 +223,27 @@ The overlap detector supports the following operations:
 
 A zero-length feature overlaps the features that hold either base beside it.
 
+Features and queries can also be other libraries' records, read under whichever names they use for the reference (`refname`, `contig`, `chrom` or `reference_name`), the start (`start` or `reference_start`) and the end (`end`, `stop` or `reference_end`).
+The names are found once per class, so pysam's `VariantRecord`, `AlignedSegment` and tabix records, and records naming their reference `chrom`, go in as they are and come back out as themselves:
+
+```pycon
+>>> import pysam
+>>>
+>>> header = pysam.VariantHeader()
+>>> header.add_line("##contig=<ID=chr1,length=1000>")
+>>> variant = header.new_record(contig="chr1", start=6, alleles=("C", "T"))
+>>>
+>>> detector.overlaps(variant)
+True
+>>> list(TreeDetector([variant]).overlapping(Bed3("chr1", start=0, end=10))) == [variant]
+True
+
+```
+
+These names must hold 0-based half-open coordinates, as they do in pysam, which converts the positions of VCF, SAM and GTF records as it reads them.
+A record that uses them otherwise is read wrongly without an error: gffutils' `Feature` has `chrom`, `start` and `end` in 1-based closed coordinates, so convert it first.
+A record placed on no reference, like an unmapped read, is refused, and a record with none of the names raises an `AttributeError` naming those looked for.
+
 A BED record is found by any of its `spans()`, so `Bed2` points and `BedPE` pairs are supported, a `BedPE` is found by either end, and a `Bed12` is found by its blocks.
 A query that touches only an intron of a `Bed12` does not find it, so to find a `Bed12` by its whole span, add it as a `Bed6`:
 

@@ -146,11 +146,15 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
     The overlap detector may be built with any BED record, indexed by every one of its `spans()`,
-    or with any feature-like Python object that has the following properties:
+    or with any feature-like Python object that has the following properties, under the first of
+    the names given that it has:
 
-      * `refname`: The reference sequence name
-      * `start`: A 0-based start position
-      * `end`: A 0-based half-open end position
+      * `refname`, `contig`, `chrom` or `reference_name`: The reference sequence name
+      * `start` or `reference_start`: A 0-based start position
+      * `end`, `stop` or `reference_end`: A 0-based half-open end position
+
+    So pysam's records are added and queried as they are. The names must hold 0-based half-open
+    coordinates: gffutils' 1-based closed `Feature` is read wrongly without an error.
 
     Queries must have the same properties, so a BED2 record can be added but cannot be a query.
 

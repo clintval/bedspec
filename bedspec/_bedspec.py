@@ -203,6 +203,8 @@ def locate(feature: object) -> Locate:
     The names are found once per class, from `REFNAME_NAMES`, `START_NAMES` and `END_NAMES`, so
     a BED record and any `ReferenceSpan` are read as before, and pysam's `VariantRecord`,
     `AlignedSegment` and tabix records, and other libraries' records, are read without wrapping.
+    The names must hold 0-based half-open coordinates: gffutils' `Feature` holds 1-based closed
+    ones under `chrom`, `start` and `end`, and is read wrongly without an error.
 
     Raises:
         AttributeError: If the feature has none of the names for its reference, start or end.
