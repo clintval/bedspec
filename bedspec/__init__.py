@@ -30,6 +30,7 @@ from ._bedspec import SimpleBed
 from ._bedspec import Stranded
 from ._bedspec import Territory
 from ._bedspec import register_locatable
+from ._order import ReferenceOrder
 from ._reader import BedReader
 from ._writer import BedWriter
 
@@ -61,6 +62,7 @@ __all__ = [
     "Named",
     "PairBed",
     "PointBed",
+    "ReferenceOrder",
     "ReferenceSpan",
     "SimpleBed",
     "Stranded",

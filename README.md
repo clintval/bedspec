@@ -488,6 +488,19 @@ A BED record adds every one of its spans, so a `BedPE` adds both of its ends and
 Spans are yielded as `Bed3` records, by start within each reference, with references in the order they were first added.
 Territories are immutable, hashable, and equal when they hold the same bases.
 
+### Sorting by Reference
+
+Sort records in the order of a genome's reference sequences with a `ReferenceOrder`, a key function built from their names, or read from a `.fai`, a `.dict`, or a SAM or BAM header with `ReferenceOrder.from_path()`:
+
+```python
+from bedspec import Bed3, ReferenceOrder
+
+order = ReferenceOrder(["chr2", "chr1"])
+records = [Bed3("chr1", start=2, end=3), Bed3("chr2", start=7, end=8)]
+
+assert sorted(records, key=order) == [Bed3("chr2", start=7, end=8), Bed3("chr1", start=2, end=3)]
+```
+
 ### Custom BED Types
 
 To create a custom BED record, inherit from the relevant BED-type (`PointBed`, `SimpleBed`, `PairBed`).
