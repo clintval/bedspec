@@ -113,7 +113,7 @@ wheels = [
 
 [[package]]
 name = "bedspec"
-version = "4.1.2"
+version = "4.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "pybgzf" },
@@ -187,7 +187,7 @@ requires-dist = [
     { name = "pybgzf", specifier = ">=0.1.2" },
     { name = "pybwa", marker = "extra == 'pybwa'", specifier = ">=2.3.2" },
     { name = "pysam", marker = "extra == 'pysam'", specifier = ">=0.24.1" },
-    { name = "spillsort", marker = "extra == 'sort'", specifier = ">=0.1.0" },
+    { name = "spillsort", marker = "extra == 'sort'", specifier = ">=0.1.1" },
     { name = "superintervals", specifier = ">=1.0.2" },
     { name = "typeline", specifier = ">=2.4.2" },
     { name = "typing-extensions", specifier = ">=4.12" },
@@ -1382,27 +1382,27 @@ wheels = [
 
 [[package]]
 name = "spillsort"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/da/efdf2a3f7fb330559d751b8db09ba5eceb73ec886d3c25bbcd75cbf7554d/spillsort-0.1.0.tar.gz", hash = "sha256:4feebe1750158d006d3bfd3594e43e6dfdcbede4037b66e6a61ca4f4fb8c04c9", size = 47821, upload-time = "2026-10-16T14:44:42.891Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/fe/61e469f8d74aa89e75d368249bd63d3a40e3e0caf31348be5d39302467b4/spillsort-0.1.1.tar.gz", hash = "sha256:6fd8a3cd8093118dda97e9c38f8f581e479dd8e15648acc5939f76070dee8968", size = 54493, upload-time = "2026-10-16T20:41:42.408Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/d6/a371f70eb0b481f791e7524c5995095ec04abb64577f1075bf85a046e90b/spillsort-0.1.0-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:b31b0d6b2010420d8f471eda3c6ca288c7f315764198a49a773e4bd2cce1f57f", size = 370414, upload-time = "2026-10-16T14:44:24.13Z" },
-    { url = "https://files.pythonhosted.org/packages/6a/10/54f63cb6f60c3d5a0319f8bfe950b760fada9e199845a4c9e5fe90d7bbe0/spillsort-0.1.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:0bfe67514e18bafff861f4a20e0fb372839233f94f78053e711cc24f1657ecc6", size = 362208, upload-time = "2026-10-16T14:44:25.584Z" },
-    { url = "https://files.pythonhosted.org/packages/45/fe/4ea8aaf49e686506eb40829e3c5579e25955e5fa596b6e8e9163acfa6912/spillsort-0.1.0-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d3c5d7586f7f9674d53b1e91cd148a643543cd1a7d9c6f5fc65c14fa372f0529", size = 407998, upload-time = "2026-10-16T14:44:27.062Z" },
-    { url = "https://files.pythonhosted.org/packages/c2/76/7c075dacefd82de466d9e5f713266848911693b6f78da9a604c10ac841c5/spillsort-0.1.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:5d7b495e527333e8f5a565236fc482f2661ebd6417e3eb0099e1530bb73034c7", size = 404490, upload-time = "2026-10-16T14:44:28.273Z" },
-    { url = "https://files.pythonhosted.org/packages/44/ba/4e76da7eecf450b97edd67b66ba53396e9108a12f26deecdac425666b2e1/spillsort-0.1.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:ca9f837a2fc0a4fa9caf4ad287fb8c72a8810e770d5b6e6105e705b0de4abbc1", size = 582976, upload-time = "2026-10-16T14:44:29.604Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/c6/567ca83f84825bdad5998f05a366bde88f23e7a40d44c8a1e0f38611a30b/spillsort-0.1.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:72dd092ca59b522faf6256b9ee425979c3cd24102cc247a87230aad1bb97290c", size = 620556, upload-time = "2026-10-16T14:44:31.162Z" },
-    { url = "https://files.pythonhosted.org/packages/ad/10/bf6a2a83477355a9b4404b4cdbbac5d549c5d94944aa0438d36556630457/spillsort-0.1.0-cp311-abi3-win_amd64.whl", hash = "sha256:a8872dd45e46534571dd95324f3e12ba6a05c7f1c97f21089f55073197d1be75", size = 281070, upload-time = "2026-10-16T14:44:32.433Z" },
-    { url = "https://files.pythonhosted.org/packages/c7/4a/ae8c5479f629a69381dda5208c637ddf677fbdbd29cdeb85f47dfb5ac9b2/spillsort-0.1.0-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:556fccecbbd16c3476837c31f23edd8fe36953d30082db1141cbe8033f6b4886", size = 371077, upload-time = "2026-10-16T14:44:33.703Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/76/93b8f076a6d18a025e8f9abdac9f2e5328a2c3b3692846989cdcb81d375c/spillsort-0.1.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:4801018f27c5b64dedd6cc167da0f3c2b29da832f1b3cd3abaf3e90db4973d58", size = 359011, upload-time = "2026-10-16T14:44:34.949Z" },
-    { url = "https://files.pythonhosted.org/packages/17/c8/e595ac564e6a956ad236e3432466a16cbc58fb8128870ac583be81b434ba/spillsort-0.1.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:57fcc231cc46bf42ac36b1c8f96e8be3e5111ea5f3fda27bc653c2b75b9d2c2f", size = 406042, upload-time = "2026-10-16T14:44:36.244Z" },
-    { url = "https://files.pythonhosted.org/packages/76/85/63796b6e7737532f569411ae736fe5456412f2d00db13b91957f3dcd6caf/spillsort-0.1.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:fbb6e6714e1b181c8334c6d86a6496f4786cc2f245b921699b6651fdd60fe8c2", size = 403006, upload-time = "2026-10-16T14:44:37.472Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/40/6f9c2f884aebc2e95dffddf5eb34c5647ed058bab3a8a400e7b923d47aed/spillsort-0.1.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:25613a596567e02c58dbeafa090ccc35b7250f59ca56c0e789e66070da917ab7", size = 582173, upload-time = "2026-10-16T14:44:38.686Z" },
-    { url = "https://files.pythonhosted.org/packages/cf/3a/a4680c55e9c5e886b8472cd9f60e7f41b07809b60f059b9acca93c8639eb/spillsort-0.1.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:96163d020a840612fbc19b18968850b7c6a048931246f75c8712647191c50b02", size = 618716, upload-time = "2026-10-16T14:44:40.007Z" },
-    { url = "https://files.pythonhosted.org/packages/39/b3/3cda44922687da88d9edc5f08a170316cc96d54e4db7937f87d8bc001e1a/spillsort-0.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:a166d2db4db9528ec7be3022b2ea5172136767d40257203864ba89bec9443ed0", size = 277785, upload-time = "2026-10-16T14:44:41.479Z" },
+    { url = "https://files.pythonhosted.org/packages/28/03/97358071e4b008a7f8db1df1dfe451d9ae7ebe672d6734915cc205d8277b/spillsort-0.1.1-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f362f082889b6645844d452a8af33646f42b1ccf1ca15718a5a1205667c7710d", size = 366014, upload-time = "2026-10-16T20:41:20.405Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/a5/b57d9506b5d5d5ef7a2b3530ee7cbb7d1996a66d28187f2d90a014449325/spillsort-0.1.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:979f5d8df5abfc8cc4dbbe8244836c996a4926d05596d831202a364d510b92a8", size = 359434, upload-time = "2026-10-16T20:41:22.172Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/36/693fd10c86a640e7000fab2da04654fb341b03f142dfecec1c57d201a10b/spillsort-0.1.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ac25e8dcfd10ccc85aa5e9c1a9df3af8b93368e37093fd5526f770e917b0467f", size = 401267, upload-time = "2026-10-16T20:41:23.748Z" },
+    { url = "https://files.pythonhosted.org/packages/43/4f/75dbb1544bde3a54e3a07814c481c76f0c44cbbcb9273f6822f126e78fd5/spillsort-0.1.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:a239d59340996ea78dbe46d894b9eb5891e9455ec4ed7a666a1b540f8da2dcd5", size = 400804, upload-time = "2026-10-16T20:41:25.44Z" },
+    { url = "https://files.pythonhosted.org/packages/05/06/a0e7e47e6c4b2130011835927e06ed5160320f45590e3e4721e73c3d42fe/spillsort-0.1.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:45758e1e389fa0de61967a8e29adccf92856987a8649e65b19ee00aef8cab268", size = 578326, upload-time = "2026-10-16T20:41:26.996Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/09/27dbd7bda08ca84287bf589e0688e330c0cd6d1016c5e814e3477dd88254/spillsort-0.1.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5c80c897d847a17ee39a2ae4670ff9169c0364de01db14e14c2294e132d9dc63", size = 613899, upload-time = "2026-10-16T20:41:28.577Z" },
+    { url = "https://files.pythonhosted.org/packages/34/b5/ee7fff9a9f4ad24b0a4337a4e551aa200cab02b4b93bf764fef773a49817/spillsort-0.1.1-cp311-abi3-win_amd64.whl", hash = "sha256:76f7452b18c7d75e4f8ac47182ce831126816f94e78029f2639ff575b45983ba", size = 274835, upload-time = "2026-10-16T20:41:29.962Z" },
+    { url = "https://files.pythonhosted.org/packages/39/0f/e35dfe682718d2edddb3ac4b205a112d70edd2f4540c7052691799d043a7/spillsort-0.1.1-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:fff422027a632a7d68e1c288e9b881880486b874d8da4b57d7c149f0593317f3", size = 366662, upload-time = "2026-10-16T20:41:31.312Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/22/1c8a079321098928d7b7272372d91a1dc232c372f4d55f781c6518b8e6e1/spillsort-0.1.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:af143e927c12dfc632c54c6b13b8f30f767f73643030869f023313ef7f0092a3", size = 355949, upload-time = "2026-10-16T20:41:32.853Z" },
+    { url = "https://files.pythonhosted.org/packages/25/82/02f33fca26aa951d032be0adc42885bcd91e9899a5cc5240e1acdf83e3c4/spillsort-0.1.1-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:dd386ed0caead30137011ae9c8bbe6327e9614d659a2d8780cf0dbb6df2e6817", size = 399199, upload-time = "2026-10-16T20:41:34.474Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/86/a353d5849b5c814231fc86935a2080589f0b20c282b6f8c6264f888cfeb6/spillsort-0.1.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:7201554f859bbb2c8675030720bcfbe53c5a4568be1e7562d1bfe1627d5a3c9c", size = 399102, upload-time = "2026-10-16T20:41:36.445Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/81/ae5e893158453bac33b47291144f5796ec11ad52c2a4b4f6e2914041626d/spillsort-0.1.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:613090cdf4012efff9c848cee82b7fcf6891a79222b02a9b49490c05dad5d9d3", size = 576340, upload-time = "2026-10-16T20:41:37.913Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/19/eb6405614ddaac3d3a93e20d9f53e41072fa76f10c9efb113adf074ed81c/spillsort-0.1.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:62c2ce1f5b4435633dc97bd4571a43df1409a5f75af40efa19b870843ba8b83b", size = 612023, upload-time = "2026-10-16T20:41:39.314Z" },
+    { url = "https://files.pythonhosted.org/packages/44/2a/5b54cb107174ec98c84ae01184673ffeb57c8905d929f14d582b52d6c9f2/spillsort-0.1.1-cp314-cp314t-win_amd64.whl", hash = "sha256:7d5c85dbaee7045718a18b5cd0014c52e6b40683a7e783f742d5f466361e76c4", size = 271435, upload-time = "2026-10-16T20:41:41.006Z" },
 ]
 
 [[package]]
