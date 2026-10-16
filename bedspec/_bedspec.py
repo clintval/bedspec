@@ -812,13 +812,13 @@ class Territory(Iterable[Bed3]):
     first.
 
     Building a territory sorts the spans of each reference, and `a & b` and `a - b` sweep the
-    spans of both once. A union `a | b` sweeps in a right operand of 65,536 spans or more at
-    once, and otherwise sets its spans aside to merge the first time the union is used: iterated,
-    tested, measured, compared, hashed, combined with `&` or `-`, or pickled. Spans set aside are
-    merged at once when they number more than 65,536 and more than the spans already merged.
-    Growing a territory with `|=` in a loop therefore costs little more than building it from every
-    span at once, as long as the territory is not used inside the loop, since using it each time
-    merges it each time.
+    spans of both once. A union `a | b` merges a right operand of 65,536 spans or more at once,
+    and otherwise sets its spans aside to merge the first time the union is iterated, tested with
+    `in` or `contains`, measured, compared, hashed, combined with `&` or `-`, or pickled; asking
+    whether it holds any bases merges nothing. Spans set aside are merged at once only when there
+    are more than 65,536 of them and more than the spans already merged. Growing a territory with
+    `|=` in a loop therefore costs little more than building it from every span at once, as long
+    as the territory is not used inside the loop, since using it each time merges it each time.
     """
 
     __slots__ = ("_bounds", "_unmerged")

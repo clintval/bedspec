@@ -300,7 +300,7 @@ assert list(share) == [Bed3("chr1", start=25, end=27), Bed3("chr1", start=28, en
 assert share.length == 4
 ```
 
-Growing a territory with `|=` in a loop is cheap when the territory is not used inside the loop, since a union merges the spans it adds when it is first used:
+Growing a territory with `|=` in a loop is cheap as long as the territory is not used inside the loop, because the spans it adds are merged once, when it is first used:
 
 ```python
 covered = Territory()
