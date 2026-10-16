@@ -433,3 +433,12 @@ def test_a_stranded_query_finds_a_pair_by_each_mate_on_its_own_strand(paired: An
             == on_their_strands
         )
         assert not TreeDetector(on_the_other_strands).overlaps(first, stranded=True)
+
+
+@pytest.mark.parametrize("mate_cigar", ["50S", "garbage"])
+def test_a_mate_whose_cigar_holds_no_reference_base_adds_nothing(mate_cigar: str) -> None:
+    """Test that a mate CIGAR consuming no reference base adds no span, as for the read itself."""
+    first = read(100, "20M")
+    mated(first, "chr1", 500, mate_cigar)
+    assert as_paired_intervals(first) == [stranded(100, 120, BedStrand.Positive)]
+    assert as_paired_blocks(first) == [stranded(100, 120, BedStrand.Positive)]

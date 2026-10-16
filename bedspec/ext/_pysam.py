@@ -31,8 +31,9 @@ def as_interval(
     """Return a record's interval, the one span it is found by.
 
     A read's interval is its whole alignment, introns and deletions included, on its strand, and
-    an unmapped read has none; a variant's is its reference allele; and a GTF, GFF3 or BED line
-    read through tabix has its own, on its strand if it has one.
+    an unmapped read has none; a variant's runs from its start to its stop, so a symbolic allele's
+    to its END; and a GTF, GFF3 or BED line read through tabix has its own, on its strand if it
+    has one.
     """
     if isinstance(record, pysam.AlignedSegment):
         refname, end = record.reference_name, record.reference_end
@@ -92,7 +93,8 @@ def as_paired_intervals(read: pysam.AlignedSegment) -> list[ReferenceSpan]:
         return intervals
     refname, start, strand, operations = mate
     length = sum(length for length, operator in operations if operator in _ON_REFERENCE)
-    intervals.append(stranded(refname, start, start + length, strand))
+    if length:
+        intervals.append(stranded(refname, start, start + length, strand))
     return intervals
 
 

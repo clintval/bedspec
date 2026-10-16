@@ -7,5 +7,5 @@ from bedspec import Bed3
 
 
 def as_interval(variant: Variant) -> list[Bed3]:
-    """Return the interval of a variant, its reference allele."""
+    """Return the interval of a variant, from its start to its end, so a symbolic allele to END."""
     return [Bed3(variant.CHROM, start=variant.start, end=variant.end)]
