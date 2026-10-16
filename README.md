@@ -34,14 +34,15 @@ from bedspec.overlap import TabixDetector
 
 with (
     register_locatable(AlignedSegment, as_paired_intervals),
+    AlignmentFile("unsorted.bam") as infile,
     TabixDetector[Bed4]("panel.bed.gz") as panel,
-    AlignmentFile("unsorted.bam") as bam,
-    Sorter[Bed6](ReferenceOrder(bam.references)) as off_target,
+    Sorter[Bed6](ReferenceOrder(infile.references)) as off_target,
     BedWriter.from_path[Bed6]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
 ):
-    for read in bam:
-        if not panel.overlaps(read):
-            off_target.add(*as_interval(read))
+    for alignment in infile:
+        if not panel.overlaps(alignment):
+            off_target.add(*as_interval(alignment))
+
     writer.write_all(off_target.sort())
 ```
 
