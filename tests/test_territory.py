@@ -1,9 +1,13 @@
+import copy
+import pickle
 from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
 from random import Random
+from threading import Barrier
+from threading import Thread
 from typing import Any
 
 import pytest
@@ -652,3 +656,174 @@ def test_territories_agree_with_sets_of_bases_on_random_features() -> None:
         for feature in second:
             assert (feature in territory) is is_held(feature, bases)
             assert held(feature.territory()) == bases_of([feature])
+
+
+@pytest.mark.parametrize("compact_at", [1, 3, 1 << 16])
+def test_unions_agree_with_sets_of_bases_however_they_are_built(
+    compact_at: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that chains and branches of unions agree with sets of bases and keep reference order."""
+    monkeypatch.setattr("bedspec._bedspec._COMPACT_AT", compact_at)
+    rng = Random(7)
+    for _ in range(100):
+        built: list[tuple[Territory, list[Bed2 | Bed3 | Bed12 | BedPE | Blocked]]] = [
+            (Territory(), [])
+        ]
+        for _ in range(rng.randrange(1, 16)):
+            territory, features = rng.choice(built)
+            added = [random_feature(rng) for _ in range(rng.randrange(3))]
+            if rng.random() < 0.5:
+                territory, features = territory | Territory(added), features + added
+            else:
+                territory, features = Territory(added) | territory, added + features
+            if rng.random() < 0.3:
+                other, more = rng.choice(built)
+                territory, features = territory | other, features + more
+            built.append((territory, features))
+        for territory, features in built:
+            assert held(territory) == bases_of(features)
+            assert list(territory) == list(Territory(features))
+
+
+def test_an_intersection_or_difference_of_unions_agrees_with_sets_of_bases() -> None:
+    """Test that intersecting and subtracting unions agrees with sets of bases."""
+    rng = Random(11)
+    for _ in range(200):
+        first = [random_feature(rng) for _ in range(rng.randrange(12))]
+        second = [random_feature(rng) for _ in range(rng.randrange(12))]
+        territory, other = Territory(), Territory()
+        for feature in first:
+            territory |= Territory([feature])
+        for feature in second:
+            other |= Territory([feature])
+        bases, other_bases = bases_of(first), bases_of(second)
+
+        assert bool(territory) is bool(bases)
+        assert held(territory & other) == bases & other_bases
+        assert held(territory - other) == bases - other_bases
+        assert territory.length == len(bases)
+
+
+def test_a_long_chain_of_unions_is_merged_without_recursion() -> None:
+    """Test that a territory grown by a long chain of unions is merged, and merged correctly."""
+    territory = Territory()
+    for start in range(0, 400_000, 2):
+        territory |= Territory([Bed3("chr1", start=start, end=start + 1)])
+    assert territory.length == 200_000
+    assert territory.contains("chr1", 399_998)
+    assert not territory.contains("chr1", 399_999)
+
+
+def test_a_union_of_overlapping_reads_merges_as_it_grows() -> None:
+    """Test that a union of reads sharing their bases stays one span however long it grows."""
+    territory = Territory()
+    for _ in range(200_000):
+        territory |= chr1((10, 20))
+    assert list(territory) == [Bed3("chr1", start=10, end=20)]
+
+
+def test_branching_unions_leave_every_territory_unchanged() -> None:
+    """Test that combining one territory twice leaves it and the first union unchanged."""
+    base = Territory([Bed3("chr1", start=0, end=5)]) | Territory([Bed3("chr2", start=0, end=5)])
+    first = base | Territory([Bed3("chr3", start=1, end=2)])
+    second = base | Territory([Bed3("chr4", start=3, end=4)])
+    third = first | base
+    assert [span.refname for span in base] == ["chr1", "chr2"]
+    assert [span.refname for span in first] == ["chr1", "chr2", "chr3"]
+    assert [span.refname for span in second] == ["chr1", "chr2", "chr4"]
+    assert [span.refname for span in third] == ["chr1", "chr2", "chr3"]
+    assert base | base == base
+
+
+def test_a_union_is_equal_and_hashes_alike_before_and_after_it_is_merged() -> None:
+    """Test that a union equals, and hashes as, the territory of the same bases, merged or not."""
+
+    def union() -> Territory:
+        return chr1((0, 5)) | chr1((5, 10)) | Territory([Bed3("chr2", start=0, end=1)])
+
+    built = Territory([Bed3("chr2", start=0, end=1), Bed3("chr1", start=0, end=10)])
+    assert union() == built
+    assert built == union()
+    assert hash(union()) == hash(built)
+    assert union() == union()
+    merged = union()
+    assert list(merged)
+    assert merged == built
+    assert hash(merged) == hash(built)
+    assert {union(), built, merged} == {built}
+    assert union() != chr1((0, 10))
+
+
+def test_a_union_pickles_and_copies_as_its_merged_bases() -> None:
+    """Test that a union pickles and copies as the territory of its bases, merged or not."""
+    union = chr1((0, 5)) | chr1((3, 9)) | Territory([Bed3("chr2", start=2, end=4)])
+    built = Territory([Bed3("chr1", start=0, end=9), Bed3("chr2", start=2, end=4)])
+    assert pickle.loads(pickle.dumps(union)) == built
+    assert pickle.loads(pickle.dumps(built)) == built
+    assert copy.copy(union) == built
+    assert copy.deepcopy(chr1((0, 5)) | chr1((7, 9))) == chr1((0, 5), (7, 9))
+    assert list(pickle.loads(pickle.dumps(union))) == list(built)
+
+
+def test_threads_merging_or_extending_one_territory_agree() -> None:
+    """Test that threads merging one union, or extending one territory, all see the same bases."""
+    union = Territory()
+    for start in range(0, 20_000, 3):
+        union |= chr1((start, start + 2))
+    expected = list(Territory(list(union)))
+    barrier = Barrier(8)
+    seen: list[list[Bed3]] = []
+    extended: dict[int, Territory] = {}
+
+    def merge() -> None:
+        _ = barrier.wait()
+        seen.append(list(union))
+
+    def extend(number: int) -> None:
+        _ = barrier.wait()
+        territory = union
+        for start in range(500):
+            territory |= Territory([Bed3(f"chr{number + 2}", start=start, end=start + 1)])
+        extended[number] = territory
+
+    threads = [Thread(target=merge) for _ in range(4)]
+    threads += [Thread(target=extend, args=(number,)) for number in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert seen == [expected] * 4
+    for number, territory in extended.items():
+        assert list(territory) == [*expected, Bed3(f"chr{number + 2}", start=0, end=500)]
+    assert list(union) == expected
+
+
+def test_an_empty_territory_or_a_zero_length_span_adds_nothing_to_a_union() -> None:
+    """Test that an empty territory, or one of a zero-length span, adds nothing to a union."""
+    territory = chr1((0, 5)) | chr1((7, 9))
+    empty = Territory([Bed3("chr2", start=4, end=4)])
+    assert not empty
+    assert territory | empty is territory
+    assert empty | territory is territory
+    assert not (empty | Territory())
+    assert list(territory | Territory()) == [
+        Bed3("chr1", start=0, end=5),
+        Bed3("chr1", start=7, end=9),
+    ]
+    assert territory
+    assert (Bed3("chr2", start=4, end=4) in territory) is False
+
+
+def test_a_union_holds_positions_beyond_forty_bits() -> None:
+    """Test that a union merges spans that end beyond 2**40, which cannot be packed as one int."""
+    start = 2**41
+    union = chr1((start, start + 5)) | chr1((start + 3, start + 9)) | chr1((1, 2))
+    assert list(union) == [Bed3("chr1", start=1, end=2), Bed3("chr1", start=start, end=start + 9)]
+
+
+def test_a_union_answers_contains_and_in_when_they_are_first_asked() -> None:
+    """Test that a union answers `contains` and `in` correctly when they are first asked."""
+    assert (chr1((0, 5)) | chr1((5, 9))).contains("chr1", 8)
+    assert not (chr1((0, 5)) | chr1((6, 9))).contains("chr1", 5)
+    assert Bed3("chr1", start=2, end=8) in chr1((0, 5)) | chr1((5, 9))
+    assert Bed3("chr1", start=2, end=8) not in chr1((0, 5)) | chr1((6, 9))

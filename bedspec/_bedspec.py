@@ -12,8 +12,10 @@ from dataclasses import field
 from enum import Enum
 from enum import unique
 from itertools import chain
+from threading import Lock
 from typing import Any
 from typing import ClassVar
+from typing import NamedTuple
 from typing import Protocol
 from typing import TypeAlias
 from typing import TypeVar
@@ -671,6 +673,123 @@ def _swept(first: "array[int]", second: "array[int]", keep: _Keep) -> "array[int
     return bounds
 
 
+_COMPACT_AT: int = 1 << 16
+"""The fewest unmerged spans a union merges at once, rather than when it is first used."""
+
+_SHIFT: int = 40
+"""How far a start is shifted to pack it with its end into one int that sorts as the pair does."""
+
+
+@final
+class _Log:
+    """Spans not yet merged, extended in place only by a territory that holds every one of them."""
+
+    __slots__ = ("ends", "lock", "refnames", "starts")
+
+    def __init__(self, refnames: list[str], starts: "array[int]", ends: "array[int]") -> None:
+        self.refnames: list[str] = refnames
+        self.starts: array[int] = starts
+        self.ends: array[int] = ends
+        self.lock: Lock = Lock()
+
+    def extended(
+        self, count: int, refnames: list[str], starts: "array[int]", ends: "array[int]"
+    ) -> bool:
+        """Append spans if this log holds exactly `count` spans, and return whether it did."""
+        with self.lock:
+            if len(self.refnames) != count:
+                return False
+            self.refnames.extend(refnames)
+            self.starts.extend(starts)
+            self.ends.extend(ends)
+            return True
+
+    def prefix(self, count: int) -> tuple[list[str], "array[int]", "array[int]"]:
+        """Return copies of the first `count` spans of this log."""
+        with self.lock:
+            return self.refnames[:count], self.starts[:count], self.ends[:count]
+
+
+class _Unmerged(NamedTuple):
+    """The first `logged` spans of a log, to join bounds that held `held` spans when combined."""
+
+    log: _Log
+    logged: int
+    held: int
+
+
+def _held(bounds: dict[str, "array[int]"]) -> int:
+    """Return how many spans merged bounds hold."""
+    return sum(map(len, bounds.values())) // 2
+
+
+def _spans_of(bounds: dict[str, "array[int]"]) -> tuple[list[str], "array[int]", "array[int]"]:
+    """Return the reference, start, and end of each span that merged bounds hold."""
+    refnames: list[str] = []
+    starts, ends = array("q"), array("q")
+    for refname, values in bounds.items():
+        refnames += [refname] * (len(values) // 2)
+        starts += values[::2]
+        ends += values[1::2]
+    return refnames, starts, ends
+
+
+def _unpacked(keys: list[int]) -> "array[int]":
+    """Return the bounds of the fewest spans holding spans packed as `start << 40 | end`."""
+    keys.sort()
+    mask = (1 << _SHIFT) - 1
+    bounds = array("q")
+    for key in keys:
+        start, end = key >> _SHIFT, key & mask
+        if bounds and start <= bounds[-1]:
+            bounds[-1] = max(bounds[-1], end)
+        else:
+            bounds.extend((start, end))
+    return bounds
+
+
+def _union(first: "array[int]", second: "array[int]") -> "array[int]":
+    """Return the bounds of the bases in either of two merged bounds of one reference."""
+    bounds = array("q")
+    i = j = 0
+    while i < len(first) or j < len(second):
+        if j == len(second) or (i < len(first) and first[i] <= second[j]):
+            start, end = first[i], first[i + 1]
+            i += 2
+        else:
+            start, end = second[j], second[j + 1]
+            j += 2
+        if bounds and start <= bounds[-1]:
+            bounds[-1] = max(bounds[-1], end)
+        else:
+            bounds.extend((start, end))
+    return bounds
+
+
+def _merged_log(merged: dict[str, "array[int]"], unmerged: _Unmerged) -> dict[str, "array[int]"]:
+    """Return the merged bounds of the bases of merged bounds and of unmerged spans."""
+    refnames, starts, ends = unmerged.log.prefix(unmerged.logged)
+    added: dict[str, array[int]]
+    if max(ends) >> _SHIFT:
+        wide: dict[str, list[tuple[int, int]]] = {}
+        for refname, start, end in zip(refnames, starts, ends, strict=True):
+            wide.setdefault(refname, []).append((start, end))
+        added = {refname: _merged(spans) for refname, spans in wide.items()}
+    else:
+        packed: dict[str, list[int]] = {}
+        for refname, start, end in zip(refnames, starts, ends, strict=True):
+            keys = packed.get(refname)
+            if keys is None:
+                keys = packed[refname] = []
+            keys.append(start << _SHIFT | end)
+        added = {refname: _unpacked(keys) for refname, keys in packed.items()}
+    joined: dict[str, array[int]] = {}
+    for refname in dict.fromkeys(chain(merged, added)):
+        bounds, more = merged.get(refname, _NONE), added.get(refname, _NONE)
+        joined[refname] = _union(bounds, more) if bounds and more else bounds or more
+    return joined
+
+
 @final
 class Territory(Iterable[Bed3]):
     """An immutable set of bases on reference sequences, built from spans and BED records.
@@ -689,11 +808,14 @@ class Territory(Iterable[Bed3]):
     reference, with references in the order they were first added, those of the left operand
     first.
 
-    Building a territory sorts the spans of each reference, and combining two territories sweeps
-    their spans once.
+    Building a territory sorts the spans of each reference, and `a & b` and `a - b` sweep the
+    spans of both once. `a | b` sets the spans of `b` aside and merges them the first time the
+    union is used (iterated, tested, measured, compared, hashed, combined with `&` or `-`, or
+    pickled), or at once when they outnumber the spans already merged, so growing a territory with
+    `|=` in a loop costs little more than building it from every span at once.
     """
 
-    __slots__ = ("_bounds",)
+    __slots__ = ("_bounds", "_unmerged")
 
     def __init__(self, features: Iterable[BedLike | ReferenceSpan] = ()) -> None:
         """Build the territory of the given spans and BED records.
@@ -710,14 +832,47 @@ class Territory(Iterable[Bed3]):
         self._bounds: dict[str, array[int]] = {
             refname: _merged(starts_and_ends) for refname, starts_and_ends in spans.items()
         }
+        self._unmerged: _Unmerged | None = None
+
+    @classmethod
+    def _of(cls, bounds: dict[str, "array[int]"], unmerged: _Unmerged | None = None) -> "Territory":
+        """Return a territory of merged bounds and any spans yet to be merged into them."""
+        territory = cls.__new__(cls)
+        territory._bounds = bounds
+        territory._unmerged = unmerged
+        return territory
+
+    def _merge(self) -> None:
+        """Merge the unmerged spans of this territory into its bounds, if it has any."""
+        unmerged = self._unmerged
+        if unmerged is not None:
+            self._bounds = _merged_log(self._bounds, unmerged)
+            self._unmerged = None
+
+    def _span_count(self) -> int:
+        """Return how many spans this territory holds, merged or not."""
+        unmerged = self._unmerged
+        return _held(self._bounds) if unmerged is None else unmerged.held + unmerged.logged
+
+    def _all_spans(self) -> tuple[list[str], "array[int]", "array[int]"]:
+        """Return the reference, start, and end of every span of this territory, merged or not."""
+        unmerged = self._unmerged
+        refnames, starts, ends = _spans_of(self._bounds)
+        if unmerged is None:
+            return refnames, starts, ends
+        more_refnames, more_starts, more_ends = unmerged.log.prefix(unmerged.logged)
+        return refnames + more_refnames, starts + more_starts, ends + more_ends
 
     @property
     def length(self) -> int:
         """The number of bases in this territory."""
+        self._merge()
         return sum(sum(bounds[1::2]) - sum(bounds[::2]) for bounds in self._bounds.values())
 
     def contains(self, refname: str, position: int) -> bool:
         """Return whether the base at a 0-based position on a reference is in this territory."""
+        if self._unmerged is not None:
+            self._merge()
         bounds = self._bounds.get(refname)
         return bounds is not None and bisect_right(bounds, position) % 2 == 1
 
@@ -728,6 +883,8 @@ class Territory(Iterable[Bed3]):
         """
         if not isinstance(feature, BedLike | ReferenceSpan):
             return False
+        if self._unmerged is not None:
+            self._merge()
         for span in _spans(feature):
             bounds = self._bounds.get(span.refname, _NONE)
             index = bisect_right(bounds, span.start)
@@ -741,17 +898,48 @@ class Territory(Iterable[Bed3]):
     @override
     def __iter__(self) -> Iterator[Bed3]:
         """Yield the fewest spans holding exactly these bases, by reference and then by start."""
+        self._merge()
         for refname, bounds in self._bounds.items():
             for start, end in zip(bounds[::2], bounds[1::2], strict=True):
                 yield Bed3(refname, start=start, end=end)
 
     def __bool__(self) -> bool:
-        """Return whether this territory holds any bases."""
-        return bool(self._bounds)
+        """Return whether this territory holds any bases, without merging it."""
+        return self._unmerged is not None or bool(self._bounds)
 
     def __or__(self, other: "Territory") -> "Territory":
-        """Return the bases in this territory, the other, or both."""
-        return self._combined(other, lambda first, second: first or second)
+        """Return the bases in this territory, the other, or both, merged when first used."""
+        return self._unioned(other)
+
+    def _unioned(self, other: object) -> "Territory":
+        """Return the union, keeping the spans of the other to merge, or NotImplemented.
+
+        The spans are appended to this territory's log when it holds every span of the log, and
+        otherwise to a copy of the spans this territory holds of it, so no territory changes. A
+        territory of as many spans as are merged at once is swept in at once instead.
+        """
+        if not isinstance(other, Territory):
+            return NotImplemented  # type: ignore[no-any-return]
+        if not other:
+            return self
+        if not self:
+            return other
+        if other._span_count() >= _COMPACT_AT:
+            return self._combined(other, lambda first, second: first or second)
+        refnames, starts, ends = other._all_spans()
+        unmerged, bounds = self._unmerged, self._bounds
+        if unmerged is None:
+            unmerged = _Unmerged(_Log(refnames, starts, ends), len(refnames), _held(bounds))
+        else:
+            log = unmerged.log
+            if not log.extended(unmerged.logged, refnames, starts, ends):
+                log = _Log(*log.prefix(unmerged.logged))
+                _ = log.extended(unmerged.logged, refnames, starts, ends)
+            unmerged = unmerged._replace(log=log, logged=unmerged.logged + len(refnames))
+        union = Territory._of(bounds, unmerged)
+        if unmerged.logged > max(unmerged.held, _COMPACT_AT):
+            union._merge()
+        return union
 
     def __and__(self, other: "Territory") -> "Territory":
         """Return the bases in both this territory and the other."""
@@ -765,27 +953,43 @@ class Territory(Iterable[Bed3]):
         """Return the bases kept, reference by reference, or NotImplemented for a non-territory."""
         if not isinstance(other, Territory):
             return NotImplemented  # type: ignore[no-any-return]
-        combined = Territory()
-        for refname in dict.fromkeys(chain(self._bounds, other._bounds)):
-            first, second = self._bounds.get(refname, _NONE), other._bounds.get(refname, _NONE)
-            bounds = _swept(first, second, keep)
+        self._merge()
+        other._merge()
+        mine, theirs = self._bounds, other._bounds
+        combined: dict[str, array[int]] = {}
+        for refname in dict.fromkeys(chain(mine, theirs)):
+            bounds = _swept(mine.get(refname, _NONE), theirs.get(refname, _NONE), keep)
             if bounds:
-                combined._bounds[refname] = bounds
-        return combined
+                combined[refname] = bounds
+        return Territory._of(combined)
 
     @override
     def __eq__(self, other: object) -> bool:
         """Return whether two territories hold the same bases."""
         if not isinstance(other, Territory):
             return NotImplemented
+        self._merge()
+        other._merge()
         return self._bounds == other._bounds
 
     @override
     def __hash__(self) -> int:
         """Return a hash of the bases in this territory."""
+        self._merge()
         return hash(
             frozenset((refname, bounds.tobytes()) for refname, bounds in self._bounds.items())
         )
+
+    @override
+    def __getstate__(self) -> tuple[None, dict[str, dict[str, "array[int]"]]]:
+        """Return the merged bounds to pickle, and never the spans of a log."""
+        self._merge()
+        return None, {"_bounds": self._bounds}
+
+    def __setstate__(self, state: tuple[None, dict[str, dict[str, "array[int]"]]]) -> None:
+        """Restore a pickled territory, which is always merged."""
+        self._bounds = state[1]["_bounds"]
+        self._unmerged = None
 
     @override
     def __repr__(self) -> str:
