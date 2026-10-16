@@ -71,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        EXTRA: [biopython, cyvcf2, fgpyo, mappy, pybedtools, pybwa, pysam]
+        EXTRA: [biopython, cyvcf2, fgpyo, mappy, pybedtools, pybwa, pysam, sort]
         PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
     env:
       COVERAGE_FILE: .coverage.${{ matrix.EXTRA }}-${{ matrix.PYTHON_VERSION }}

@@ -18,6 +18,12 @@ The package can be installed with `pip`:
 pip install bedspec
 ```
 
+To sort more records than fit in memory with spillsort, install the `sort` extra:
+
+```console
+pip install 'bedspec[sort]'
+```
+
 ## At a Glance
 
 From a BAM in any order, write every read whose pair misses a capture panel as a BED line, sorted on disk in the BAM's reference order and indexed with tabix:

@@ -45,6 +45,7 @@ mappy      = ["mappy >=2.31"]
 pybedtools = ["pybedtools >=0.12.1"]
 pybwa      = ["pybwa >=2.3.2"]
 pysam      = ["pysam >=0.24.1"]
+sort       = ["spillsort >=0.1.0"]
 
 [dependency-groups]
 test = [
@@ -66,7 +67,7 @@ dev = [
     { include-group = "test" },
     { include-group = "lint" },
     { include-group = "typing" },
-    "bedspec[biopython,cyvcf2,fgpyo,mappy,pybedtools,pybwa,pysam]",
+    "bedspec[biopython,cyvcf2,fgpyo,mappy,pybedtools,pybwa,pysam,sort]",
 ]
 
 [build-system]
@@ -81,8 +82,8 @@ only-include = ["bedspec", "tests", "conftest.py", "README.md", "CONTRIBUTING.md
 # caught before it can be locked. Must stay >= the Dependabot `cooldown` in
 # .github/dependabot.yml, or Dependabot will propose versions that can't lock.
 exclude-newer = "1 week"
-# pybgzf, superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
-exclude-newer-package = { pybgzf = false, superintervals = false, typeline = false }
+# pybgzf, spillsort, superintervals and typeline are released alongside bedspec, so their new releases are allowed right away.
+exclude-newer-package = { pybgzf = false, spillsort = false, superintervals = false, typeline = false }
 
 [tool.poe.tasks]
 fix-format = "ruff format"
