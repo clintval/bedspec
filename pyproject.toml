@@ -37,17 +37,36 @@ classifiers = [
 "repository" = "https://github.com/clintval/bedspec"
 "Bug Tracker" = "https://github.com/clintval/bedspec/issues"
 
+[project.optional-dependencies]
+biopython  = ["biopython >=1.88"]
+cyvcf2     = ["cyvcf2 >=0.34"]
+fgpyo      = ["fgpyo >=1.5.1"]
+mappy      = ["mappy >=2.31"]
+pybedtools = ["pybedtools >=0.12.1"]
+pybwa      = ["pybwa >=2.3.2"]
+pysam      = ["pysam >=0.24.1"]
+
 [dependency-groups]
-dev = [
-    "basedpyright ~=1.40",
-    "mypy ~=2.3",
-    "poethepoet ~=0.48",
+test = [
     "pytest ~=9.1",
     "pytest-cov ~=7.1",
     "pytest-timeout ~=2.4",
-    "ruff ~=0.16",
     "sybil[pytest] ~=10.1",
+]
+lint = [
+    "poethepoet ~=0.48",
+    "ruff ~=0.16",
     "validate-pyproject[all] ~=0.26",
+]
+typing = [
+    "basedpyright ~=1.40",
+    "mypy ~=2.3",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typing" },
+    "bedspec[biopython,cyvcf2,fgpyo,mappy,pybedtools,pybwa,pysam]",
 ]
 
 [build-system]
@@ -88,12 +107,17 @@ check-typing.sequence = [
     "_check-pyright"
 ]
 
-check-all.ignore_fail = "return_non_zero"
-check-all.sequence    = [
+check-static.ignore_fail = "return_non_zero"
+check-static.sequence    = [
     "check-lock",
     "check-pyproject",
     "check-format",
-    "check-lint",
+    "check-lint"
+]
+
+check-all.ignore_fail = "return_non_zero"
+check-all.sequence    = [
+    "check-static",
     "check-tests",
     "check-typing"
 ]
@@ -122,6 +146,7 @@ doctest_optionflags = [
 
 [tool.mypy]
 files                       = ["bedspec/", "tests/", "conftest.py"]
+mypy_path                   = "typings"
 strict_optional             = true
 strict_equality             = true
 check_untyped_defs          = true
@@ -143,12 +168,13 @@ enable_error_code           = [
 
 [tool.pyright]
 include = ["bedspec/", "tests/", "conftest.py"]
+stubPath = "typings"
 reportAny = false
 reportExplicitAny = false
 pythonVersion = "3.11"
 
 [tool.ruff]
-include        = ["bedspec/**", "tests/**", "conftest.py"]
+include        = ["bedspec/**", "tests/**", "conftest.py", "typings/**"]
 line-length    = 100
 target-version = "py311"
 output-format  = "full"
@@ -176,6 +202,9 @@ ignore    = [
     "D104",  # missing docstring in public package
 ]
 unfixable = ["B"]
+
+[tool.ruff.lint.per-file-ignores]
+"typings/**" = ["D", "N802"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 13

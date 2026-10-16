@@ -20,6 +20,7 @@ from bedspec import BedStrand
 from bedspec import BedWriter
 from bedspec import ReferenceSpan
 from bedspec import SimpleBed
+from bedspec import register_locatable
 from bedspec.overlap import TabixDetector
 from bedspec.overlap import TreeDetector
 
@@ -351,3 +352,50 @@ def test_both_detectors_agree_on_the_blocks_of_bed12_records(
                     for method in METHODS:
                         found = list(getattr(detector, method)(query, stranded=stranded))
                         assert feature not in found, f"{method}({query}) found {feature}"
+
+
+@dataclass(frozen=True)
+class Paired:
+    """A query of two spans, like a read and its mate."""
+
+    first: Bed6
+    second: Bed6
+
+
+def paired_spans(paired: Paired) -> tuple[Bed6, Bed6]:
+    """Return both spans of a paired query."""
+    return paired.first, paired.second
+
+
+@pytest.mark.parametrize("index", list(IndexFormat))
+def test_both_detectors_agree_on_queries_of_two_spans(index: IndexFormat, tmp_path: Path) -> None:
+    """Test that both detectors find what either span of a query finds, as often as one does."""
+    rng = random.Random(f"paired {index.name}")
+    features = [
+        feature
+        for refname, (length, count) in REFERENCES.items()
+        for feature in hostile_features(rng, refname, length, count // 10)
+    ]
+    path = tmp_path / "paired.bed.gz"
+    with BedWriter.from_path[Bed6](path, index=index) as writer:
+        for feature in features:
+            writer.write(feature)
+
+    lengths = {refname: length for refname, (length, _) in REFERENCES.items()}
+    singles = list(hostile_queries(rng, features, lengths))
+    queries = [
+        *(Paired(rng.choice(singles), rng.choice(singles)) for _ in range(500)),
+        *(Paired(single, single) for single in rng.sample(singles, 50)),
+    ]
+    with register_locatable(Paired, paired_spans), TabixDetector[Bed6](path) as tabix:
+        tree = TreeDetector(features)
+        for query in queries:
+            for stranded in (False, True):
+                either: Counter[Bed6] = Counter(tree.overlapping(query.first, stranded=stranded))
+                either |= Counter(tree.overlapping(query.second, stranded=stranded))
+                for detector in (tree, tabix):
+                    name = type(detector).__name__
+                    found: Counter[Bed6] = Counter(detector.overlapping(query, stranded=stranded))
+                    assert found == either, f"{name}.overlapping({query}, {stranded=})"
+                    overlaps = detector.overlaps(query, stranded=stranded)
+                    assert overlaps is bool(either), f"{name}.overlaps({query}, {stranded=})"

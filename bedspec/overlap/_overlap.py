@@ -1,5 +1,7 @@
 from array import array
+from collections import Counter
 from collections.abc import Callable
+from collections.abc import Hashable
 from collections.abc import Iterable
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -12,13 +14,24 @@ from typing import TypeVar
 from superintervals import IntervalMap
 from typing_extensions import override
 
+from bedspec._bedspec import _REGISTRY  # pyright: ignore[reportPrivateUsage]
+from bedspec._bedspec import _UNREGISTERED  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import BedLike
 from bedspec._bedspec import BedStrand
+from bedspec._bedspec import Locatable
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
+from bedspec._bedspec import SpansOf
+from bedspec._bedspec import _check_span  # pyright: ignore[reportPrivateUsage]
+from bedspec._bedspec import _registered_for  # pyright: ignore[reportPrivateUsage]
+from bedspec._bedspec import _registered_spans  # pyright: ignore[reportPrivateUsage]
+from bedspec._bedspec import _spans  # pyright: ignore[reportPrivateUsage]
 
-FeatureType = TypeVar("FeatureType", bound=BedLike | ReferenceSpan)
+FeatureType = TypeVar("FeatureType", bound=Locatable)
 """Type variable for features stored within the overlap detector."""
+
+HitType = TypeVar("HitType")
+"""Type variable for what a query of one span finds."""
 
 Refname: TypeAlias = str
 """A type alias for a reference sequence name string."""
@@ -90,15 +103,134 @@ def span_matches(
     )
 
 
-def _is_own_span(feature: Any) -> bool:
-    """Return whether a feature is its own only span, as a record that is not BED-like is."""
-    spans = getattr(feature.__class__, "spans", None)
-    return spans is None or spans is SimpleBed.spans or not isinstance(feature, BedLike)
+@dataclass(slots=True)
+class _QuerySpan:
+    """A span of a query that is not its own only span, with the strand it is matched by."""
+
+    refname: str
+    start: int
+    end: int
+    strand: BedStrand | None
 
 
-def _spans(feature: Any) -> tuple[ReferenceSpan, ...] | None:
-    """Return the spans of a feature, or None if the feature is its own only span."""
-    return None if _is_own_span(feature) else tuple(feature.spans())
+def _is_own_span(feature: Locatable) -> bool:
+    """Return whether a feature is its own only span.
+
+    An unregistered linear BED record is, and so is an unregistered record that is not BED-like
+    and has a `refname`, `start` and `end`.
+    """
+    kind = type(feature)
+    if _REGISTRY and kind not in _UNREGISTERED and _registered_for(kind) is not None:
+        return False
+    if getattr(kind, "spans", None) is SimpleBed.spans:
+        return True
+    if isinstance(feature, BedLike):
+        return False
+    record: Any = feature
+    try:
+        _ = record.refname, record.start, record.end
+    except (AttributeError, KeyError):
+        return False
+    return True
+
+
+Located: TypeAlias = tuple[tuple[ReferenceSpan, ...], BedStrand | None]
+"""The spans of a feature that is not its own only span, and the strand those without one take."""
+
+
+def _located(feature: Locatable) -> Located | None:
+    """Return a feature's spans and the strand its spans without one take, or None if it has none.
+
+    A feature that is its own only span has no spans of its own here, and only the spans of a BED
+    record take its strand.
+    """
+    kind = type(feature)
+    if _REGISTRY and kind not in _UNREGISTERED:
+        spans_of = _registered_for(kind)
+        if spans_of is not None:
+            return _registered_spans(spans_of, feature), None
+    if getattr(kind, "spans", None) is SimpleBed.spans:
+        return None
+    if isinstance(feature, BedLike):
+        return tuple(feature.spans()), _strand(feature)
+    record: Any = feature
+    try:
+        _ = record.refname, record.start, record.end
+    except (AttributeError, KeyError):
+        return tuple(_spans(feature)), None
+    return None
+
+
+def _registration(feature: Locatable) -> SpansOf | None:
+    """Return the function registered for a feature's class, if any."""
+    kind = type(feature)
+    return None if kind in _UNREGISTERED or not _REGISTRY else _registered_for(kind)
+
+
+def _query_spans(feature: Any, spans_of: SpansOf | None = None) -> tuple[ReferenceSpan, ...]:
+    """Return the spans of a query that is not its own only span, each with its strand.
+
+    The spans of a query registered with `spans_of` keep only their own strand, as a registered
+    feature's do; otherwise a span without a strand takes its query's if the query is a BED record.
+    A span is used as it is when it needs no strand from its query and its class is not registered.
+    """
+    if spans_of is None:
+        fallback = _strand(feature) if isinstance(feature, BedLike) else None
+        located = _spans(feature)
+    else:
+        fallback, located = None, _registered_spans(spans_of, feature)
+    spans: list[ReferenceSpan] = []
+    for span in located:
+        if (fallback is None or _strand(span) is not None) and _registration(span) is None:
+            spans.append(span)
+        else:
+            strand = span_strand(span, fallback)
+            spans.append(_QuerySpan(span.refname, span.start, span.end, strand))
+    return tuple(spans)
+
+
+def _as_spans(feature: Any) -> tuple[ReferenceSpan, ...]:
+    """Return the spans of a query, which is its own only span if it has a refname, start and end.
+
+    A BED12 query is matched by its whole extent, as an unregistered query with a `refname`,
+    `start` and `end` always is.
+    """
+    spans_of = _registration(feature)
+    if spans_of is None:
+        try:
+            _ = feature.refname, feature.start, feature.end
+        except (AttributeError, KeyError):
+            pass
+        else:
+            return (feature,)
+    return _query_spans(feature, spans_of)
+
+
+def _one_span(feature: Locatable, method: str) -> ReferenceSpan | None:
+    """Return the only span of a query, or None if it has none.
+
+    Raises:
+        ValueError: If the query has more than one span.
+    """
+    spans = _as_spans(feature)
+    if len(spans) > 1:
+        raise ValueError(f"{method}() needs a query of one span, not {len(spans)}: {feature!r}")
+    return spans[0] if spans else None
+
+
+def _once_each(
+    hits_of_spans: Iterable[Iterable[HitType]], key: Callable[[HitType], Hashable]
+) -> Iterator[HitType]:
+    """Yield what the spans of one query find, each once, but as often as any one span finds it."""
+    yielded: Counter[Hashable] = Counter()
+    for hits in hits_of_spans:
+        found: Counter[Hashable] = Counter()
+        for hit in hits:
+            hit_key = key(hit)
+            found[hit_key] += 1
+            if found[hit_key] > yielded[hit_key]:
+                yielded[hit_key] += 1
+                yield hit
 
 
 @dataclass(slots=True)
@@ -113,26 +245,34 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     """Detects and returns overlaps between a collection of reference features and query feature.
 
     The overlap detector may be built with any BED record, indexed by every one of its `spans()`,
-    or with any feature-like Python object that has the following properties:
+    with any record registered with `register_locatable`, indexed by the spans its function
+    returns, or with any feature-like Python object that has the following properties:
 
       * `refname`: The reference sequence name
       * `start`: A 0-based start position
       * `end`: A 0-based half-open end position
 
-    Queries must have the same properties, so a BED2 record can be added but cannot be a query.
+    Queries may be any of these too. A query with a `refname`, `start` and `end` is matched by its
+    whole extent unless its class is registered, so a BED12 query is matched by its whole extent.
 
     A feature overlaps or encloses a query when any of its spans on the query's reference does, so
     a BEDPE record is found by either end, but it is enclosed by a query only when all of its spans
     are. A BED12 record's spans are its blocks, so a query that touches only an intron does not
     find it; to find a BED12 record by its whole span, add it as a BED6 record. A query yields
     each matching feature once, in the order the index finds it, which is repeatable but is not
-    the order the features were added.
+    the order the features were added. A query of several spans, like a registered read and its
+    mate, finds the features any of its spans overlaps; it cannot be asked what encloses it or
+    what it encloses.
+
+    A feature with no spans, like an unmapped read, is held but never found, and a query with no
+    spans finds nothing. A feature is found by the spans located when it was added, and a query by
+    the spans located when it is made.
 
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 
     Every query may be limited to features on the same strand as the query with `stranded=True`.
-    The strand compared is that of each matching span, or of its feature if the span has none.
-    A feature without a strand never matches a stranded query.
+    The strand compared is that of each matching span, or, for a BED record, of the record if the
+    span has none. A feature or query span without a strand never matches a stranded query.
 
     This detector is most efficiently used when all features to be queried are added ahead of time.
     The `overlaps()` method is the cheapest way to test for any overlap, short-circuiting on the
@@ -167,19 +307,22 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     def add(self, *features: FeatureType) -> None:
         """Add features to this overlap detector, indexing every span of each.
 
+        A feature with no spans, like an unmapped read, is held but never found.
+
         Raises:
-            ValueError: If a feature has no spans, in which case none of the features are added.
+            TypeError: If the spans of a feature cannot be found, in which case none are added.
         """
         if not self._holds_spans and all(map(_is_own_span, features)):
             self._add_features(features)
             return
-        spans = [_spans(feature) for feature in features]
-        for feature, feature_spans in zip(features, spans, strict=True):
-            if feature_spans == ():
-                raise ValueError(f"A feature must have at least one span: {feature!r}")
+        located = [_located(feature) for feature in features]
+        for spans_and_strand in located:
+            if spans_and_strand is not None:
+                for span in spans_and_strand[0]:
+                    _check_span(span.refname, span.start, span.end)
         if not self._holds_spans:
             self._hold_spans()
-        self._add_spans(features, spans)
+        self._add_spans(features, located)
 
     def _add_features(self, features: Iterable[Any]) -> None:
         """Add features that are each their own only span, holding the features in the trees."""
@@ -194,9 +337,7 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             index.is_built = False  # mark that this tree needs re-indexing
             added.append(feature)
 
-    def _add_spans(
-        self, features: Iterable[Any], spans: Iterable[tuple[ReferenceSpan, ...] | None]
-    ) -> None:
+    def _add_spans(self, features: Iterable[Any], located: Iterable[Located | None]) -> None:
         """Add features by every span, holding the number of each span in the trees."""
         added = self._features
         span_refnames = self._span_refnames
@@ -206,10 +347,10 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         span_strands = self._span_strands
         first_spans = self._first_spans
         refname_to_index = self._refname_to_index
-        for feature, feature_spans in zip(features, spans, strict=True):
+        for feature, spans_and_strand in zip(features, located, strict=True):
             number = len(added)
-            strand = _strand(feature)
-            for span in (feature,) if feature_spans is None else feature_spans:
+            spans, strand = ((feature,), None) if spans_and_strand is None else spans_and_strand
+            for span in spans:
                 start, end = _closed(span.start, span.end)
                 index = refname_to_index.get(span.refname)
                 if index is None:
@@ -245,17 +386,17 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             index.is_built = True
         return index.tree
 
-    def _span_hits(self, feature: ReferenceSpan, stranded: bool) -> list[int]:
-        """Return the spans overlapping a query feature, on its strand if stranded."""
-        tree = self._tree_for(feature.refname)
+    def _span_hits(self, query: ReferenceSpan, stranded: bool) -> list[int]:
+        """Return the spans overlapping a query of one span, on its strand if stranded."""
+        tree = self._tree_for(query.refname)
         if tree is None:
             return []
 
-        hits: list[int] = tree.search_values(*_closed(feature.start, feature.end))
+        hits: list[int] = tree.search_values(*_closed(query.start, query.end))
         if not stranded:
             return hits
 
-        strand = _strand(feature)
+        strand = _strand(query)
         if strand is None:
             return []
         span_strands = self._span_strands
@@ -283,41 +424,68 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
                 return False
         return True
 
-    def overlapping(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[FeatureType]:
-        """Yields all the features with a span that overlaps the given query feature."""
+    def overlapping(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
+        """Yields all the features with a span that overlaps the given query feature.
+
+        The query is located, and the features it overlaps found, when this is called.
+        """
+        query: Any = feature
+        if (
+            _REGISTRY
+            and type(feature) not in _UNREGISTERED
+            and (spans_of := _registered_for(type(feature)))
+        ):
+            return self._overlapping_any(_query_spans(query, spans_of), stranded)
+        try:
+            refname: Refname = query.refname
+            start, end = _closed(query.start, query.end)
+        except (AttributeError, KeyError):
+            return self._overlapping_any(_query_spans(query), stranded)
+
         if self._holds_spans:
-            yield from self._features_of(self._span_hits(feature, stranded))
-            return
+            return iter(self._features_of(self._span_hits(query, stranded)))
 
-        tree = self._tree_for(feature.refname)
+        tree = self._tree_for(refname)
         if tree is None:
-            return
-
-        start, end = _closed(feature.start, feature.end)
+            return iter(())
         if not stranded:
-            yield from tree.search_values(start, end)
-            return
+            return iter(tree.search_values(start, end))
 
-        strand = _strand(feature)
+        strand = _strand(query)
         if strand is None:
-            return
-        for hit in tree.search_values(start, end):
-            if _strand(hit) is strand:
-                yield hit
+            return iter(())
+        return iter([hit for hit in tree.search_values(start, end) if _strand(hit) is strand])
 
-    def overlaps(self, feature: ReferenceSpan, *, stranded: bool = False) -> bool:
+    def _overlapping_any(
+        self, spans: tuple[ReferenceSpan, ...], stranded: bool
+    ) -> Iterator[FeatureType]:
+        """Return the features with a span overlapping any span of a query, each once."""
+        if self._holds_spans:
+            hits = [hit for span in spans for hit in self._span_hits(span, stranded)]
+            return iter(self._features_of(hits))
+        return _once_each((self.overlapping(span, stranded=stranded) for span in spans), id)
+
+    def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
-        tree = self._tree_for(feature.refname)
+        query: Any = feature
+        if (
+            _REGISTRY
+            and type(feature) not in _UNREGISTERED
+            and (spans_of := _registered_for(type(feature)))
+        ):
+            return self._overlaps_any(_query_spans(query, spans_of), stranded)
+        try:
+            tree = self._tree_for(query.refname)
+            start, end = _closed(query.start, query.end)
+        except (AttributeError, KeyError):
+            return self._overlaps_any(_query_spans(query), stranded)
         if tree is None:
             return False
 
-        start, end = _closed(feature.start, feature.end)
         if not stranded:
             return tree.has_overlaps(start, end)
 
-        strand = _strand(feature)
+        strand = _strand(query)
         if strand is None:
             return False
         if not self._holds_spans:
@@ -325,42 +493,64 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         span_strands = self._span_strands
         return any(span_strands[hit] is strand for hit in tree.iter_values(start, end))
 
-    def enclosing(self, feature: ReferenceSpan, *, stranded: bool = False) -> Iterator[FeatureType]:
-        """Yields all the features with a span that completely encloses the given query feature."""
+    def _overlaps_any(self, spans: tuple[ReferenceSpan, ...], stranded: bool) -> bool:
+        """Determine if any span of a query overlaps any other features."""
+        if len(spans) == 1:
+            return self.overlaps(spans[0], stranded=stranded)
+        return any(self.overlaps(span, stranded=stranded) for span in spans)
+
+    def enclosing(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
+        """Yields all the features with a span that completely encloses the given query feature.
+
+        Raises:
+            ValueError: If the query has more than one span.
+        """
+        query = _one_span(feature, "enclosing")
+        return iter(()) if query is None else self._enclosing(query, stranded)
+
+    def _enclosing(self, query: ReferenceSpan, stranded: bool) -> Iterator[FeatureType]:
+        """Yield the features with a span enclosing a query of one span."""
         if not self._holds_spans:
-            hits: Iterator[Any] = self.overlapping(feature, stranded=stranded)
+            hits: Iterator[Any] = self.overlapping(query, stranded=stranded)
             for hit in hits:
-                if encloses(hit.start, hit.end, feature):
+                if encloses(hit.start, hit.end, query):
                     yield hit
             return
 
         starts, ends = self._span_starts, self._span_ends
         yield from self._features_of([
             hit
-            for hit in self._span_hits(feature, stranded)
-            if encloses(starts[hit], ends[hit], feature)
+            for hit in self._span_hits(query, stranded)
+            if encloses(starts[hit], ends[hit], query)
         ])
 
-    def enclosed_by(
-        self, feature: ReferenceSpan, *, stranded: bool = False
-    ) -> Iterator[FeatureType]:
-        """Yields all the features with every span enclosed by the given query feature."""
+    def enclosed_by(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
+        """Yields all the features with every span enclosed by the given query feature.
+
+        Raises:
+            ValueError: If the query has more than one span.
+        """
+        query = _one_span(feature, "enclosed_by")
+        return iter(()) if query is None else self._enclosed_by(query, stranded)
+
+    def _enclosed_by(self, query: ReferenceSpan, stranded: bool) -> Iterator[FeatureType]:
+        """Yield the features with every span enclosed by a query of one span."""
         if not self._holds_spans:
-            hits: Iterator[Any] = self.overlapping(feature, stranded=stranded)
+            hits: Iterator[Any] = self.overlapping(query, stranded=stranded)
             for hit in hits:
-                if is_enclosed_by(hit.start, hit.end, feature):
+                if is_enclosed_by(hit.start, hit.end, query):
                     yield hit
             return
 
         starts, ends = self._span_starts, self._span_ends
         span_features = self._span_features
         features = self._features
-        strand = _strand(feature) if stranded else None
+        strand = _strand(query) if stranded else None
         checked: set[int] = set()
-        for hit in self._span_hits(feature, stranded):
-            if is_enclosed_by(starts[hit], ends[hit], feature):
+        for hit in self._span_hits(query, stranded):
+            if is_enclosed_by(starts[hit], ends[hit], query):
                 number = span_features[hit]
                 if number not in checked:
                     checked.add(number)
-                    if self._is_enclosed(number, feature, strand):
+                    if self._is_enclosed(number, query, strand):
                         yield features[number]

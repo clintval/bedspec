@@ -18,6 +18,43 @@ The package can be installed with `pip`:
 pip install bedspec
 ```
 
+## At a Glance
+
+From a BAM in any order, write every read whose pair misses a capture panel as a BED line, sorted on disk in the BAM's reference order and indexed with tabix:
+
+<!-- skip: next -->
+```python
+from pybgzf import IndexFormat
+from pysam import AlignedSegment, AlignmentFile
+from spillsort import Sorter
+
+from bedspec import Bed3, Bed4, BedWriter, ReferenceOrder, register_locatable
+from bedspec.ext.pysam import as_paired_intervals
+from bedspec.overlap import TabixDetector
+
+with (
+    register_locatable(AlignedSegment, as_paired_intervals),
+    AlignmentFile("unsorted.bam") as infile,
+    TabixDetector[Bed4]("panel.bed.gz") as panel,
+    Sorter[Bed3](ReferenceOrder(infile.references)) as off_target,
+    BedWriter.from_path[Bed3]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
+):
+    for alignment in infile:
+        if alignment.is_mapped and not panel.overlaps(alignment):
+            bed = Bed3(
+                alignment.reference_name,
+                start=alignment.reference_start,
+                end=alignment.reference_end,
+            )
+            off_target.add(bed)
+
+    writer.write_all(off_target.sort())
+```
+
+An alignment pair does not overlap the panel when neither mate's interval overlaps any region in the panel.
+An unsorted alignment file can be queried this way only if `samtools fixmate -m` has pre-added the standard `MC` tag upon the records.
+This example also shows how, with the `spillsort` library installed, you can write the non-overlapping alignments as BED3 intervals in coordinate sorted order to a block-compressed and tabix indexed output file.
+
 ## Quickstart
 
 ### Building a BED Feature
@@ -170,7 +207,7 @@ assert pieces == [
 ]
 ```
 
-`territory()` returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
+The `territory()` method returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
 
 ```python
 from bedspec import Territory
@@ -182,7 +219,7 @@ assert transcript.territory() == Territory([
 assert transcript.territory().length == 30
 ```
 
-`thick_territory()` returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
+The `thick_territory()` method returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
 
 ```python
 from dataclasses import replace
@@ -246,7 +283,7 @@ assert list(TreeDetector[Bed6]([whole]).overlapping(intron)) == [whole]
 Each matching feature is returned once, even when several of its spans match.
 A feature encloses the input feature when any one of its spans does.
 A feature is enclosed by the input feature only when all of its spans are, so a `BedPE` needs both ends inside.
-Queries must be spans with an `end`, so a `Bed2` can be added but cannot be used as a query.
+A query with a `refname`, `start`, and `end` is matched by its whole extent, so a `Bed12` query is matched across its introns, and any other query by its spans, so a `Bed2` query is matched by its base and a `BedPE` query by either end.
 A `TabixDetector` answers every query the same way: its index finds each record by its whole extent, and each record found is then tested by its spans, so a query in an intron finds nothing there either.
 
 Each operation takes `stranded=True` to find only features on the same strand as the query.
@@ -266,6 +303,141 @@ opposite = replace(plus, strand=plus.strand.opposite())
 
 assert list(stranded.overlapping(plus, stranded=True)) == [plus]
 assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
+```
+
+### Other Libraries' Records
+
+Detectors and territories take records from other libraries once `register_locatable()` is given a function that returns each record's 0-based half-open spans, and they return those records as themselves.
+In a `with` statement, the registration lasts only for the block.
+
+With the functions in `bedspec.ext.pysam`, keep every pair of a coordinate-sorted BAM that touches a target, tagging both mates with the targets' names:
+
+<!-- skip: next -->
+```python
+import pysam
+
+from bedspec import Bed4, register_locatable
+from bedspec.ext.pysam import as_paired_intervals
+from bedspec.overlap import TabixDetector
+
+with (
+    register_locatable(pysam.AlignedSegment, as_paired_intervals),
+    TabixDetector[Bed4]("targets.bed.gz") as targets,
+    pysam.AlignmentFile("sorted.bam") as bam,
+    pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,
+):
+    for read in bam:
+        if names := {target.name for target in targets.overlapping(read) if target.name}:
+            read.set_tag("tg", ",".join(sorted(names)))
+            kept.write(read)
+```
+
+Find reads by their aligned blocks, so a read spliced right over an exon does not count, and on the read's strand against stranded exons:
+
+<!-- skip: next -->
+```python
+from bedspec import Bed6
+from bedspec.ext.pysam import as_blocks
+
+with (
+    register_locatable(pysam.AlignedSegment, as_blocks),
+    TabixDetector[Bed6]("exons.bed.gz") as exons,
+    pysam.AlignmentFile("rna.bam") as bam,
+):
+    on_their_exons = [read for read in bam if exons.overlaps(read, stranded=True)]
+```
+
+Hold variants in a detector and get the `VariantRecord`s back, with no wrapper class:
+
+<!-- skip: next -->
+```python
+from bedspec import Bed3
+from bedspec.ext.pysam import as_interval
+from bedspec.overlap import TreeDetector
+
+with (
+    register_locatable(pysam.VariantRecord, as_interval),
+    pysam.VariantFile("calls.vcf.gz") as vcf,
+):
+    variants = TreeDetector(vcf)
+    in_exon = list(variants.overlapping(Bed3("chr1", start=1_000, end=1_200)))
+```
+
+Build the territory a BAM's reads cover, keeping only the merged bases and not the reads, and ask what it holds:
+
+<!-- skip: next -->
+```python
+from bedspec import Territory
+
+with (
+    register_locatable(pysam.AlignedSegment, as_blocks),
+    pysam.AlignmentFile("sorted.bam") as bam,
+):
+    covered = Territory(bam)
+
+assert Bed3("chr1", start=1_050, end=1_060) in covered
+```
+
+Keep whole templates, supplementary alignments included, from a BAM grouped by read name:
+
+<!-- skip: next -->
+```python
+from fgpyo.sam import Template
+
+from bedspec.ext.fgpyo import as_template_blocks
+
+with (
+    register_locatable(Template, as_template_blocks),
+    TabixDetector[Bed4]("targets.bed.gz") as targets,
+    pysam.AlignmentFile("grouped.bam") as bam,
+    pysam.AlignmentFile("kept.bam", "wb", template=bam) as kept,
+):
+    for template in Template.iterator(bam):
+        if targets.overlaps(template):
+            template.write_to(kept)
+```
+
+Register any other type with a function of your own, which can be a `lambda`; here pybedtools, which already reads a GFF file's coordinates as 0-based half-open, though `bedspec.ext.pybedtools.as_interval` does the same and keeps strand:
+
+<!-- skip: next -->
+```python
+from pybedtools import BedTool, Interval
+
+from bedspec import Bed3, register_locatable
+from bedspec.overlap import TreeDetector
+
+register_locatable(Interval, lambda i: [Bed3(i.chrom, start=i.start, end=i.end)])
+
+genes = TreeDetector(BedTool("genes.gff"))
+genes.overlaps(Interval("chr1", 100, 200))
+```
+
+The `bedspec.ext` modules have functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`.
+Each module names them the same way: `as_interval` finds a record by its interval, from its first base to its last, `as_blocks` by the aligned blocks within it, `as_paired_intervals` and `as_paired_blocks` add those of its mate, and `as_template_intervals` and `as_template_blocks` those of every record of a template, each on its own strand and never joined into one.
+
+| Module | Function | Finds |
+| --- | --- | --- |
+| `bedspec.ext.pysam` | `as_interval` | an `AlignedSegment` by its whole alignment, on its strand; a `VariantRecord` from its start to its stop, so a symbolic allele to its `END`; a tabix GTF, GFF3, or BED line, on its strand |
+| | `as_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
+| | `as_paired_intervals` | an `AlignedSegment` by its interval and its mate's, from its `MC` tag, each on its strand |
+| | `as_paired_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag, each on its strand |
+| `bedspec.ext.pybedtools` | `as_interval` | an `Interval`, on its strand |
+| `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
+| | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
+| | `as_template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
+| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` from its start to its end, so a symbolic allele to its `END` |
+| `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
+| | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
+| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
+| `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
+| | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
+
+Every module names its functions the same way, so rename at import to use two together:
+
+<!-- skip: next -->
+```python
+from bedspec.ext.cyvcf2 import as_interval as variant_interval
+from bedspec.ext.pysam import as_blocks as read_blocks
 ```
 
 ### Merging, Intersecting, and Subtracting
@@ -311,6 +483,19 @@ assert Bed3("chr1", start=25, end=27) in share
 A BED record adds every one of its spans, so a `BedPE` adds both of its ends and a `Bed12` only its blocks, the same bases as its own `territory()`.
 Spans are yielded as `Bed3` records, by start within each reference, with references in the order they were first added.
 Territories are immutable, hashable, and equal when they hold the same bases.
+
+### Sorting by Reference
+
+Sort records in the order of a genome's reference sequences with a `ReferenceOrder`, a key function built from their names, or read from a `.fai`, a `.dict`, or a SAM or BAM header with `ReferenceOrder.from_path()`:
+
+```python
+from bedspec import Bed3, ReferenceOrder
+
+order = ReferenceOrder(["chr2", "chr1"])
+records = [Bed3("chr1", start=2, end=3), Bed3("chr2", start=7, end=8)]
+
+assert sorted(records, key=order) == [Bed3("chr2", start=7, end=8), Bed3("chr1", start=2, end=3)]
+```
 
 ### Custom BED Types
 

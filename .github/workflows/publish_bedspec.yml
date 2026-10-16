@@ -115,7 +115,12 @@ jobs:
           import importlib, pkgutil
           import bedspec as package
           for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
-              importlib.import_module(module.name)
+              try:
+                  importlib.import_module(module.name)
+              except ImportError as error:
+                  needs_extra = "pip install 'bedspec[" in str(error)
+                  if not (module.name.startswith("bedspec.ext.") and needs_extra):
+                      raise
           print("imported every module of", package.__name__)
           PY
 

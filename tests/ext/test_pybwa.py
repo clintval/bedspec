@@ -1,0 +1,41 @@
+"""Tests of the function that reads pybwa's records as spans."""
+
+from pybwa import AuxHit
+from pybwa import to_xa_hits
+
+import bedspec.ext.pybwa
+from bedspec import Bed3
+from bedspec import Bed6
+from bedspec import BedStrand
+from bedspec import register_locatable
+from bedspec.ext.pybwa import as_interval
+from bedspec.overlap import TreeDetector
+
+XA = "chr4,-97592047,24M,3;chr8,+32368749,24M,3;"
+
+
+def test_as_interval_converts_a_1_based_hit_on_its_strand() -> None:
+    """Test that XA hits, 1-based and closed, are read 0-based and half-open on their strand."""
+    minus, plus = to_xa_hits(XA)
+    assert as_interval(minus) == [
+        Bed6("chr4", start=97592046, end=97592070, name=None, score=None, strand=BedStrand.Negative)
+    ]
+    assert as_interval(plus) == [
+        Bed6("chr8", start=32368748, end=32368772, name=None, score=None, strand=BedStrand.Positive)
+    ]
+
+
+def test_a_registered_hit_is_found_by_its_first_base() -> None:
+    """Test that a registered hit is read through its function, not its 1-based attributes."""
+    minus, _ = to_xa_hits(XA)
+    first_base = TreeDetector([Bed3("chr4", start=97592046, end=97592047)])
+    assert not first_base.overlaps(minus)
+    with register_locatable(AuxHit, as_interval):
+        assert first_base.overlaps(minus)
+
+
+def test_bedspec_ext_pybwa_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.pybwa holds its functions and none of the names it imports."""
+    module = bedspec.ext.pybwa
+    public = sorted(name for name in vars(module) if not name.startswith("_"))
+    assert public == sorted(module.__all__) == ["as_interval"]

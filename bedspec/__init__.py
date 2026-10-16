@@ -20,6 +20,7 @@ from ._bedspec import BedStrand
 from ._bedspec import BedType
 from ._bedspec import BroadPeak
 from ._bedspec import GappedPeak
+from ._bedspec import Locatable
 from ._bedspec import Named
 from ._bedspec import NarrowPeak
 from ._bedspec import PairBed
@@ -28,6 +29,8 @@ from ._bedspec import ReferenceSpan
 from ._bedspec import SimpleBed
 from ._bedspec import Stranded
 from ._bedspec import Territory
+from ._bedspec import register_locatable
+from ._order import ReferenceOrder
 from ._reader import BedReader
 from ._writer import BedWriter
 
@@ -54,14 +57,17 @@ __all__ = [
     "BedType",
     "BroadPeak",
     "GappedPeak",
+    "Locatable",
     "NarrowPeak",
     "Named",
     "PairBed",
     "PointBed",
+    "ReferenceOrder",
     "ReferenceSpan",
     "SimpleBed",
     "Stranded",
     "Territory",
+    "register_locatable",
     "BedReader",
     "BedWriter",
 ]

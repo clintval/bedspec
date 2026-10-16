@@ -6,22 +6,27 @@ from bisect import bisect_right
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import Field
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from enum import unique
 from itertools import chain
+from types import TracebackType
 from typing import Any
 from typing import ClassVar
 from typing import Protocol
 from typing import TypeAlias
 from typing import TypeVar
+from typing import cast
 from typing import final
 from typing import runtime_checkable
 
 from typeline import ExtraColumns
 from typing_extensions import Self
+from typing_extensions import TypeAliasType
+from typing_extensions import is_protocol
 from typing_extensions import override
 
 COMMENT_PREFIXES: set[str] = {"#", "browser", "track"}
@@ -635,9 +640,248 @@ _NONE: "array[int]" = array("q")
 """The bounds of a reference that holds no bases."""
 
 
-def _spans(feature: BedLike | ReferenceSpan) -> Iterable[ReferenceSpan]:
-    """Return the spans of a BED record, or the feature if it is not a BED record."""
-    return feature.spans() if isinstance(feature, BedLike) else (feature,)
+RecordType = TypeVar("RecordType")
+"""A type variable for a class of records registered with `register_locatable`."""
+
+SpansOf: TypeAlias = Callable[[Any], Iterable["ReferenceSpan | BedLike"]]
+"""A function returning the 0-based half-open spans a record is found by, or BED records."""
+
+Locatable = TypeAliasType("Locatable", object)
+"""A record bedspec can locate: a BED record, an object with a `refname`, `start` and `end`, a
+record with a `spans()` method, or a record of a class registered with `register_locatable`.
+
+It is a type alias of `object`, since a registration happens at runtime, and not a class.
+"""
+
+_REGISTRY: dict[type, SpansOf] = {}
+"""The function registered for each class with `register_locatable`, its latest registration's."""
+
+_RESOLVED: dict[type, SpansOf | None] = {}
+"""The registered function each class resolves to through its MRO, or None, until it changes."""
+
+_UNREGISTERED: set[type] = set()
+"""The classes known to resolve to no registered function, until the registry changes."""
+
+
+def _registered_for(kind: type[Any]) -> SpansOf | None:
+    """Return the function registered for a class or the nearest class in its MRO, if any."""
+    try:
+        return _RESOLVED[kind]
+    except KeyError:
+        spans_of: SpansOf | None = None
+        if not issubclass(kind, BedLike):
+            spans_of = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
+        _RESOLVED[kind] = spans_of
+        if spans_of is None:
+            _UNREGISTERED.add(kind)
+        return spans_of
+
+
+def _forget_resolutions() -> None:
+    """Forget which function each class resolves to, after the registry changes."""
+    _RESOLVED.clear()
+    _UNREGISTERED.clear()
+
+
+@dataclass(slots=True, eq=False)
+class _Frame:
+    """One registration of a function for a class, made by a call or for a block."""
+
+    spans_of: SpansOf
+    in_block: bool
+
+
+_CHAINS: dict[type, list[_Frame]] = {}
+"""The registrations of each class in the order they were made, the last one in effect."""
+
+
+def _settle(kind: type) -> None:
+    """Register the function of a class's latest registration, or none, after its chain changes."""
+    chain = _CHAINS.get(kind)
+    if chain:
+        _REGISTRY[kind] = chain[-1].spans_of
+    else:
+        _ = _CHAINS.pop(kind, None)
+        _ = _REGISTRY.pop(kind, None)
+    _forget_resolutions()
+
+
+def _after_blocks(chain: list[_Frame]) -> int:
+    """Return where the registrations made on their own since a chain's latest block begin."""
+    return next((at + 1 for at in range(len(chain) - 1, -1, -1) if chain[at].in_block), 0)
+
+
+class _Registration(AbstractContextManager[None]):
+    """A registration that holds until replaced or, entered in a `with` statement, for the block."""
+
+    def __init__(self, kind: type, spans_of: SpansOf) -> None:
+        self._kind: type = kind
+        self._spans_of: SpansOf = spans_of
+        chain = _CHAINS.setdefault(kind, [])
+        since = _after_blocks(chain)
+        self._replaced: list[_Frame] = chain[since:]
+        del chain[since:]
+        self._call: _Frame = _Frame(spans_of, in_block=False)
+        chain.append(self._call)
+        self._blocks: list[_Frame] = []
+        _settle(kind)
+
+    @override
+    def __enter__(self) -> None:
+        """Enter the block this registration holds for, registering it again if it was replaced."""
+        _ = super().__enter__()
+        chain = _CHAINS.setdefault(self._kind, [])
+        if not self._call.in_block and chain and chain[-1] is self._call:
+            self._call.in_block = True
+            chain[-1:-1] = self._replaced
+            self._replaced = []
+            self._blocks.append(self._call)
+            return
+        frame = _Frame(self._spans_of, in_block=True)
+        chain.append(frame)
+        self._blocks.append(frame)
+        _settle(self._kind)
+
+    @override
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Undo this registration's latest block, or do nothing if it was never entered.
+
+        Only the block's own registration is undone: one made on its own inside the block holds,
+        and a block exiting while a later block is still open, as a closed generator's can, leaves
+        the later block in place.
+        """
+        if not self._blocks:
+            return
+        frame = self._blocks.pop()
+        chain = _CHAINS.get(self._kind, [])
+        at = next((index for index, held in enumerate(chain) if held is frame), None)
+        if at is not None:
+            del chain[at]
+            _settle(self._kind)
+
+
+def register_locatable(
+    kind: type[RecordType], spans: Callable[[RecordType], Iterable[ReferenceSpan | BedLike]]
+) -> AbstractContextManager[None]:
+    """Register how detectors and territories find the spans of a class of records.
+
+    `spans` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
+    `Bed6` records when strand matters; a BED record it returns adds its own `spans()`, and
+    returning none means the record is found by nothing. It is used for the class and its
+    subclasses, before anything else, replacing any earlier registration of the class.
+
+    Called on its own, the registration holds until another replaces it, even when made inside a
+    `with` block, and nothing undoes it. Used in a `with` statement, it holds only until the block
+    exits, when what was registered before it was made, or nothing, is restored; one replaced
+    before its block is entered holds again for the block. A BED record is always found by its
+    own `spans()`, even when a parent class of it is registered.
+
+    Raises:
+        TypeError: If `kind` is not a class, is `object`, a `Protocol`, or a BED class, or if
+            `spans` is not callable.
+    """
+    if not isinstance(kind, type) or kind is object or is_protocol(kind):  # pyright: ignore[reportUnnecessaryIsInstance]
+        raise TypeError(f"Only a class of records can be registered, not {kind!r}!")
+    if issubclass(kind, BedLike):
+        raise TypeError(
+            "A BED record is found by its own spans: override spans() in a subclass of"
+            + f" {kind.__name__} instead of registering it!"
+        )
+    if not callable(spans):
+        raise TypeError(f"spans must be a function returning spans, not {spans!r}!")  # pyright: ignore[reportUnreachable]
+    return _Registration(kind, spans)
+
+
+def _registered_spans(spans_of: SpansOf, feature: object) -> tuple[ReferenceSpan, ...]:
+    """Return the spans a registered function returns for a record, a BED record's own spans().
+
+    Raises:
+        TypeError: If the function returns one span, or anything else but an iterable of them.
+    """
+    returned: Any = spans_of(feature)
+    if type(returned) not in (list, tuple):
+        if hasattr(returned, "refname") or hasattr(returned, "spans"):
+            raise TypeError(
+                "A function registered with register_locatable() returns an iterable of spans,"
+                + f" not one span: return [span] instead of {returned!r}!"
+            )
+        if not hasattr(returned, "__iter__"):
+            raise TypeError(
+                "A function registered with register_locatable() returns an iterable of spans,"
+                + f" not {returned!r}: return [] for a record found by nothing!"
+            )
+    spans: list[ReferenceSpan] = []
+    for span in returned:
+        method = getattr(span.__class__, "spans", None)
+        if method is None or method is SimpleBed.spans or not isinstance(span, BedLike):
+            spans.append(span)
+        else:
+            spans.extend(span.spans())
+    return tuple(spans)
+
+
+class _UnlocatableError(TypeError):
+    """Raised for a record whose spans cannot be found."""
+
+
+_EXTENSIONS: dict[str, str] = {
+    "Bio": "biopython",
+    "cyvcf2": "cyvcf2",
+    "fgpyo": "fgpyo",
+    "mappy": "mappy",
+    "pybedtools": "pybedtools",
+    "pybwa": "pybwa",
+    "pysam": "pysam",
+}
+"""The module of `bedspec.ext` with functions for each library, by the library's package."""
+
+
+def _unlocatable(feature: object) -> _UnlocatableError:
+    """Return the error for a record whose spans cannot be found, naming a module that may help."""
+    kind = type(feature)
+    extension = _EXTENSIONS.get(kind.__module__.partition(".")[0])
+    module = "bedspec.ext" if extension is None else f"bedspec.ext.{extension}"
+    return _UnlocatableError(
+        f"Cannot find the spans of a record of type {kind.__module__}.{kind.__qualname__}:"
+        + " register a function returning them with register_locatable(), or use one from"
+        + f" {module}; a registration made for a with block ends when the block exits!"
+    )
+
+
+def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
+    """Return the spans a feature is found by.
+
+    In order: the function registered for its class, the spans of a BED record, the feature itself
+    if it has a `refname`, `start` and `end`, or what its `spans()` method returns.
+
+    Raises:
+        TypeError: If none of these finds the spans of the feature.
+    """
+    if _REGISTRY:
+        kind = type(feature)
+        spans_of = None if kind in _UNREGISTERED else _registered_for(kind)
+        if spans_of is not None:
+            return _registered_spans(spans_of, feature)
+    if isinstance(feature, BedLike):
+        return feature.spans()
+    record: Any = feature
+    try:
+        _ = record.refname, record.start, record.end
+        return (record,)
+    except (AttributeError, KeyError):
+        pass
+    try:
+        spans: Any = record.spans
+    except (AttributeError, KeyError):
+        spans = None
+    if callable(spans):
+        return cast("Iterable[ReferenceSpan]", spans())
+    raise _unlocatable(feature)
 
 
 def _merged(spans: list[tuple[int, int]]) -> "array[int]":
@@ -676,8 +920,9 @@ class Territory(Iterable[Bed3]):
     """An immutable set of bases on reference sequences, built from spans and BED records.
 
     A BED record adds every one of its `spans()`, so a `Bed2` adds its base, a `BedPE` both of its
-    ends, and a `Bed12` its blocks and not its introns, and any other object with a `refname`,
-    `start` and `end` adds itself. A BED record's `territory()` is the territory of its spans.
+    ends, and a `Bed12` its blocks and not its introns, any other object with a `refname`,
+    `start` and `end` adds itself, and a record registered with `register_locatable` adds the
+    spans its function returns. A BED record's `territory()` is the territory of its spans.
     Spans that overlap or abut are joined, since they hold the same bases either way, a
     zero-length span holds no bases and adds none, and strands are not kept.
 
@@ -695,10 +940,11 @@ class Territory(Iterable[Bed3]):
 
     __slots__ = ("_bounds",)
 
-    def __init__(self, features: Iterable[BedLike | ReferenceSpan] = ()) -> None:
-        """Build the territory of the given spans and BED records.
+    def __init__(self, features: Iterable[Locatable] = ()) -> None:
+        """Build the territory of the given spans, BED records, and registered records.
 
         Raises:
+            TypeError: If the spans of a feature cannot be found.
             ValueError: If a span has no reference name, starts before 0, or ends before it starts.
         """
         spans: dict[str, list[tuple[int, int]]] = {}
@@ -724,11 +970,16 @@ class Territory(Iterable[Bed3]):
     def __contains__(self, feature: object) -> bool:
         """Return whether this territory holds every base of every span of a feature.
 
-        A zero-length span is held when either base beside it is.
+        A zero-length span is held when either base beside it is. A feature with no spans, like an
+        unmapped read, or whose spans cannot be found, is not held.
         """
-        if not isinstance(feature, BedLike | ReferenceSpan):
+        try:
+            spans = tuple(_spans(feature))
+        except _UnlocatableError:
             return False
-        for span in _spans(feature):
+        if not spans:
+            return False
+        for span in spans:
             bounds = self._bounds.get(span.refname, _NONE)
             index = bisect_right(bounds, span.start)
             if index % 2 == 1:
