@@ -331,7 +331,7 @@ with (
     pysam.AlignmentFile("on-target.bam", "wb", template=bam) as kept,
 ):
     for read in bam:
-        if names := {target.name for target in targets.overlapping(read)}:
+        if names := {target.name for target in targets.overlapping(read) if target.name}:
             read.set_tag("tg", ",".join(sorted(names)))
             kept.write(read)
 ```

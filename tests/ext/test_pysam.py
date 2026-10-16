@@ -274,7 +274,7 @@ def test_the_readme_example_keeps_and_tags_both_mates_of_pairs_on_target(tmp_pat
         pysam.AlignmentFile(str(kept_path), "wb", template=bam) as kept,
     ):
         for segment in bam:
-            if names := {str(target.name) for target in targets.overlapping(segment)}:
+            if names := {target.name for target in targets.overlapping(segment) if target.name}:
                 segment.set_tag("tg", ",".join(sorted(names)))
                 _ = kept.write(segment)
 
@@ -392,7 +392,7 @@ def test_pairs_touching_the_panel_are_kept_and_the_rest_written_as_a_territory(
     ):
         off_target: list[ReferenceSpan] = []
         for segment in bam:
-            if names := {str(target.name) for target in panel.overlapping(segment)}:
+            if names := {target.name for target in panel.overlapping(segment) if target.name}:
                 segment.set_tag("tg", ",".join(sorted(names)))
                 _ = on_target.write(segment)
             else:
