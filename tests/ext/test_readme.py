@@ -4,6 +4,7 @@
 
 import gzip
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -126,9 +127,13 @@ def test_every_readme_example_runs_against_the_files_it_reads(
     for line, code in readme_blocks():
         exec(compile(code, f"{README}:{line}", "exec"), namespace)  # noqa: S102
     with pysam.AlignmentFile("on-target.bam") as kept:
-        assert {segment.query_name for segment in kept} == {"on1", "half", "spliced"}
+        assert Counter(segment.query_name for segment in kept) == {
+            "on1": 2,
+            "half": 2,
+            "spliced": 2,
+        }
     with pysam.AlignmentFile("kept.bam") as kept:
-        assert {segment.query_name for segment in kept} == {"on1", "half"}
+        assert Counter(segment.query_name for segment in kept) == {"on1": 2, "half": 2}
     with gzip.open("off-target.bed.gz", "rt") as written:
         assert written.read().splitlines() == [
             "chr2\t7000\t7050",
