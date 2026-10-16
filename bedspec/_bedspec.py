@@ -849,20 +849,6 @@ class Territory(Iterable[Bed3]):
             self._bounds = _merged_log(self._bounds, unmerged)
             self._unmerged = None
 
-    def _span_count(self) -> int:
-        """Return how many spans this territory holds, merged or not."""
-        unmerged = self._unmerged
-        return _held(self._bounds) if unmerged is None else unmerged.held + unmerged.logged
-
-    def _all_spans(self) -> tuple[list[str], "array[int]", "array[int]"]:
-        """Return the reference, start, and end of every span of this territory, merged or not."""
-        unmerged = self._unmerged
-        refnames, starts, ends = _spans_of(self._bounds)
-        if unmerged is None:
-            return refnames, starts, ends
-        more_refnames, more_starts, more_ends = unmerged.log.prefix(unmerged.logged)
-        return refnames + more_refnames, starts + more_starts, ends + more_ends
-
     @property
     def length(self) -> int:
         """The number of bases in this territory."""
@@ -914,9 +900,10 @@ class Territory(Iterable[Bed3]):
     def _unioned(self, other: object) -> "Territory":
         """Return the union, keeping the spans of the other to merge, or NotImplemented.
 
-        The spans are appended to this territory's log when it holds every span of the log, and
-        otherwise to a copy of the spans this territory holds of it, so no territory changes. A
-        territory of as many spans as are merged at once is swept in at once instead.
+        The other is merged first, and its spans are appended to this territory's log when it
+        holds every span of the log. Otherwise this territory is merged and starts a new log, so no
+        territory changes and no log is copied. A right operand of as many spans as are merged at
+        once is swept in at once instead.
         """
         if not isinstance(other, Territory):
             return NotImplemented  # type: ignore[no-any-return]
@@ -924,18 +911,21 @@ class Territory(Iterable[Bed3]):
             return self
         if not self:
             return other
-        if other._span_count() >= _COMPACT_AT:
+        other._merge()
+        if _held(other._bounds) >= _COMPACT_AT:
             return self._combined(other, lambda first, second: first or second)
-        refnames, starts, ends = other._all_spans()
-        unmerged, bounds = self._unmerged, self._bounds
+        refnames, starts, ends = _spans_of(other._bounds)
+        unmerged = self._unmerged
+        if unmerged is not None and not unmerged.log.extended(
+            unmerged.logged, refnames, starts, ends
+        ):
+            self._merge()
+            unmerged = None
+        bounds = self._bounds
         if unmerged is None:
             unmerged = _Unmerged(_Log(refnames, starts, ends), len(refnames), _held(bounds))
         else:
-            log = unmerged.log
-            if not log.extended(unmerged.logged, refnames, starts, ends):
-                log = _Log(*log.prefix(unmerged.logged))
-                _ = log.extended(unmerged.logged, refnames, starts, ends)
-            unmerged = unmerged._replace(log=log, logged=unmerged.logged + len(refnames))
+            unmerged = unmerged._replace(logged=unmerged.logged + len(refnames))
         union = Territory._of(bounds, unmerged)
         if unmerged.logged > max(unmerged.held, _COMPACT_AT):
             union._merge()

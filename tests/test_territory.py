@@ -1,5 +1,7 @@
 import copy
 import pickle
+import tracemalloc
+from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import replace
@@ -827,3 +829,54 @@ def test_a_union_answers_contains_and_in_when_they_are_first_asked() -> None:
     assert not (chr1((0, 5)) | chr1((6, 9))).contains("chr1", 5)
     assert Bed3("chr1", start=2, end=8) in chr1((0, 5)) | chr1((5, 9))
     assert Bed3("chr1", start=2, end=8) not in chr1((0, 5)) | chr1((6, 9))
+
+
+def overlapping_reads(count: int) -> Territory:
+    """Return a territory grown with `|=` from reads that overlap, never used along the way."""
+    territory = Territory()
+    for start in range(count):
+        territory |= chr1((start, start + 10))
+    return territory
+
+
+def peak_memory(action: Callable[[], object]) -> int:
+    """Return the most memory, in bytes, allocated at once while running an action."""
+    tracemalloc.start()
+    try:
+        _ = action()
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_branches_of_an_unmerged_territory_do_not_each_copy_its_spans() -> None:
+    """Test that unions branching from one unmerged territory do not each copy all its spans."""
+    base = overlapping_reads(10_000)
+    branches: list[Territory] = []
+
+    def branch() -> None:
+        branches.extend(base | Territory([Bed3("chr2", start=i, end=i + 1)]) for i in range(100))
+
+    assert peak_memory(branch) < 4 * 2**20
+    assert list(branches[-1]) == [
+        Bed3("chr1", start=0, end=10_009),
+        Bed3("chr2", start=99, end=100),
+    ]
+    assert list(base) == [Bed3("chr1", start=0, end=10_009)]
+
+
+def test_an_unmerged_territory_used_as_an_operand_is_merged_once() -> None:
+    """Test that an unmerged territory used again and again as an operand is merged only once."""
+    base = overlapping_reads(10_000)
+    unions: list[Territory] = []
+
+    def combine() -> None:
+        unions.extend(Territory([Bed3("chr2", start=i, end=i + 1)]) | base for i in range(100))
+        total = Territory([Bed3("chr3", start=0, end=1)])
+        for _ in range(100):
+            total = total | base
+        unions.append(total)
+
+    assert peak_memory(combine) < 4 * 2**20
+    assert list(unions[0]) == [Bed3("chr2", start=0, end=1), Bed3("chr1", start=0, end=10_009)]
+    assert list(unions[-1]) == [Bed3("chr3", start=0, end=1), Bed3("chr1", start=0, end=10_009)]
