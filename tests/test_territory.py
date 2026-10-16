@@ -1,5 +1,7 @@
 import copy
+import importlib
 import pickle
+import time
 import tracemalloc
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -962,3 +964,31 @@ def test_territories_used_and_reused_in_any_order_agree_with_sets_of_bases(
         for territory, bases, order in pool:
             assert held(territory) == bases
             assert order_of(territory) == order
+
+
+def test_threads_first_using_one_union_merge_it_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that threads using one unmerged territory at once merge it only once between them."""
+    merge = vars(importlib.import_module("bedspec._bedspec"))["_merged_log"]
+    merges: list[int] = []
+
+    def slow_merge(*args: Any) -> Any:
+        merges.append(1)
+        time.sleep(0.05)
+        return merge(*args)
+
+    monkeypatch.setattr("bedspec._bedspec._merged_log", slow_merge)
+    union = chr1((0, 5)) | chr1((10, 15))
+    barrier = Barrier(8)
+    lengths: list[int] = []
+
+    def use() -> None:
+        _ = barrier.wait()
+        lengths.append(union.length)
+
+    threads = [Thread(target=use) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert lengths == [10] * 8
+    assert len(merges) == 1

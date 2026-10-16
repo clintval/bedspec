@@ -12,7 +12,7 @@ from dataclasses import field
 from enum import Enum
 from enum import unique
 from itertools import chain
-from threading import Lock
+from threading import RLock
 from typing import Any
 from typing import ClassVar
 from typing import NamedTuple
@@ -693,7 +693,7 @@ class _Log:
         self.refnames: list[str] = refnames
         self.starts: array[int] = starts
         self.ends: array[int] = ends
-        self.lock: Lock = Lock()
+        self.lock: RLock = RLock()
 
     def extended(
         self, count: int, refnames: list[str], starts: "array[int]", ends: "array[int]"
@@ -846,11 +846,14 @@ class Territory(Iterable[Bed3]):
         return territory
 
     def _merge(self) -> None:
-        """Merge the unmerged spans of this territory into its bounds, if it has any."""
+        """Merge the unmerged spans of this territory into its bounds, once among all threads."""
         unmerged = self._unmerged
-        if unmerged is not None:
-            self._bounds = _merged_log(self._bounds, unmerged)
-            self._unmerged = None
+        if unmerged is None:
+            return
+        with unmerged.log.lock:
+            if self._unmerged is unmerged:
+                self._bounds = _merged_log(self._bounds, unmerged)
+                self._unmerged = None
 
     @property
     def length(self) -> int:
