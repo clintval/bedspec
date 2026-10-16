@@ -265,7 +265,8 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     what it encloses.
 
     A feature with no spans, like an unmapped read, is held but never found, and a query with no
-    spans finds nothing.
+    spans finds nothing. A feature is found by the spans located when it was added, and a query by
+    the spans located when it is made.
 
     A zero-length feature, such as an insertion, overlaps features holding either base beside it.
 

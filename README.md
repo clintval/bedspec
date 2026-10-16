@@ -207,7 +207,7 @@ assert pieces == [
 ]
 ```
 
-`territory()` returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
+The `territory()` method returns the bases those spans hold, without their strands, as a [`Territory`](#merging-intersecting-and-subtracting):
 
 ```python
 from bedspec import Territory
@@ -219,7 +219,7 @@ assert transcript.territory() == Territory([
 assert transcript.territory().length == 30
 ```
 
-`thick_territory()` returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
+The `thick_territory()` method returns the bases of a BED9 or BED12 record within its thick part, which for a transcript is its coding sequence, and no bases when the thick part is unset:
 
 ```python
 from dataclasses import replace
@@ -307,14 +307,10 @@ assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 
 ### Other Libraries' Records
 
-Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_locatable()` is given a function returning the 0-based half-open spans a class of records is found by.
-Called on its own, a registration holds until another replaces it, even inside a `with` block; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
-A function may return no spans, as for an unmapped read, and the record is then held but never found; a BED record it returns adds its own spans.
-A detector holds a feature by the spans found when it was added, and finds a query by the spans found when the query is made.
-A stranded query matches only spans with a strand, so return `Bed6` records, as `bedspec.ext` does, to query by strand.
-Everything detectors and territories take, registered records included, is typed `Locatable`.
+Detectors and territories take records from other libraries once `register_locatable()` is given a function that returns each record's 0-based half-open spans, and they return those records as themselves.
+In a `with` statement, the registration lasts only for the block.
 
-`bedspec.ext.pysam` has functions for pysam's records, so a coordinate-sorted BAM can be filtered to the pairs either mate of which touches a target, tagging both mates with the names of the targets:
+With the functions in `bedspec.ext.pysam`, keep every pair of a coordinate-sorted BAM that touches a target, tagging both mates with the targets' names:
 
 <!-- skip: next -->
 ```python
@@ -416,7 +412,7 @@ genes = TreeDetector(BedTool("genes.gff"))
 genes.overlaps(Interval("chr1", 100, 200))
 ```
 
-`bedspec.ext` has functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`.
+The `bedspec.ext` modules have functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`.
 Each module names them the same way: `as_interval` finds a record by its interval, from its first base to its last, `as_blocks` by the aligned blocks within it, `as_paired_intervals` and `as_paired_blocks` add those of its mate, and `as_template_intervals` and `as_template_blocks` those of every record of a template, each on its own strand and never joined into one.
 
 | Module | Function | Finds |
