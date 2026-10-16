@@ -353,10 +353,10 @@ def test_a_mate_at_no_position_adds_nothing() -> None:
     assert as_paired_blocks(segment) == [stranded(100, 110, BedStrand.Positive)]
 
 
-def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_territory(
+def test_pairs_touching_the_panel_are_kept_and_the_rest_written_as_a_territory(
     tmp_path: Path,
 ) -> None:
-    """Test the README's headline: pairs touching the panel are kept, the rest written as BED."""
+    """Test that pairs touching a panel are kept, and the rest written as a sorted, indexed BED."""
     panel_path = tmp_path / "panel.bed.gz"
     with BedWriter.from_path[Bed4](panel_path, index=IndexFormat.TBI) as writer:
         writer.write(Bed4("chr1", start=1_000, end=1_100, name="BRCA1_ex2"))

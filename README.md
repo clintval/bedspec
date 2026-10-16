@@ -20,37 +20,33 @@ pip install bedspec
 
 ## At a Glance
 
-Split a capture-panel BAM in one pass: keep and tag every pair either mate of which touches a panel target, and write the regions off-target reads cover as a sorted, tabix-indexed BED for a genome browser:
+From a BAM in any order, write every read whose pair misses a capture panel as a BED line, sorted on disk in the BAM's reference order and indexed with tabix:
 
 <!-- skip: next -->
 ```python
-import pysam
 from pybgzf import IndexFormat
+from pysam import AlignedSegment, AlignmentFile
+from spillsort import Sorter
 
-from bedspec import Bed3, Bed4, BedWriter, Territory, register_locatable
+from bedspec import Bed4, Bed6, BedWriter, ReferenceOrder, register_locatable
 from bedspec.ext.pysam import as_interval, as_paired_intervals
 from bedspec.overlap import TabixDetector
 
 with (
-    register_locatable(pysam.AlignedSegment, as_paired_intervals),
+    register_locatable(AlignedSegment, as_paired_intervals),
     TabixDetector[Bed4]("panel.bed.gz") as panel,
-    pysam.AlignmentFile("sorted.bam") as bam,
-    pysam.AlignmentFile("on-target.bam", "wb", template=bam) as on_target,
-    BedWriter.from_path[Bed3]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
+    AlignmentFile("unsorted.bam") as bam,
+    Sorter[Bed6](ReferenceOrder(bam.references)) as off_target,
+    BedWriter.from_path[Bed6]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
 ):
-    off_target = []
     for read in bam:
-        if names := {target.name for target in panel.overlapping(read)}:
-            read.set_tag("tg", ",".join(sorted(names)))
-            on_target.write(read)
-        else:
-            off_target.extend(as_interval(read))
-    writer.write_all(Territory(off_target))
+        if not panel.overlaps(read):
+            off_target.add(*as_interval(read))
+    writer.write_all(off_target.sort())
 ```
 
-An unmapped read whose mate touches a target is found by its mate's interval and kept with it, and one whose mate does not adds nothing.
-A mate's interval comes from the read's `MC` tag, which `samtools fixmate -m` adds, and a read with a mapped mate and no `MC` tag raises.
-The territory joins the off-target reads that overlap and is written sorted, so the BED it writes can be indexed and queried by a `TabixDetector` in turn.
+A pair misses the panel when neither mate's interval touches a target, and a mate's interval comes from the read's `MC` tag, which `samtools fixmate -m` adds.
+The sorter, from spillsort, holds a bounded amount in memory and spills sorted runs to disk, so the BED is written in order and indexed.
 
 ## Quickstart
 
