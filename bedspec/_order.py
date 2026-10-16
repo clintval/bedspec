@@ -1,5 +1,6 @@
 import gzip
 import struct
+import zlib
 from collections.abc import Iterable
 from collections.abc import Iterator
 from pathlib import Path
@@ -141,18 +142,34 @@ def _bam_names(path: Path) -> list[str]:
     """Return the names of the references of a BAM file's header, in order.
 
     Raises:
-        ValueError: If the file is not a BAM file, or ends within its header.
+        ValueError: If the file is not a BAM file, its header is corrupt, or it ends within its
+            header.
     """
-    with gzip.open(path, "rb") as handle:
-        if handle.read(4) != b"BAM\x01":
-            raise ValueError(f"{path} is not a BAM file!")
-        _ = _read_exactly(handle, _int32(handle, path), path)
-        names: list[str] = []
-        for _reference in range(_int32(handle, path)):
-            name = _read_exactly(handle, _int32(handle, path), path)
-            names.append(name.rstrip(b"\x00").decode())
-            _ = _int32(handle, path)
+    try:
+        with gzip.open(path, "rb") as handle:
+            if handle.read(4) != b"BAM\x01":
+                raise ValueError(f"{path} is not a BAM file!")
+            _ = _read_exactly(handle, _count(handle, path), path)
+            names: list[str] = []
+            for _reference in range(_count(handle, path)):
+                name = _read_exactly(handle, _count(handle, path), path)
+                names.append(name.rstrip(b"\x00").decode())
+                _ = _int32(handle, path)
+    except (gzip.BadGzipFile, EOFError, zlib.error) as error:
+        raise ValueError(f"{path} is not a BAM file!") from error
     return names
+
+
+def _count(handle: gzip.GzipFile, path: Path) -> int:
+    """Read a length or count of a BAM file's header.
+
+    Raises:
+        ValueError: If it is negative, which a BAM file's header never holds.
+    """
+    count = _int32(handle, path)
+    if count < 0:
+        raise ValueError(f"{path} has a corrupt header!")
+    return count
 
 
 def _read_exactly(handle: gzip.GzipFile, size: int, path: Path) -> bytes:

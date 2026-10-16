@@ -179,3 +179,27 @@ def test_another_kind_of_file_or_a_file_that_is_not_a_bam_raises(tmp_path: Path)
     _ = cut.write_bytes(gzip.compress(b"BAM\x01" + struct.pack("<i", 100) + b"@HD"))
     with pytest.raises(ValueError, match=r"cut\.bam ends within its header"):
         _ = ReferenceOrder.from_path(cut)
+
+
+def test_a_bam_that_is_not_gzip_or_is_cut_short_raises_naming_it(tmp_path: Path) -> None:
+    """Test that a BAM that is not gzip data, or whose compressed data ends early, raises."""
+    plain = tmp_path / "plain.bam"
+    _ = plain.write_bytes(b"BAM\x01" + struct.pack("<i", 0) + struct.pack("<i", 0))
+    with pytest.raises(ValueError, match=r"plain\.bam is not a BAM file"):
+        _ = ReferenceOrder.from_path(plain)
+    cut = tmp_path / "cut.bam"
+    write_bam_header(cut, [("chr1", 100)])
+    _ = cut.write_bytes(cut.read_bytes()[:-12])
+    with pytest.raises(ValueError, match=r"cut\.bam is not a BAM file"):
+        _ = ReferenceOrder.from_path(cut)
+
+
+@pytest.mark.parametrize("field", ["text", "references"])
+def test_a_bam_header_with_a_negative_length_or_count_raises(tmp_path: Path, field: str) -> None:
+    """Test that a negative header text length or reference count raises instead of being read."""
+    text, references = (-1, 1) if field == "text" else (0, -1)
+    corrupt = tmp_path / "corrupt.bam"
+    body = b"BAM\x01" + struct.pack("<i", text) + struct.pack("<i", references)
+    _ = corrupt.write_bytes(gzip.compress(body))
+    with pytest.raises(ValueError, match=r"corrupt\.bam has a corrupt header"):
+        _ = ReferenceOrder.from_path(corrupt)
