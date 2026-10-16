@@ -704,15 +704,24 @@ def _settle(kind: type) -> None:
     _forget_resolutions()
 
 
+def _after_blocks(chain: list[_Frame]) -> int:
+    """Return where the registrations made on their own since a chain's latest block begin."""
+    return next((at + 1 for at in range(len(chain) - 1, -1, -1) if chain[at].in_block), 0)
+
+
 class _Registration(AbstractContextManager[None]):
-    """A registration that, used in a `with` statement, holds only for the block."""
+    """A registration that holds until replaced or, entered in a `with` statement, for the block."""
 
     def __init__(self, kind: type, spans_of: SpansOf) -> None:
         self._kind: type = kind
         self._spans_of: SpansOf = spans_of
+        chain = _CHAINS.setdefault(kind, [])
+        since = _after_blocks(chain)
+        self._replaced: list[_Frame] = chain[since:]
+        del chain[since:]
         self._call: _Frame = _Frame(spans_of, in_block=False)
-        self._frames: list[_Frame] = [self._call]
-        _CHAINS.setdefault(kind, []).append(self._call)
+        chain.append(self._call)
+        self._blocks: list[_Frame] = []
         _settle(kind)
 
     @override
@@ -722,10 +731,13 @@ class _Registration(AbstractContextManager[None]):
         chain = _CHAINS.setdefault(self._kind, [])
         if not self._call.in_block and chain and chain[-1] is self._call:
             self._call.in_block = True
+            chain[-1:-1] = self._replaced
+            self._replaced = []
+            self._blocks.append(self._call)
             return
         frame = _Frame(self._spans_of, in_block=True)
         chain.append(frame)
-        self._frames.append(frame)
+        self._blocks.append(frame)
         _settle(self._kind)
 
     @override
@@ -735,24 +747,20 @@ class _Registration(AbstractContextManager[None]):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Undo this registration's latest block and the calls made in it, or else its call.
+        """Undo this registration's latest block, or do nothing if it was never entered.
 
-        A block exiting while a later block is still open, as a closed generator's can, leaves the
-        later block in place.
+        Only the block's own registration is undone: one made on its own inside the block holds,
+        and a block exiting while a later block is still open, as a closed generator's can, leaves
+        the later block in place.
         """
-        if not self._frames:
+        if not self._blocks:
             return
-        frame = self._frames.pop()
+        frame = self._blocks.pop()
         chain = _CHAINS.get(self._kind, [])
         at = next((index for index, held in enumerate(chain) if held is frame), None)
-        if at is None:
-            return
-        end = at + 1
-        if frame.in_block:
-            while end < len(chain) and not chain[end].in_block:
-                end += 1
-        del chain[at:end]
-        _settle(self._kind)
+        if at is not None:
+            del chain[at]
+            _settle(self._kind)
 
 
 def register_locatable(
@@ -763,11 +771,13 @@ def register_locatable(
     `spans` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
     `Bed6` records when strand matters; a BED record it returns adds its own `spans()`, and
     returning none means the record is found by nothing. It is used for the class and its
-    subclasses, before anything else, replacing any earlier registration of the class. Used in a
-    `with` statement, the registration holds only until the block exits, when what was registered
-    before the block, or nothing, is restored; one replaced before its block is entered holds
-    again for the block. A BED record is always found by its own `spans()`, even when a parent
-    class of it is registered.
+    subclasses, before anything else, replacing any earlier registration of the class.
+
+    Called on its own, the registration holds until another replaces it, even when made inside a
+    `with` block, and nothing undoes it. Used in a `with` statement, it holds only until the block
+    exits, when what was registered before it was made, or nothing, is restored; one replaced
+    before its block is entered holds again for the block. A BED record is always found by its
+    own `spans()`, even when a parent class of it is registered.
 
     Raises:
         TypeError: If `kind` is not a class, is `object`, a `Protocol`, or a BED class, or if
@@ -789,16 +799,20 @@ def _registered_spans(spans_of: SpansOf, feature: object) -> tuple[ReferenceSpan
     """Return the spans a registered function returns for a record, a BED record's own spans().
 
     Raises:
-        TypeError: If the function returns one span instead of an iterable of them.
+        TypeError: If the function returns one span, or anything else but an iterable of them.
     """
     returned: Any = spans_of(feature)
-    if type(returned) not in (list, tuple) and (
-        hasattr(returned, "refname") or hasattr(returned, "spans")
-    ):
-        raise TypeError(
-            "A function registered with register_locatable() returns an iterable of spans, not"
-            + f" one span: return [span] instead of {returned!r}!"
-        )
+    if type(returned) not in (list, tuple):
+        if hasattr(returned, "refname") or hasattr(returned, "spans"):
+            raise TypeError(
+                "A function registered with register_locatable() returns an iterable of spans,"
+                + f" not one span: return [span] instead of {returned!r}!"
+            )
+        if not hasattr(returned, "__iter__"):
+            raise TypeError(
+                "A function registered with register_locatable() returns an iterable of spans,"
+                + f" not {returned!r}: return [] for a record found by nothing!"
+            )
     spans: list[ReferenceSpan] = []
     for span in returned:
         method = getattr(span.__class__, "spans", None)

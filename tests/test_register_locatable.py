@@ -1,5 +1,8 @@
 """Tests of registering how detectors and territories find the spans of other classes of records."""
 
+import functools
+import gc
+import weakref
 from collections.abc import Generator
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -172,18 +175,13 @@ def test_a_registration_in_a_with_block_is_undone_when_the_block_exits() -> None
 
 def test_a_registration_in_a_with_block_restores_the_one_before_it() -> None:
     """Test that leaving nested blocks restores each earlier registration in turn."""
-    registration = register_locatable(Read, read_blocks)
-    try:
-        with register_locatable(Read, read_extent):
-            assert TreeDetector([SPLICED]).overlaps(INTRON)
-            with register_locatable(Read, read_blocks):
-                assert not TreeDetector([SPLICED]).overlaps(INTRON)
-            assert TreeDetector([SPLICED]).overlaps(INTRON)
-        assert not TreeDetector([SPLICED]).overlaps(INTRON)
-    finally:
-        _ = registration.__exit__(None, None, None)
-    with pytest.raises(TypeError):
-        _ = TreeDetector([SPLICED])
+    _ = register_locatable(Read, read_blocks)
+    with register_locatable(Read, read_extent):
+        assert TreeDetector([SPLICED]).overlaps(INTRON)
+        with register_locatable(Read, read_blocks):
+            assert not TreeDetector([SPLICED]).overlaps(INTRON)
+        assert TreeDetector([SPLICED]).overlaps(INTRON)
+    assert not TreeDetector([SPLICED]).overlaps(INTRON)
 
 
 def test_a_registration_in_a_with_block_is_undone_when_the_block_raises() -> None:
@@ -208,8 +206,7 @@ def test_a_registration_replaced_before_its_block_holds_for_the_block() -> None:
         with stale:
             assert TreeDetector([spliced]).overlaps(INTRON)
         assert not TreeDetector([spliced]).overlaps(INTRON)
-    with pytest.raises(TypeError, match="register_locatable"):
-        _ = TreeDetector([spliced])
+    assert not TreeDetector([spliced]).overlaps(INTRON)
 
 
 def test_entering_a_registration_keeps_its_own_function_registered_again_before() -> None:
@@ -227,8 +224,7 @@ def test_entering_a_registration_keeps_its_own_function_registered_again_before(
         with scoped:
             assert not TreeDetector([spliced]).overlaps(INTRON)
         assert not TreeDetector([spliced]).overlaps(INTRON)
-    with pytest.raises(TypeError, match="register_locatable"):
-        _ = TreeDetector([spliced])
+    assert not TreeDetector([spliced]).overlaps(INTRON)
 
 
 def test_entering_a_registration_twice_restores_each_level() -> None:
@@ -252,15 +248,10 @@ def test_entering_a_registration_twice_restores_each_level() -> None:
 
 def test_a_permanent_registration_holds_until_replaced() -> None:
     """Test that a registration made without a with statement holds until replaced."""
-    first = register_locatable(Read, read_blocks)
-    try:
-        assert not TreeDetector([SPLICED]).overlaps(INTRON)
-        second = register_locatable(Read, read_extent)
-        assert TreeDetector([SPLICED]).overlaps(INTRON)
-        _ = second.__exit__(None, None, None)
-        assert not TreeDetector([SPLICED]).overlaps(INTRON)
-    finally:
-        _ = first.__exit__(None, None, None)
+    _ = register_locatable(Read, read_blocks)
+    assert not TreeDetector([SPLICED]).overlaps(INTRON)
+    _ = register_locatable(Read, read_extent)
+    assert TreeDetector([SPLICED]).overlaps(INTRON)
 
 
 def test_a_registration_beats_a_refname_start_and_end(tmp_path: Path) -> None:
@@ -752,21 +743,60 @@ def test_an_unlocatable_record_names_its_type_and_a_module_of_bedspec_ext(
     assert "with block" in message
 
 
-def test_exiting_a_registration_more_often_than_it_was_made_changes_nothing() -> None:
-    """Test that exiting a registration again, after its call is undone, changes nothing."""
-    registration = register_locatable(Read, read_blocks)
+def test_exiting_a_registration_never_entered_changes_nothing() -> None:
+    """Test that a registration made on its own is not undone by exiting it."""
+    registration = register_locatable(Read, read_extent)
     _ = registration.__exit__(None, None, None)
-    kept = register_locatable(Read, read_extent)
     _ = registration.__exit__(None, None, None)
     assert TreeDetector([SPLICED]).overlaps(INTRON)
-    _ = kept.__exit__(None, None, None)
 
 
-def test_a_call_undone_by_the_block_it_was_made_in_is_not_undone_again() -> None:
-    """Test that exiting a call already undone by its enclosing block changes nothing."""
-    with register_locatable(Read, read_blocks):
-        inner = register_locatable(Read, read_blocks)
-    kept = register_locatable(Read, read_extent)
-    _ = inner.__exit__(None, None, None)
+def test_a_registration_made_on_its_own_in_a_block_outlasts_the_block() -> None:
+    """Test that a registration made on its own inside a block holds once the block exits."""
+    with register_locatable(Read, read_extent):
+        _ = register_locatable(Read, read_blocks)
+        _ = register_locatable(OneBased, one_based)
+        assert not TreeDetector([SPLICED]).overlaps(INTRON)
+    assert not TreeDetector([SPLICED]).overlaps(INTRON)
+    assert TreeDetector([OneBased("chr1", 1, 10)]).overlaps(Bed3("chr1", start=0, end=1))
+
+
+def test_registrations_made_on_their_own_replace_each_other_without_piling_up() -> None:
+    """Test that each registration made on its own lets the one it replaced be collected."""
+    functions = [functools.partial(read_blocks) for _ in range(100)]
+    references = [weakref.ref(function) for function in functions]
+    for function in functions:
+        _ = register_locatable(Read, function)
+    del functions
+    _ = gc.collect()
+    assert sum(reference() is not None for reference in references) == 1
+
+
+def test_entering_a_registration_restores_what_was_registered_before_it_was_made() -> None:
+    """Test that a registration scoped by entering it restores what it replaced, or nothing."""
+    scoped = register_locatable(Read, read_blocks)
+    with scoped:
+        assert not TreeDetector([SPLICED]).overlaps(INTRON)
+    with pytest.raises(TypeError, match="register_locatable"):
+        _ = TreeDetector([SPLICED])
+    _ = register_locatable(Read, read_extent)
+    scoped = register_locatable(Read, read_blocks)
+    with scoped:
+        assert not TreeDetector([SPLICED]).overlaps(INTRON)
     assert TreeDetector([SPLICED]).overlaps(INTRON)
-    _ = kept.__exit__(None, None, None)
+
+
+def test_a_registered_function_returning_none_raises_naming_the_fix() -> None:
+    """Test that a registered function returning None, instead of an iterable, says so."""
+
+    def nothing(_: Read) -> Any:
+        return None
+
+    message = r"register_locatable\(\) returns an iterable of spans, not None"
+    with register_locatable(Read, nothing):
+        with pytest.raises(TypeError, match=message):
+            _ = TreeDetector([SPLICED])
+        with pytest.raises(TypeError, match=message):
+            _ = TreeDetector([EXON1]).overlaps(SPLICED)
+        with pytest.raises(TypeError, match=message):
+            _ = Territory([SPLICED])

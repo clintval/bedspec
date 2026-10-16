@@ -308,7 +308,7 @@ assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 ### Other Libraries' Records
 
 Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_locatable()` is given a function returning the 0-based half-open spans a class of records is found by.
-Called on its own, a registration holds until it is replaced; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
+Called on its own, a registration holds until another replaces it, even inside a `with` block; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
 A function may return no spans, as for an unmapped read, and the record is then held but never found; a BED record it returns adds its own spans.
 A detector holds a feature by the spans found when it was added, and finds a query by the spans found when the query is made.
 A stranded query matches only spans with a strand, so return `Bed6` records, as `bedspec.ext` does, to query by strand.
