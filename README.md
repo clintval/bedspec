@@ -49,6 +49,7 @@ with (
 ```
 
 An unmapped read whose mate touches a target is found by its mate's interval and kept with it, and one whose mate does not adds nothing.
+A mate's interval comes from the read's `MC` tag, which `samtools fixmate -m` adds, and a read with a mapped mate and no `MC` tag raises.
 The territory joins the off-target reads that overlap and is written sorted, so the BED it writes can be indexed and queried by a `TabixDetector` in turn.
 
 ## Quickstart
@@ -305,7 +306,9 @@ assert list(stranded.overlapping(opposite, stranded=True)) == [minus]
 
 Detectors and territories take other libraries' records as features and queries, and return them as themselves, once `register_locatable()` is given a function returning the 0-based half-open spans a class of records is found by.
 Called on its own, a registration holds until it is replaced; used in a `with` statement, it holds until the block exits, when the registration before it, or none, returns.
-A function may return no spans, as for an unmapped read, and the record is then held but never found.
+A function may return no spans, as for an unmapped read, and the record is then held but never found; a BED record it returns adds its own spans.
+A detector holds a feature by the spans found when it was added, and finds a query by the spans found when the query is made.
+A stranded query matches only spans with a strand, so return `Bed6` records, as `bedspec.ext` does, to query by strand.
 Everything detectors and territories take, registered records included, is typed `Locatable`.
 
 `bedspec.ext.pysam` has functions for pysam's records, so a coordinate-sorted BAM can be filtered to the pairs either mate of which touches a target, tagging both mates with the names of the targets:
@@ -415,7 +418,7 @@ Each module names them the same way: `as_interval` finds a record by its interva
 
 | Module | Function | Finds |
 | --- | --- | --- |
-| `bedspec.ext.pysam` | `as_interval` | an `AlignedSegment` by its whole alignment, on its strand; a `VariantRecord` by its reference allele; a tabix GTF, GFF3, or BED line, on its strand |
+| `bedspec.ext.pysam` | `as_interval` | an `AlignedSegment` by its whole alignment, on its strand; a `VariantRecord` from its start to its stop, so a symbolic allele to its `END`; a tabix GTF, GFF3, or BED line, on its strand |
 | | `as_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
 | | `as_paired_intervals` | an `AlignedSegment` by its interval and its mate's, from its `MC` tag, each on its strand |
 | | `as_paired_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag, each on its strand |
@@ -423,10 +426,10 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
 | | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
 | | `as_template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
-| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` by its reference allele |
+| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` from its start to its end, so a symbolic allele to its `END` |
 | `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
 | | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
-| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand |
+| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
 

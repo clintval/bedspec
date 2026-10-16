@@ -24,6 +24,7 @@ from bedspec._bedspec import SimpleBed
 from bedspec._bedspec import SpansOf
 from bedspec._bedspec import _check_span  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _registered_for  # pyright: ignore[reportPrivateUsage]
+from bedspec._bedspec import _registered_spans  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _spans  # pyright: ignore[reportPrivateUsage]
 
 FeatureType = TypeVar("FeatureType", bound=Locatable)
@@ -147,7 +148,7 @@ def _located(feature: Locatable) -> Located | None:
     if _REGISTRY and kind not in _UNREGISTERED:
         spans_of = _registered_for(kind)
         if spans_of is not None:
-            return tuple(spans_of(feature)), None
+            return _registered_spans(spans_of, feature), None
     if getattr(kind, "spans", None) is SimpleBed.spans:
         return None
     if isinstance(feature, BedLike):
@@ -177,7 +178,7 @@ def _query_spans(feature: Any, spans_of: SpansOf | None = None) -> tuple[Referen
         fallback = _strand(feature) if isinstance(feature, BedLike) else None
         located = _spans(feature)
     else:
-        fallback, located = None, spans_of(feature)
+        fallback, located = None, _registered_spans(spans_of, feature)
     spans: list[ReferenceSpan] = []
     for span in located:
         if (fallback is None or _strand(span) is not None) and _registration(span) is None:
@@ -423,35 +424,31 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
         return True
 
     def overlapping(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
-        """Yields all the features with a span that overlaps the given query feature."""
+        """Yields all the features with a span that overlaps the given query feature.
+
+        The query is located when this is called, and the features are found as they are consumed.
+        """
         query: Any = feature
-        if _REGISTRY and (spans_of := _registration(feature)) is not None:
-            yield from self._overlapping_any(_query_spans(query, spans_of), stranded)
-            return
+        kind = type(feature)
+        if _REGISTRY and kind not in _UNREGISTERED and (spans_of := _registered_for(kind)):
+            return self._overlapping_any(_query_spans(query, spans_of), stranded)
         try:
-            refname: Refname = query.refname
+            _ = query.refname, query.start, query.end
         except (AttributeError, KeyError):
-            yield from self._overlapping_any(_query_spans(query), stranded)
-            return
+            return self._overlapping_any(_query_spans(query), stranded)
+        return self._overlapping(query, stranded)
 
+    def _overlapping(self, query: Any, stranded: bool) -> Iterator[FeatureType]:
+        """Yield the features with a span overlapping a query that is its own only span."""
         if self._holds_spans:
-            try:
-                hits = self._span_hits(query, stranded)
-            except AttributeError:
-                yield from self._overlapping_any(_query_spans(query), stranded)
-                return
-            yield from self._features_of(hits)
+            yield from self._features_of(self._span_hits(query, stranded))
             return
 
-        tree = self._tree_for(refname)
+        tree = self._tree_for(query.refname)
         if tree is None:
             return
 
-        try:
-            start, end = _closed(query.start, query.end)
-        except AttributeError:
-            yield from self._overlapping_any(_query_spans(query), stranded)
-            return
+        start, end = _closed(query.start, query.end)
         if not stranded:
             yield from tree.search_values(start, end)
             return
@@ -477,7 +474,8 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         query: Any = feature
-        if _REGISTRY and (spans_of := _registration(feature)) is not None:
+        kind = type(feature)
+        if _REGISTRY and kind not in _UNREGISTERED and (spans_of := _registered_for(kind)):
             return self._overlaps_any(_query_spans(query, spans_of), stranded)
         try:
             tree = self._tree_for(query.refname)
@@ -511,9 +509,10 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosing")
-        if query is None:
-            return
+        return iter(()) if query is None else self._enclosing(query, stranded)
 
+    def _enclosing(self, query: ReferenceSpan, stranded: bool) -> Iterator[FeatureType]:
+        """Yield the features with a span enclosing a query of one span."""
         if not self._holds_spans:
             hits: Iterator[Any] = self.overlapping(query, stranded=stranded)
             for hit in hits:
@@ -535,9 +534,10 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosed_by")
-        if query is None:
-            return
+        return iter(()) if query is None else self._enclosed_by(query, stranded)
 
+    def _enclosed_by(self, query: ReferenceSpan, stranded: bool) -> Iterator[FeatureType]:
+        """Yield the features with every span enclosed by a query of one span."""
         if not self._holds_spans:
             hits: Iterator[Any] = self.overlapping(query, stranded=stranded)
             for hit in hits:

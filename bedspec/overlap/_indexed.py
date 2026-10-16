@@ -110,13 +110,15 @@ class TabixDetector(
     def overlapping(
         self, feature: Locatable, *, stranded: bool = False
     ) -> Iterator[IntervalBedType]:
-        """Yields all the features with any span overlapping the query, or any span of it."""
+        """Yields all the features with any span overlapping the query, or any span of it.
+
+        The query is located when this is called, and the file is read as the features are consumed.
+        """
         spans = _as_spans(feature)
         if len(spans) == 1:
-            yield from self._matching(spans[0], touches, stranded=stranded, every=False)
-            return
+            return self._matching(spans[0], touches, stranded=stranded, every=False)
         lines = (self._matching_lines(span, touches, stranded, every=False) for span in spans)
-        yield from (record for _, record in _once_each(lines, itemgetter(0)))
+        return (record for _, record in _once_each(lines, itemgetter(0)))
 
     def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
@@ -129,8 +131,9 @@ class TabixDetector(
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosing")
-        if query is not None:
-            yield from self._matching(query, encloses, stranded=stranded, every=False)
+        if query is None:
+            return iter(())
+        return self._matching(query, encloses, stranded=stranded, every=False)
 
     def enclosed_by(
         self, feature: Locatable, *, stranded: bool = False
@@ -141,8 +144,9 @@ class TabixDetector(
             ValueError: If the query has more than one span.
         """
         query = _one_span(feature, "enclosed_by")
-        if query is not None:
-            yield from self._matching(query, is_enclosed_by, stranded=stranded, every=True)
+        if query is None:
+            return iter(())
+        return self._matching(query, is_enclosed_by, stranded=stranded, every=True)
 
     def _matching(
         self,

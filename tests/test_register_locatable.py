@@ -1,5 +1,6 @@
 """Tests of registering how detectors and territories find the spans of other classes of records."""
 
+from collections.abc import Generator
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -462,21 +463,28 @@ def test_features_keep_the_spans_they_were_added_by() -> None:
         _ = detector.overlaps(SPLICED)
 
 
-def test_a_lazy_query_uses_the_registration_when_it_is_consumed(tmp_path: Path) -> None:
-    """Test that both detectors read a query's spans only when the query is consumed."""
+def test_a_query_is_located_when_it_is_made(tmp_path: Path) -> None:
+    """Test that both detectors locate a query when it is made, not when its results are read."""
     path = tmp_path / "targets.bed.gz"
     with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
         writer.write(EXON1)
+    one_block = Read("chr1", ((105, 106),))
     with TabixDetector[Bed3](path) as tabix:
         for detector in (TreeDetector([EXON1]), tabix):
             with register_locatable(Read, read_blocks):
-                hits = detector.overlapping(SPLICED)
-            with pytest.raises(TypeError, match="register_locatable"):
-                _ = list(hits)
-            unregistered = (detector.overlapping(SPLICED), detector.enclosing(SPLICED))
-            for query in unregistered:
+                overlapping = detector.overlapping(SPLICED)
+                enclosing = detector.enclosing(one_block)
+                enclosed_by = detector.enclosed_by(one_block)
+            assert list(overlapping) == [EXON1]
+            assert list(enclosing) == [EXON1]
+            assert list(enclosed_by) == [EXON1]
+            for method in (detector.overlapping, detector.enclosing, detector.enclosed_by):
                 with pytest.raises(TypeError, match="register_locatable"):
-                    _ = list(query)
+                    _ = method(SPLICED)
+            with register_locatable(Read, read_blocks):
+                for method in (detector.enclosing, detector.enclosed_by):
+                    with pytest.raises(ValueError, match="one span"):
+                        _ = method(SPLICED)
 
 
 @dataclass(frozen=True)
@@ -640,3 +648,125 @@ def test_a_span_of_a_registered_class_is_used_as_it_is() -> None:
         assert TreeDetector([base_before]).overlaps(OneBased("chr1", 100, 110))
         assert not TreeDetector([base_before]).overlaps(read)
         assert not TreeDetector([read]).overlaps(base_before)
+
+
+def test_a_block_exiting_out_of_order_leaves_the_blocks_still_open() -> None:
+    """Test that a block closed inside a later one, as a generator's can be, leaves it in place."""
+
+    def scoped() -> Generator[None, None, None]:
+        with register_locatable(Read, read_blocks):
+            yield
+
+    held = scoped()
+    next(held)
+    with register_locatable(Read, read_extent):
+        held.close()
+        assert TreeDetector([SPLICED]).overlaps(INTRON)
+    with pytest.raises(TypeError, match="register_locatable"):
+        _ = TreeDetector([SPLICED])
+
+
+@dataclass(frozen=True)
+class Wrapped:
+    """A record that holds a BED record of the pieces it is found by."""
+
+    bed: Bed12 | BedPE
+
+
+def test_a_bed_record_a_registered_function_returns_adds_its_spans(tmp_path: Path) -> None:
+    """Test that a BED record a registered function returns is found by its spans."""
+    exons = Bed12(
+        "chr1",
+        start=100,
+        end=210,
+        name=None,
+        score=None,
+        strand=None,
+        thick_start=None,
+        thick_end=None,
+        item_rgb=None,
+        block_count=2,
+        block_sizes=(10, 10),
+        block_starts=(0, 100),
+    )
+    ends = BedPE(
+        refname1="chr1",
+        start1=100,
+        end1=110,
+        refname2="chr1",
+        start2=200,
+        end2=210,
+        name=None,
+        score=None,
+        strand1=None,
+        strand2=None,
+    )
+    path = tmp_path / "targets.bed.gz"
+    with BedWriter.from_path[Bed3](path, index=IndexFormat.TBI) as writer:
+        for target in (EXON1, INTRON, EXON2):
+            writer.write(target)
+    with (
+        register_locatable(Wrapped, lambda record: [record.bed]),
+        TabixDetector[Bed3](path) as tabix,
+    ):
+        for record in (Wrapped(exons), Wrapped(ends)):
+            assert list(Territory([record])) == [
+                Bed3("chr1", start=100, end=110),
+                Bed3("chr1", start=200, end=210),
+            ]
+            assert TreeDetector([record]).overlaps(EXON1)
+            assert not TreeDetector([record]).overlaps(INTRON)
+            assert list(TreeDetector([EXON1, INTRON, EXON2]).overlapping(record)) == [EXON1, EXON2]
+            assert list(tabix.overlapping(record)) == [EXON1, EXON2]
+
+
+def test_a_registered_function_returning_one_span_raises_naming_the_fix() -> None:
+    """Test that a registered function returning one span instead of an iterable says so."""
+
+    def one_span(_: Read) -> Any:
+        return Bed3("chr1", start=100, end=110)
+
+    message = r"return \[span\]"
+    with register_locatable(Read, one_span):
+        with pytest.raises(TypeError, match=message):
+            _ = TreeDetector([SPLICED])
+        with pytest.raises(TypeError, match=message):
+            _ = TreeDetector([EXON1]).overlaps(SPLICED)
+        with pytest.raises(TypeError, match=message):
+            _ = Territory([SPLICED])
+
+
+@pytest.mark.parametrize(
+    ("module", "extension"), [("pysam.libcalignedsegment", "pysam"), ("Bio.Align", "biopython")]
+)
+def test_an_unlocatable_record_names_its_type_and_a_module_of_bedspec_ext(
+    module: str, extension: str
+) -> None:
+    """Test that an unlocatable record's error names its type, a fitting module, and blocks."""
+    foreign = type("Record", (), {"__module__": module})()
+    with pytest.raises(TypeError) as error:
+        _ = Territory([foreign])
+    message = str(error.value)
+    assert f"of type {module}.Record" in message
+    assert f"one from bedspec.ext.{extension}" in message
+    assert "with block" in message
+
+
+def test_exiting_a_registration_more_often_than_it_was_made_changes_nothing() -> None:
+    """Test that exiting a registration again, after its call is undone, changes nothing."""
+    registration = register_locatable(Read, read_blocks)
+    _ = registration.__exit__(None, None, None)
+    kept = register_locatable(Read, read_extent)
+    _ = registration.__exit__(None, None, None)
+    assert TreeDetector([SPLICED]).overlaps(INTRON)
+    _ = kept.__exit__(None, None, None)
+
+
+def test_a_call_undone_by_the_block_it_was_made_in_is_not_undone_again() -> None:
+    """Test that exiting a call already undone by its enclosing block changes nothing."""
+    with register_locatable(Read, read_blocks):
+        inner = register_locatable(Read, read_blocks)
+    kept = register_locatable(Read, read_extent)
+    _ = inner.__exit__(None, None, None)
+    assert TreeDetector([SPLICED]).overlaps(INTRON)
+    _ = kept.__exit__(None, None, None)

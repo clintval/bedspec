@@ -641,8 +641,8 @@ _NONE: "array[int]" = array("q")
 RecordType = TypeVar("RecordType")
 """A type variable for a class of records registered with `register_locatable`."""
 
-SpansOf: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
-"""A function returning the 0-based half-open spans a record is found by."""
+SpansOf: TypeAlias = Callable[[Any], Iterable["ReferenceSpan | BedLike"]]
+"""A function returning the 0-based half-open spans a record is found by, or BED records."""
 
 Locatable = TypeAliasType("Locatable", object)
 """A record bedspec can locate: a BED record, an object with a `refname`, `start` and `end`, a
@@ -652,7 +652,7 @@ It is a type alias of `object`, since a registration happens at runtime, and not
 """
 
 _REGISTRY: dict[type, SpansOf] = {}
-"""The function registered for each class with `register_locatable`."""
+"""The function registered for each class with `register_locatable`, its latest registration's."""
 
 _RESOLVED: dict[type, SpansOf | None] = {}
 """The registered function each class resolves to through its MRO, or None, until it changes."""
@@ -681,47 +681,52 @@ def _forget_resolutions() -> None:
     _UNREGISTERED.clear()
 
 
-_INSTALLERS: dict[type, "_Registration"] = {}
-"""The registration that installed the function registered for each class."""
+@dataclass(slots=True, eq=False)
+class _Frame:
+    """One registration of a function for a class, made by a call or for a block."""
 
-_Installed: TypeAlias = tuple[SpansOf | None, "_Registration | None"]
-"""A function registered for a class, or None, and the registration that installed it, or None."""
+    spans_of: SpansOf
+    in_block: bool
 
 
-def _install(kind: type, installed: _Installed) -> None:
-    """Register a function for a class with the registration that installed it, or neither."""
-    spans_of, installer = installed
-    if spans_of is None:
+_CHAINS: dict[type, list[_Frame]] = {}
+"""The registrations of each class in the order they were made, the last one in effect."""
+
+
+def _settle(kind: type) -> None:
+    """Register the function of a class's latest registration, or none, after its chain changes."""
+    chain = _CHAINS.get(kind)
+    if chain:
+        _REGISTRY[kind] = chain[-1].spans_of
+    else:
+        _ = _CHAINS.pop(kind, None)
         _ = _REGISTRY.pop(kind, None)
-    else:
-        _REGISTRY[kind] = spans_of
-    if installer is None:
-        _ = _INSTALLERS.pop(kind, None)
-    else:
-        _INSTALLERS[kind] = installer
     _forget_resolutions()
 
 
 class _Registration(AbstractContextManager[None]):
-    """A registration that, used in a `with` statement, restores the one before it on exit."""
+    """A registration that, used in a `with` statement, holds only for the block."""
 
-    def __init__(self, kind: type, spans_of: SpansOf, displaced: _Installed) -> None:
+    def __init__(self, kind: type, spans_of: SpansOf) -> None:
         self._kind: type = kind
         self._spans_of: SpansOf = spans_of
-        self._displaced_by_call: _Installed | None = displaced
-        self._displaced_by_blocks: list[_Installed] = []
+        self._call: _Frame = _Frame(spans_of, in_block=False)
+        self._frames: list[_Frame] = [self._call]
+        _CHAINS.setdefault(kind, []).append(self._call)
+        _settle(kind)
 
     @override
     def __enter__(self) -> None:
         """Enter the block this registration holds for, registering it again if it was replaced."""
         _ = super().__enter__()
-        kind = self._kind
-        if _INSTALLERS.get(kind) is self and self._displaced_by_call is not None:
-            self._displaced_by_blocks.append(self._displaced_by_call)
-            self._displaced_by_call = None
-        else:
-            self._displaced_by_blocks.append((_REGISTRY.get(kind), _INSTALLERS.get(kind)))
-            _install(kind, (self._spans_of, self))
+        chain = _CHAINS.setdefault(self._kind, [])
+        if not self._call.in_block and chain and chain[-1] is self._call:
+            self._call.in_block = True
+            return
+        frame = _Frame(self._spans_of, in_block=True)
+        chain.append(frame)
+        self._frames.append(frame)
+        _settle(self._kind)
 
     @override
     def __exit__(
@@ -730,26 +735,39 @@ class _Registration(AbstractContextManager[None]):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Restore what was registered for the class before the block, including nothing."""
-        if self._displaced_by_blocks:
-            _install(self._kind, self._displaced_by_blocks.pop())
-        elif self._displaced_by_call is not None:
-            _install(self._kind, self._displaced_by_call)
-            self._displaced_by_call = None
+        """Undo this registration's latest block and the calls made in it, or else its call.
+
+        A block exiting while a later block is still open, as a closed generator's can, leaves the
+        later block in place.
+        """
+        if not self._frames:
+            return
+        frame = self._frames.pop()
+        chain = _CHAINS.get(self._kind, [])
+        at = next((index for index, held in enumerate(chain) if held is frame), None)
+        if at is None:
+            return
+        end = at + 1
+        if frame.in_block:
+            while end < len(chain) and not chain[end].in_block:
+                end += 1
+        del chain[at:end]
+        _settle(self._kind)
 
 
 def register_locatable(
-    kind: type[RecordType], spans: Callable[[RecordType], Iterable[ReferenceSpan]]
+    kind: type[RecordType], spans: Callable[[RecordType], Iterable[ReferenceSpan | BedLike]]
 ) -> AbstractContextManager[None]:
     """Register how detectors and territories find the spans of a class of records.
 
     `spans` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
-    `Bed6` records when strand matters; returning none means the record is found by nothing. It
-    is used for the class and its subclasses, before anything else, replacing any earlier
-    registration of the class. Used in a `with` statement, the registration holds only until the
-    block exits, when what was registered before the block, or nothing, is restored; one replaced
-    before its block is entered holds again for the block. A BED record is always found by its
-    own `spans()`, even when a parent class of it is registered.
+    `Bed6` records when strand matters; a BED record it returns adds its own `spans()`, and
+    returning none means the record is found by nothing. It is used for the class and its
+    subclasses, before anything else, replacing any earlier registration of the class. Used in a
+    `with` statement, the registration holds only until the block exits, when what was registered
+    before the block, or nothing, is restored; one replaced before its block is entered holds
+    again for the block. A BED record is always found by its own `spans()`, even when a parent
+    class of it is registered.
 
     Raises:
         TypeError: If `kind` is not a class, is `object`, a `Protocol`, or a BED class, or if
@@ -764,13 +782,59 @@ def register_locatable(
         )
     if not callable(spans):
         raise TypeError(f"spans must be a function returning spans, not {spans!r}!")  # pyright: ignore[reportUnreachable]
-    registration = _Registration(kind, spans, (_REGISTRY.get(kind), _INSTALLERS.get(kind)))
-    _install(kind, (spans, registration))
-    return registration
+    return _Registration(kind, spans)
+
+
+def _registered_spans(spans_of: SpansOf, feature: object) -> tuple[ReferenceSpan, ...]:
+    """Return the spans a registered function returns for a record, a BED record's own spans().
+
+    Raises:
+        TypeError: If the function returns one span instead of an iterable of them.
+    """
+    returned: Any = spans_of(feature)
+    if type(returned) not in (list, tuple) and (
+        hasattr(returned, "refname") or hasattr(returned, "spans")
+    ):
+        raise TypeError(
+            "A function registered with register_locatable() returns an iterable of spans, not"
+            + f" one span: return [span] instead of {returned!r}!"
+        )
+    spans: list[ReferenceSpan] = []
+    for span in returned:
+        method = getattr(span.__class__, "spans", None)
+        if method is None or method is SimpleBed.spans or not isinstance(span, BedLike):
+            spans.append(span)
+        else:
+            spans.extend(span.spans())
+    return tuple(spans)
 
 
 class _UnlocatableError(TypeError):
     """Raised for a record whose spans cannot be found."""
+
+
+_EXTENSIONS: dict[str, str] = {
+    "Bio": "biopython",
+    "cyvcf2": "cyvcf2",
+    "fgpyo": "fgpyo",
+    "mappy": "mappy",
+    "pybedtools": "pybedtools",
+    "pybwa": "pybwa",
+    "pysam": "pysam",
+}
+"""The module of `bedspec.ext` with functions for each library, by the library's package."""
+
+
+def _unlocatable(feature: object) -> _UnlocatableError:
+    """Return the error for a record whose spans cannot be found, naming a module that may help."""
+    kind = type(feature)
+    extension = _EXTENSIONS.get(kind.__module__.partition(".")[0])
+    module = "bedspec.ext" if extension is None else f"bedspec.ext.{extension}"
+    return _UnlocatableError(
+        f"Cannot find the spans of a record of type {kind.__module__}.{kind.__qualname__}:"
+        + " register a function returning them with register_locatable(), or use one from"
+        + f" {module}; a registration made for a with block ends when the block exits!"
+    )
 
 
 def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
@@ -786,7 +850,7 @@ def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
         kind = type(feature)
         spans_of = None if kind in _UNREGISTERED else _registered_for(kind)
         if spans_of is not None:
-            return spans_of(feature)
+            return _registered_spans(spans_of, feature)
     if isinstance(feature, BedLike):
         return feature.spans()
     record: Any = feature
@@ -801,10 +865,7 @@ def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
         spans = None
     if callable(spans):
         return cast("Iterable[ReferenceSpan]", spans())
-    raise _UnlocatableError(
-        f"Cannot find the spans of a {type(feature).__name__}: register a function returning them"
-        + " with register_locatable(), or use one from bedspec.ext!"
-    )
+    raise _unlocatable(feature)
 
 
 def _merged(spans: list[tuple[int, int]]) -> "array[int]":
