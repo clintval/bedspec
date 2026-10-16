@@ -708,11 +708,19 @@ def test_an_intersection_or_difference_of_unions_agrees_with_sets_of_bases() -> 
         assert territory.length == len(bases)
 
 
+def holds_few_unmerged_spans(territory: Territory) -> bool:
+    """Return whether a territory holds no more unmerged spans than a union lets it keep."""
+    unmerged = territory._unmerged  # pyright: ignore[reportPrivateUsage]
+    floor: int = vars(importlib.import_module("bedspec._bedspec"))["_COMPACT_AT"]
+    return unmerged is None or unmerged.logged <= max(unmerged.held, floor)
+
+
 def test_a_long_chain_of_unions_is_merged_without_recursion() -> None:
     """Test that a territory grown by a long chain of unions is merged, and merged correctly."""
     territory = Territory()
     for start in range(0, 400_000, 2):
         territory |= Territory([Bed3("chr1", start=start, end=start + 1)])
+        assert holds_few_unmerged_spans(territory)
     assert territory.length == 200_000
     assert territory.contains("chr1", 399_998)
     assert not territory.contains("chr1", 399_999)
@@ -723,6 +731,7 @@ def test_a_union_of_overlapping_reads_merges_as_it_grows() -> None:
     territory = Territory()
     for _ in range(200_000):
         territory |= chr1((10, 20))
+        assert holds_few_unmerged_spans(territory)
     assert list(territory) == [Bed3("chr1", start=10, end=20)]
 
 
@@ -771,10 +780,11 @@ def test_a_union_pickles_and_copies_as_its_merged_bases() -> None:
 
 def test_threads_merging_or_extending_one_territory_agree() -> None:
     """Test that threads merging one union, or extending one territory, all see the same bases."""
+    starts = range(0, 20_000, 3)
     union = Territory()
-    for start in range(0, 20_000, 3):
+    for start in starts:
         union |= chr1((start, start + 2))
-    expected = list(Territory(list(union)))
+    expected = list(chr1(*((start, start + 2) for start in starts)))
     barrier = Barrier(8)
     seen: list[list[Bed3]] = []
     extended: dict[int, Territory] = {}
