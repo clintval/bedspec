@@ -59,8 +59,8 @@ def as_blocks(read: pysam.AlignedSegment) -> list[Bed6]:
     return [stranded(read.reference_name, start, end, strand) for start, end in blocks]
 
 
-def _mate(read: pysam.AlignedSegment) -> tuple[str, int, list[tuple[int, str]]] | None:
-    """Return the reference, start and CIGAR operations of a read's mate, or None if it has none.
+def _mate(read: pysam.AlignedSegment) -> tuple[str, int, str, list[tuple[int, str]]] | None:
+    """Return the reference, start, strand and CIGAR operations of a read's mate, if it has one.
 
     Raises:
         ValueError: If the read is paired, its mate is mapped, and it has no MC tag.
@@ -76,41 +76,44 @@ def _mate(read: pysam.AlignedSegment) -> tuple[str, int, list[tuple[int, str]]] 
     if mate_cigar == "*":
         return None
     operations = [(int(length), operator) for length, operator in _CIGAR.findall(mate_cigar)]
-    return refname, read.next_reference_start, operations
+    strand = "-" if read.mate_is_reverse else "+"
+    return refname, read.next_reference_start, strand, operations
 
 
-def as_paired_intervals(read: pysam.AlignedSegment) -> list[Bed3]:
-    """Return the interval of a read and of its mate, from the MC tag, never joined, unstranded.
+def as_paired_intervals(read: pysam.AlignedSegment) -> list[ReferenceSpan]:
+    """Return the interval of a read and of its mate, from the MC tag, each on its own strand.
 
     Raises:
         ValueError: If the read is paired, its mate is mapped, and it has no MC tag.
     """
-    intervals = [Bed3(span.refname, start=span.start, end=span.end) for span in as_interval(read)]
+    intervals = as_interval(read)
     mate = _mate(read)
     if mate is None:
         return intervals
-    refname, start, operations = mate
+    refname, start, strand, operations = mate
     length = sum(length for length, operator in operations if operator in _ON_REFERENCE)
-    intervals.append(Bed3(refname, start=start, end=start + length))
+    intervals.append(stranded(refname, start, start + length, strand))
     return intervals
 
 
-def as_paired_blocks(read: pysam.AlignedSegment) -> list[Bed3]:
-    """Return the aligned blocks of a read and of its mate, from the MC tag, without strand.
+def as_paired_blocks(read: pysam.AlignedSegment) -> list[Bed6]:
+    """Return the aligned blocks of a read and of its mate, from the MC tag, each on its strand.
 
     Raises:
         ValueError: If the read is paired, its mate is mapped, and it has no MC tag.
     """
-    blocks = [Bed3(span.refname, start=span.start, end=span.end) for span in as_blocks(read)]
+    blocks = as_blocks(read)
     mate = _mate(read)
     if mate is None:
         return blocks
-    refname, start, operations = mate
+    refname, start, strand, operations = mate
     mate_blocks: list[tuple[int, int]] = []
     for length, operator in operations:
         if operator in _ALIGNED:
             mate_blocks.append((start, start + length))
         if operator in _ON_REFERENCE:
             start += length
-    blocks.extend(Bed3(refname, start=start, end=end) for start, end in joined_blocks(mate_blocks))
+    blocks.extend(
+        stranded(refname, start, end, strand) for start, end in joined_blocks(mate_blocks)
+    )
     return blocks

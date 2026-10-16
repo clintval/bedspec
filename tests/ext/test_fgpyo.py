@@ -15,16 +15,21 @@ from bedspec.ext.fgpyo import as_paired_intervals
 from bedspec.overlap import TreeDetector
 
 
-def test_as_paired_blocks_are_the_blocks_of_its_mapped_records_unstranded() -> None:
-    """Test that a template's blocks are those of its primary and supplementary records."""
+def stranded(start: int, end: int, strand: BedStrand) -> Bed6:
+    """Return a span on chr1 on a strand."""
+    return Bed6("chr1", start=start, end=end, name=None, score=None, strand=strand)
+
+
+def test_as_paired_blocks_are_the_blocks_of_its_mapped_records_on_their_strands() -> None:
+    """Test that a template's blocks are those of its records, each on its record's strand."""
     builder = SamBuilder()
     r1, r2 = builder.add_pair(
         chrom="chr1", start1=100, start2=900, cigar1="10M500N10M", cigar2="20M"
     )
     assert as_paired_blocks(Template.build([r1, r2])) == [
-        Bed3("chr1", start=100, end=110),
-        Bed3("chr1", start=610, end=620),
-        Bed3("chr1", start=900, end=920),
+        stranded(100, 110, BedStrand.Positive),
+        stranded(610, 620, BedStrand.Positive),
+        stranded(900, 920, BedStrand.Negative),
     ]
 
 
@@ -32,19 +37,19 @@ def test_the_paired_spans_of_a_template_skip_an_unmapped_mate() -> None:
     """Test that a template with an unmapped mate is found by its mapped one."""
     mapped, unmapped = SamBuilder().add_pair(chrom="chr1", start1=300, cigar1="20M")
     template = Template.build([mapped, unmapped])
-    assert as_paired_blocks(template) == [Bed3("chr1", start=300, end=320)]
-    assert as_paired_intervals(template) == [Bed3("chr1", start=300, end=320)]
+    assert as_paired_blocks(template) == [stranded(300, 320, BedStrand.Positive)]
+    assert as_paired_intervals(template) == [stranded(300, 320, BedStrand.Positive)]
 
 
-def test_as_paired_intervals_are_the_intervals_of_its_mapped_records_unstranded() -> None:
-    """Test that a template's paired intervals are those of its records, never joined."""
+def test_as_paired_intervals_are_the_intervals_of_its_mapped_records_on_their_strands() -> None:
+    """Test that a template's paired intervals are its records', never joined, on their strands."""
     builder = SamBuilder()
     r1, r2 = builder.add_pair(
         chrom="chr1", start1=100, start2=900, cigar1="10M500N10M", cigar2="20M"
     )
     assert as_paired_intervals(Template.build([r1, r2])) == [
-        Bed3("chr1", start=100, end=620),
-        Bed3("chr1", start=900, end=920),
+        stranded(100, 620, BedStrand.Positive),
+        stranded(900, 920, BedStrand.Negative),
     ]
 
 

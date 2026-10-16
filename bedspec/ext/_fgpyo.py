@@ -8,8 +8,8 @@ try:
 except ImportError as error:
     raise ImportError("bedspec.ext.fgpyo needs fgpyo: pip install 'bedspec[fgpyo]'") from error
 
-from bedspec import Bed3
 from bedspec import Bed6
+from bedspec import ReferenceSpan
 from bedspec.ext import _pysam
 from bedspec.ext._stranded import stranded
 
@@ -25,19 +25,11 @@ def _records(template: Template) -> Iterator[AlignedSegment]:
     return chain(template.primary_recs(), template.r1_supplementals, template.r2_supplementals)
 
 
-def as_paired_intervals(template: Template) -> list[Bed3]:
-    """Return the interval of each primary and supplementary record of a template, unstranded."""
-    return [
-        Bed3(span.refname, start=span.start, end=span.end)
-        for record in _records(template)
-        for span in _pysam.as_interval(record)
-    ]
+def as_paired_intervals(template: Template) -> list[ReferenceSpan]:
+    """Return the interval of each primary and supplementary record of a template, on its strand."""
+    return [span for record in _records(template) for span in _pysam.as_interval(record)]
 
 
-def as_paired_blocks(template: Template) -> list[Bed3]:
-    """Return the aligned blocks of the primary and supplementary records of a template."""
-    return [
-        Bed3(span.refname, start=span.start, end=span.end)
-        for record in _records(template)
-        for span in _pysam.as_blocks(record)
-    ]
+def as_paired_blocks(template: Template) -> list[Bed6]:
+    """Return the aligned blocks of each primary and supplementary record of a template."""
+    return [span for record in _records(template) for span in _pysam.as_blocks(record)]

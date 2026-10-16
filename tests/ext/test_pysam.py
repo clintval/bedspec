@@ -46,20 +46,27 @@ def read(start: int | None, cigar: str = "10M", reverse: bool = False) -> pysam.
     return segment
 
 
-def mated(segment: pysam.AlignedSegment, refname: str, start: int, cigar: str | None) -> None:
+def mated(
+    segment: pysam.AlignedSegment,
+    refname: str,
+    start: int,
+    cigar: str | None,
+    reverse: bool = False,
+) -> None:
     """Pair a read with a mate at a 0-based start, its CIGAR in the MC tag, or unmapped if None."""
     segment.is_paired = True
     segment.next_reference_name = refname
     segment.next_reference_start = start
+    segment.mate_is_reverse = reverse
     if cigar is None:
         segment.mate_is_unmapped = True
     else:
         segment.set_tag("MC", cigar)
 
 
-def stranded(start: int, end: int, strand: BedStrand) -> Bed6:
-    """Return a span on chr1 on a strand."""
-    return Bed6("chr1", start=start, end=end, name=None, score=None, strand=strand)
+def stranded(start: int, end: int, strand: BedStrand, refname: str = "chr1") -> Bed6:
+    """Return a span on a reference, chr1 by default, on a strand."""
+    return Bed6(refname, start=start, end=end, name=None, score=None, strand=strand)
 
 
 def tabix_records(lines: list[str], parser: Any) -> list[Any]:
@@ -96,14 +103,14 @@ def test_an_unmapped_read_has_no_spans() -> None:
 
 
 def test_as_paired_blocks_adds_the_blocks_of_the_mate_from_its_mate_cigar() -> None:
-    """Test that a read's pair blocks are its own and its mate's, from the MC tag, unstranded."""
+    """Test that a read's pair blocks are its own and its mate's, each on its own strand."""
     first = read(100, "10M500N10M")
-    mated(first, "chr2", 900, "5S10M2D3I12M")
+    mated(first, "chr2", 900, "5S10M2D3I12M", reverse=True)
     assert as_paired_blocks(first) == [
-        Bed3("chr1", start=100, end=110),
-        Bed3("chr1", start=610, end=620),
-        Bed3("chr2", start=900, end=910),
-        Bed3("chr2", start=912, end=924),
+        stranded(100, 110, BedStrand.Positive),
+        stranded(610, 620, BedStrand.Positive),
+        stranded(900, 910, BedStrand.Negative, refname="chr2"),
+        stranded(912, 924, BedStrand.Negative, refname="chr2"),
     ]
 
 
@@ -113,16 +120,16 @@ def test_the_paired_spans_of_a_read_without_a_mapped_mate_are_its_own() -> None:
     orphan = read(100)
     mated(orphan, "chr1", 100, None)
     for segment in (alone, orphan):
-        assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]
-        assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
+        assert as_paired_blocks(segment) == [stranded(100, 110, BedStrand.Positive)]
+        assert as_paired_intervals(segment) == [stranded(100, 110, BedStrand.Positive)]
 
 
 def test_the_paired_spans_of_an_unmapped_read_are_its_mates() -> None:
     """Test that an unmapped read with a mapped mate is found by its mate's blocks."""
     unmapped = read(None)
-    mated(unmapped, "chr1", 300, "20M")
-    assert as_paired_blocks(unmapped) == [Bed3("chr1", start=300, end=320)]
-    assert as_paired_intervals(unmapped) == [Bed3("chr1", start=300, end=320)]
+    mated(unmapped, "chr1", 300, "20M", reverse=True)
+    assert as_paired_blocks(unmapped) == [stranded(300, 320, BedStrand.Negative)]
+    assert as_paired_intervals(unmapped) == [stranded(300, 320, BedStrand.Negative)]
 
 
 def test_the_paired_spans_without_a_mate_cigar_raise() -> None:
@@ -136,22 +143,22 @@ def test_the_paired_spans_without_a_mate_cigar_raise() -> None:
 
 
 def test_as_paired_intervals_adds_the_interval_of_the_mate_from_its_mate_cigar() -> None:
-    """Test that a read's paired intervals are its own and its mate's, from MC, unstranded."""
-    first = read(100, "10M500N10M")
+    """Test that a read's paired intervals are its own and its mate's, each on its own strand."""
+    first = read(100, "10M500N10M", reverse=True)
     mated(first, "chr2", 900, "5S10M2D3I12M")
     assert as_paired_intervals(first) == [
-        Bed3("chr1", start=100, end=620),
-        Bed3("chr2", start=900, end=924),
+        stranded(100, 620, BedStrand.Negative),
+        stranded(900, 924, BedStrand.Positive, refname="chr2"),
     ]
 
 
 def test_as_paired_intervals_never_joins_mates_on_one_reference() -> None:
     """Test that mates on one reference keep an interval each, the insert between them unheld."""
     first = read(100, "20M")
-    mated(first, "chr1", 300, "20M")
+    mated(first, "chr1", 300, "20M", reverse=True)
     assert as_paired_intervals(first) == [
-        Bed3("chr1", start=100, end=120),
-        Bed3("chr1", start=300, end=320),
+        stranded(100, 120, BedStrand.Positive),
+        stranded(300, 320, BedStrand.Negative),
     ]
 
 
@@ -310,8 +317,8 @@ def test_as_paired_blocks_joins_the_blocks_of_a_mate_across_an_insertion() -> No
     first = read(100, "20M")
     mated(first, "chr1", 300, "50M2I50=1X49=")
     assert as_paired_blocks(first) == [
-        Bed3("chr1", start=100, end=120),
-        Bed3("chr1", start=300, end=450),
+        stranded(100, 120, BedStrand.Positive),
+        stranded(300, 450, BedStrand.Positive),
     ]
 
 
@@ -333,8 +340,8 @@ def test_a_mate_without_a_cigar_adds_nothing() -> None:
     """Test that a mate CIGAR of * adds no interval and no blocks for the mate."""
     segment = read(100)
     mated(segment, "chr1", 300, "*")
-    assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
-    assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]
+    assert as_paired_intervals(segment) == [stranded(100, 110, BedStrand.Positive)]
+    assert as_paired_blocks(segment) == [stranded(100, 110, BedStrand.Positive)]
 
 
 def test_a_mate_at_no_position_adds_nothing() -> None:
@@ -342,8 +349,8 @@ def test_a_mate_at_no_position_adds_nothing() -> None:
     segment = read(100)
     mated(segment, "chr1", 300, "20M")
     segment.next_reference_start = -1
-    assert as_paired_intervals(segment) == [Bed3("chr1", start=100, end=110)]
-    assert as_paired_blocks(segment) == [Bed3("chr1", start=100, end=110)]
+    assert as_paired_intervals(segment) == [stranded(100, 110, BedStrand.Positive)]
+    assert as_paired_blocks(segment) == [stranded(100, 110, BedStrand.Positive)]
 
 
 def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_territory(
@@ -405,3 +412,24 @@ def test_the_readme_headline_keeps_pairs_on_the_panel_and_writes_the_off_target_
             Bed3("chr1", start=20_000, end=20_050),
             Bed3("chr1", start=20_300, end=20_350),
         ]
+
+
+@pytest.mark.parametrize("paired", [as_paired_intervals, as_paired_blocks])
+def test_a_stranded_query_finds_a_pair_by_each_mate_on_its_own_strand(paired: Any) -> None:
+    """Test that a registered pair is found by whichever mate is on a target's strand."""
+    first = read(100, "20M")
+    mated(first, "chr1", 300, "20M", reverse=True)
+    on_their_strands = [
+        stranded(100, 120, BedStrand.Positive),
+        stranded(300, 320, BedStrand.Negative),
+    ]
+    on_the_other_strands = [
+        stranded(100, 120, BedStrand.Negative),
+        stranded(300, 320, BedStrand.Positive),
+    ]
+    with register_locatable(pysam.AlignedSegment, paired):
+        assert (
+            list(TreeDetector(on_their_strands).overlapping(first, stranded=True))
+            == on_their_strands
+        )
+        assert not TreeDetector(on_the_other_strands).overlaps(first, stranded=True)
