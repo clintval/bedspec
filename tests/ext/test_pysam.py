@@ -442,3 +442,13 @@ def test_a_mate_whose_cigar_holds_no_reference_base_adds_nothing(mate_cigar: str
     mated(first, "chr1", 500, mate_cigar)
     assert as_paired_intervals(first) == [stranded(100, 120, BedStrand.Positive)]
     assert as_paired_blocks(first) == [stranded(100, 120, BedStrand.Positive)]
+
+
+def test_the_intervals_of_reads_are_typed_as_stranded_bed_records() -> None:
+    """Test that a read's intervals type as BED6 records, so they can go where BED6 is expected."""
+    first = read(100, "20M")
+    mated(first, "chr1", 300, "20M", reverse=True)
+    interval: list[Bed6] = as_interval(first)
+    paired: list[Bed6] = as_paired_intervals(first)
+    assert interval == [stranded(100, 120, BedStrand.Positive)]
+    assert paired == [*interval, stranded(300, 320, BedStrand.Negative)]

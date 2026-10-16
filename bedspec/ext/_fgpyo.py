@@ -9,7 +9,6 @@ except ImportError as error:
     raise ImportError("bedspec.ext.fgpyo needs fgpyo: pip install 'bedspec[fgpyo]'") from error
 
 from bedspec import Bed6
-from bedspec import ReferenceSpan
 from bedspec.ext import _pysam
 from bedspec.ext._stranded import stranded
 
@@ -25,7 +24,7 @@ def _records(template: Template) -> Iterator[AlignedSegment]:
     return chain(template.primary_recs(), template.r1_supplementals, template.r2_supplementals)
 
 
-def as_template_intervals(template: Template) -> list[ReferenceSpan]:
+def as_template_intervals(template: Template) -> list[Bed6]:
     """Return the interval of each primary and supplementary record of a template, on its strand."""
     return [span for record in _records(template) for span in _pysam.as_interval(record)]
 

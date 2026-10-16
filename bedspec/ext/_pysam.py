@@ -1,4 +1,5 @@
 import re
+from typing import overload
 
 try:
     import pysam
@@ -10,7 +11,6 @@ except ImportError as error:
 
 from bedspec import Bed3
 from bedspec import Bed6
-from bedspec import ReferenceSpan
 from bedspec.ext._blocks import joined_blocks
 from bedspec.ext._stranded import stranded
 
@@ -25,9 +25,23 @@ def _consumes_reference(read: pysam.AlignedSegment) -> bool:
     return any(code in _ON_REFERENCE_CODES for code, _ in read.cigartuples or ())
 
 
+def _read_interval(read: pysam.AlignedSegment) -> list[Bed6]:
+    """Return a read's whole alignment on its strand, or nothing if it is on no reference base."""
+    refname, end = read.reference_name, read.reference_end
+    if read.is_unmapped or refname is None or end is None:
+        return []
+    if end - read.reference_start == 1 and not _consumes_reference(read):
+        return []
+    return [stranded(refname, read.reference_start, end, "-" if read.is_reverse else "+")]
+
+
+@overload
+def as_interval(record: pysam.AlignedSegment | GTFProxy | GFF3Proxy | BedProxy) -> list[Bed6]: ...
+@overload
+def as_interval(record: pysam.VariantRecord) -> list[Bed3]: ...
 def as_interval(
     record: pysam.AlignedSegment | pysam.VariantRecord | GTFProxy | GFF3Proxy | BedProxy,
-) -> list[ReferenceSpan]:
+) -> list[Bed6] | list[Bed3]:
     """Return a record's interval, the one span it is found by.
 
     A read's interval is its whole alignment, introns and deletions included, on its strand, and
@@ -36,12 +50,7 @@ def as_interval(
     has one.
     """
     if isinstance(record, pysam.AlignedSegment):
-        refname, end = record.reference_name, record.reference_end
-        if record.is_unmapped or refname is None or end is None:
-            return []
-        if end - record.reference_start == 1 and not _consumes_reference(record):
-            return []
-        return [stranded(refname, record.reference_start, end, "-" if record.is_reverse else "+")]
+        return _read_interval(record)
     if isinstance(record, pysam.VariantRecord):
         return [Bed3(record.contig, start=record.start, end=record.stop)]
     try:
@@ -81,13 +90,13 @@ def _mate(read: pysam.AlignedSegment) -> tuple[str, int, str, list[tuple[int, st
     return refname, read.next_reference_start, strand, operations
 
 
-def as_paired_intervals(read: pysam.AlignedSegment) -> list[ReferenceSpan]:
+def as_paired_intervals(read: pysam.AlignedSegment) -> list[Bed6]:
     """Return the interval of a read and of its mate, from the MC tag, each on its own strand.
 
     Raises:
         ValueError: If the read is paired, its mate is mapped, and it has no MC tag.
     """
-    intervals = as_interval(read)
+    intervals = _read_interval(read)
     mate = _mate(read)
     if mate is None:
         return intervals
