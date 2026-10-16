@@ -93,3 +93,13 @@ def test_an_alignment_without_a_named_target_is_refused() -> None:
     for function in (as_interval, as_blocks):
         with pytest.raises(ValueError, match="SeqRecord"):
             _ = function(alignment)
+
+
+@pytest.mark.parametrize("target", [SeqRecord(Seq("ACGT")), SeqRecord(Seq("ACGT"), id="")])
+def test_an_alignment_whose_target_has_no_id_is_refused(target: SeqRecord) -> None:
+    """Test that a target left with Biopython's placeholder id, or none, raises naming why."""
+    query = SeqRecord(Seq("ACGT"), id="query")
+    alignment = Alignment([target, query], coordinates=np.array([[0, 4], [0, 4]]))
+    for function in (as_interval, as_blocks):
+        with pytest.raises(ValueError, match="needs an id"):
+            _ = function(alignment)

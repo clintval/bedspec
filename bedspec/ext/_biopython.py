@@ -10,18 +10,25 @@ from bedspec import Bed6
 from bedspec.ext._blocks import joined_blocks
 from bedspec.ext._stranded import stranded
 
+_UNKNOWN_ID = "<unknown id>"
+"""The id Biopython gives a `SeqRecord` made without one."""
+
 
 def _refname(alignment: Alignment) -> str:
     """Return the name of an alignment's target, the reference its spans are on.
 
     Raises:
-        ValueError: If the target is not a `SeqRecord`, so has no name.
+        ValueError: If the target is not a `SeqRecord`, or has no id but Biopython's placeholder.
     """
     target = alignment.target
     if not isinstance(target, SeqRecord):
         kind = type(target).__name__
         raise ValueError(
             f"An alignment needs a SeqRecord target to name its reference, not {kind}!"
+        )
+    if not target.id or target.id == _UNKNOWN_ID:
+        raise ValueError(
+            f"An alignment's SeqRecord target needs an id to name its reference, not {target.id!r}!"
         )
     return target.id
 
