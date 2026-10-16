@@ -300,6 +300,17 @@ assert list(share) == [Bed3("chr1", start=25, end=27), Bed3("chr1", start=28, en
 assert share.length == 4
 ```
 
+Growing a territory with `|=` in a loop is cheap.
+A union keeps the spans it adds and merges them when it is first used, or once they outnumber the spans it holds, so a loop costs little more than building the territory from every span at once:
+
+```python
+covered = Territory()
+for start in range(0, 100, 10):
+    covered |= Territory([Bed3("chr1", start=start, end=start + 15)])
+
+assert list(covered) == [Bed3("chr1", start=0, end=105)]
+```
+
 Test one base with `contains`, or whether every base of a span or BED record is held with `in`:
 
 ```python
