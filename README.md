@@ -28,26 +28,32 @@ from pybgzf import IndexFormat
 from pysam import AlignedSegment, AlignmentFile
 from spillsort import Sorter
 
-from bedspec import Bed4, Bed6, BedWriter, ReferenceOrder, register_locatable
-from bedspec.ext.pysam import as_interval, as_paired_intervals
+from bedspec import Bed3, Bed4, BedWriter, ReferenceOrder, register_locatable
+from bedspec.ext.pysam import as_paired_intervals
 from bedspec.overlap import TabixDetector
 
 with (
     register_locatable(AlignedSegment, as_paired_intervals),
     AlignmentFile("unsorted.bam") as infile,
     TabixDetector[Bed4]("panel.bed.gz") as panel,
-    Sorter[Bed6](ReferenceOrder(infile.references)) as off_target,
-    BedWriter.from_path[Bed6]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
+    Sorter[Bed3](ReferenceOrder(infile.references)) as off_target,
+    BedWriter.from_path[Bed3]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
 ):
     for alignment in infile:
-        if not panel.overlaps(alignment):
-            off_target.add(*as_interval(alignment))
+        if alignment.is_mapped and not panel.overlaps(alignment):
+            bed = Bed3(
+                alignment.reference_name,
+                start=alignment.reference_start,
+                end=alignment.reference_end,
+            )
+            off_target.add(bed)
 
     writer.write_all(off_target.sort())
 ```
 
-A pair misses the panel when neither mate's interval touches a target, and a mate's interval comes from the read's `MC` tag, which `samtools fixmate -m` adds.
-The sorter, from spillsort, holds a bounded amount in memory and spills sorted runs to disk, so the BED is written in order and indexed.
+An alignment pair does not overlap the panel when neither mate's interval overlaps any region in the panel.
+An unsorted alignment file can be queried this way only if `samtools fixmate -m` has pre-added the standard `MC` tag upon the records.
+This example also shows how, with the `spillsort` library installed, you can write the non-overlapping alignments as BED3 intervals in coordinate sorted order to a block-compressed and tabix indexed output file.
 
 ## Quickstart
 
