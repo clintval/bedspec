@@ -126,8 +126,10 @@ class Stranded(Protocol):
     strand: BedStrand | None
 
 
-class BedLike(ABC, DataclassInstance):
+class BedLike(ABC):
     """An abstract base class for all types of BED records."""
+
+    __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
 
     def __init_subclass__(cls) -> None:
         if "territory" in vars(cls):

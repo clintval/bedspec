@@ -1,8 +1,14 @@
+from abc import ABCMeta
+from collections.abc import Iterator
+from dataclasses import dataclass
+from dataclasses import fields
 from dataclasses import is_dataclass
+from typing import Any
 
 import pytest
 from typing_extensions import override
 
+import bedspec
 from bedspec import Bed2
 from bedspec import Bed3
 from bedspec import Bed4
@@ -288,6 +294,99 @@ def test_a_custom_bed_class_must_override_spans_and_not_territory() -> None:
             @override  # type: ignore[misc]
             def territory(self) -> Territory:  # pyright: ignore[reportIncompatibleMethodOverride]
                 return Territory()
+
+
+@dataclass(frozen=True)
+class Tagged(SimpleBed):
+    """A custom BED record that adds a column to a linear interval."""
+
+    tag: str
+
+
+@dataclass(frozen=True)
+class Pieces(BedLike):
+    """A custom BED record built directly on BedLike from any parts."""
+
+    parts: tuple[Bed3, ...]
+
+    @override
+    def spans(self) -> Iterator[ReferenceSpan]:
+        """Yield the parts of this record."""
+        yield from self.parts
+
+
+@dataclass
+class Lookalike:
+    """A feature with spans() that is not a BED record."""
+
+    refname: str
+    start: int
+    end: int
+
+    def spans(self) -> Iterator[ReferenceSpan]:
+        """Yield this feature as its own only span."""
+        yield self
+
+
+BED_CLASSES: list[type[Any]] = [
+    value
+    for name in bedspec.__all__
+    if isinstance(value := getattr(bedspec, name), type) and hasattr(value, "spans")
+]
+"""Every BED class bedspec ships, abstract or not."""
+
+
+def test_bed_like_is_not_a_protocol() -> None:
+    """Test that BedLike is a plain abstract base class, so isinstance() against it is cheap."""
+    assert type(BedLike) is ABCMeta
+
+
+def test_bed_like_records_type_check_as_dataclass_instances() -> None:
+    """Test that a record typed as BedLike can be given where a dataclass instance is expected."""
+    record: BedLike = Bed3("chr1", start=1, end=2)
+    assert [field.name for field in fields(record)] == ["refname", "start", "end"]
+
+
+@pytest.mark.parametrize("bed_type", BED_CLASSES, ids=lambda bed_type: bed_type.__name__)
+def test_every_bed_class_is_bed_like(bed_type: type[Any]) -> None:
+    """Test that every BED class bedspec ships is a subclass of BedLike."""
+    assert issubclass(bed_type, BedLike)
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        Bed2("chr1", start=1),
+        Bed3("chr1", start=1, end=2),
+        bed12(100, 200, ((0, 10), (90, 10))),
+        BedPE(
+            refname1="chr1",
+            start1=1,
+            end1=2,
+            refname2="chr2",
+            start2=3,
+            end2=4,
+            name=None,
+            score=None,
+            strand1=None,
+            strand2=None,
+        ),
+        Tagged("chr1", 1, 2, "a"),
+        Pieces((Bed3("chr1", start=1, end=2),)),
+    ],
+    ids=lambda record: type(record).__name__,
+)
+def test_bed_records_are_bed_like(record: object) -> None:
+    """Test that shipped and custom BED records are instances of BedLike."""
+    assert isinstance(record, BedLike)
+    assert issubclass(type(record), BedLike)
+
+
+@pytest.mark.parametrize("feature", [Lookalike("chr1", 1, 2), Bed3, "chr1", 1, None])
+def test_other_objects_are_not_bed_like(feature: object) -> None:
+    """Test that objects that are not BED records, even one with spans(), are not BedLike."""
+    assert not isinstance(feature, BedLike)
+    assert not issubclass(type(feature), BedLike)
 
 
 def test_bed12_validation() -> None:
