@@ -71,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        EXTRA: [biopython, cyvcf2, fgpyo, mappy, pybedtools, pybwa, pysam]
+        EXTRA: [biopython, cyvcf2, fgpyo, mappy, pybedtools, pybwa, pysam, sort]
         PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
     env:
       COVERAGE_FILE: .coverage.${{ matrix.EXTRA }}-${{ matrix.PYTHON_VERSION }}
@@ -127,6 +127,9 @@ jobs:
 
       - name: Check the typing
         run: uv run --no-sync poe check-typing
+
+      - name: Run the README examples that read files, with every extra installed
+        run: uv run --no-sync pytest tests/ext/test_readme.py --cov-fail-under=0
 
   Coverage:
     name: Coverage
