@@ -676,6 +676,9 @@ def _swept(first: "array[int]", second: "array[int]", keep: _Keep) -> "array[int
 _COMPACT_AT: int = 1 << 16
 """The fewest unmerged spans a union merges at once, rather than when it is first used."""
 
+_SWEEP_AT: int = 1 << 16
+"""The fewest spans of a right operand that a union sweeps in at once, as `&` and `-` do."""
+
 _SHIFT: int = 40
 """How far a start is shifted to pack it with its end into one int that sorts as the pair does."""
 
@@ -902,8 +905,8 @@ class Territory(Iterable[Bed3]):
 
         The other is merged first, and its spans are appended to this territory's log when it
         holds every span of the log. Otherwise this territory is merged and starts a new log, so no
-        territory changes and no log is copied. A right operand of as many spans as are merged at
-        once is swept in at once instead.
+        territory changes and no log is copied. A right operand of many spans is swept in at once
+        instead.
         """
         if not isinstance(other, Territory):
             return NotImplemented  # type: ignore[no-any-return]
@@ -912,7 +915,7 @@ class Territory(Iterable[Bed3]):
         if not self:
             return other
         other._merge()
-        if _held(other._bounds) >= _COMPACT_AT:
+        if _held(other._bounds) >= _SWEEP_AT:
             return self._combined(other, lambda first, second: first or second)
         refnames, starts, ends = _spans_of(other._bounds)
         unmerged = self._unmerged

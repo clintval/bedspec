@@ -660,7 +660,7 @@ def test_territories_agree_with_sets_of_bases_on_random_features() -> None:
             assert held(feature.territory()) == bases_of([feature])
 
 
-@pytest.mark.parametrize("compact_at", [1, 3, 1 << 16])
+@pytest.mark.parametrize("compact_at", [1, 2, 3, 5, 1 << 16])
 def test_unions_agree_with_sets_of_bases_however_they_are_built(
     compact_at: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -880,3 +880,85 @@ def test_an_unmerged_territory_used_as_an_operand_is_merged_once() -> None:
     assert peak_memory(combine) < 4 * 2**20
     assert list(unions[0]) == [Bed3("chr2", start=0, end=1), Bed3("chr1", start=0, end=10_009)]
     assert list(unions[-1]) == [Bed3("chr3", start=0, end=1), Bed3("chr1", start=0, end=10_009)]
+
+
+def random_span(rng: Random) -> Bed3:
+    """Return a short, possibly zero-length, span, some just below or across 2**40."""
+    offset = (1 << 40) - 30 if rng.random() < 0.3 else 0
+    start = offset + rng.randrange(60)
+    end = start + rng.choice((0, 1, 2, 5, 15, 40))
+    return Bed3(rng.choice(("chr1", "chr2", "chr3")), start=start, end=end)
+
+
+def order_of(territory: Territory) -> list[str]:
+    """Return the references of a territory in the order its spans are yielded."""
+    return list(dict.fromkeys(span.refname for span in territory))
+
+
+def observed(
+    territory: Territory, bases: set[tuple[str, int]], order: list[str], how: int
+) -> Territory:
+    """Use a territory one way, checking it against its bases, and return it or a pickled copy."""
+    if how == 0:
+        assert territory.length == len(bases)
+    elif how == 1:
+        assert territory.contains("chr1", 3) is (("chr1", 3) in bases)
+    elif how == 2:
+        query = Bed3("chr2", start=1, end=4)
+        assert (query in territory) is is_held(query, bases)
+    elif how == 3:
+        assert hash(territory) == hash(Territory(list(territory)))
+    elif how == 4:
+        copied: Territory = pickle.loads(pickle.dumps(territory))
+        return copied
+    else:
+        assert order_of(territory) == order
+    return territory
+
+
+@pytest.mark.parametrize("sweep_at", [2, 1 << 16])
+@pytest.mark.parametrize("compact_at", [1, 2, 3, 5, 1 << 16])
+def test_territories_used_and_reused_in_any_order_agree_with_sets_of_bases(
+    compact_at: int, sweep_at: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that territories used, reused, and combined in any order agree with sets of bases."""
+    monkeypatch.setattr("bedspec._bedspec._COMPACT_AT", compact_at)
+    monkeypatch.setattr("bedspec._bedspec._SWEEP_AT", sweep_at)
+    rng = Random(compact_at * 31 + sweep_at)
+    for _ in range(60):
+        pool: list[tuple[Territory, set[tuple[str, int]], list[str]]] = [(Territory(), set(), [])]
+        for _ in range(rng.randrange(5, 40)):
+            choice = rng.random()
+            territory, bases, order = rng.choice(pool)
+            if choice < 0.35:
+                other, other_bases, other_order = rng.choice(pool)
+                result = territory | other
+                expected = bases | other_bases, list(dict.fromkeys(order + other_order))
+            elif choice < 0.6:
+                spans = [random_span(rng) for _ in range(rng.randrange(4))]
+                fresh = Territory(spans)
+                fresh_bases = bases_of(list(spans))
+                fresh_order = list(dict.fromkeys(s.refname for s in spans if s.start < s.end))
+                if rng.random() < 0.5:
+                    result = territory | fresh
+                    expected = bases | fresh_bases, list(dict.fromkeys(order + fresh_order))
+                else:
+                    result = fresh | territory
+                    expected = fresh_bases | bases, list(dict.fromkeys(fresh_order + order))
+            elif choice < 0.75:
+                other, other_bases, other_order = rng.choice(pool)
+                if rng.random() < 0.5:
+                    result, kept = territory & other, bases & other_bases
+                else:
+                    result, kept = territory - other, bases - other_bases
+                refnames = {refname for refname, _ in kept}
+                expected = kept, [r for r in dict.fromkeys(order + other_order) if r in refnames]
+            else:
+                result, expected = (
+                    observed(territory, bases, order, rng.randrange(6)),
+                    (bases, order),
+                )
+            pool.append((result, *expected))
+        for territory, bases, order in pool:
+            assert held(territory) == bases
+            assert order_of(territory) == order
