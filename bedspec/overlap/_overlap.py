@@ -21,7 +21,7 @@ from bedspec._bedspec import BedStrand
 from bedspec._bedspec import Locatable
 from bedspec._bedspec import ReferenceSpan
 from bedspec._bedspec import SimpleBed
-from bedspec._bedspec import ToBed
+from bedspec._bedspec import SpansOf
 from bedspec._bedspec import _check_span  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _registered_for  # pyright: ignore[reportPrivateUsage]
 from bedspec._bedspec import _spans  # pyright: ignore[reportPrivateUsage]
@@ -145,9 +145,9 @@ def _located(feature: Locatable) -> Located | None:
     """
     kind = type(feature)
     if _REGISTRY and kind not in _UNREGISTERED:
-        to_bed = _registered_for(kind)
-        if to_bed is not None:
-            return tuple(to_bed(feature)), None
+        spans_of = _registered_for(kind)
+        if spans_of is not None:
+            return tuple(spans_of(feature)), None
     if getattr(kind, "spans", None) is SimpleBed.spans:
         return None
     if isinstance(feature, BedLike):
@@ -160,24 +160,24 @@ def _located(feature: Locatable) -> Located | None:
     return None
 
 
-def _registration(feature: Locatable) -> ToBed | None:
+def _registration(feature: Locatable) -> SpansOf | None:
     """Return the function registered for a feature's class, if any."""
     kind = type(feature)
     return None if kind in _UNREGISTERED or not _REGISTRY else _registered_for(kind)
 
 
-def _query_spans(feature: Any, to_bed: ToBed | None = None) -> tuple[ReferenceSpan, ...]:
+def _query_spans(feature: Any, spans_of: SpansOf | None = None) -> tuple[ReferenceSpan, ...]:
     """Return the spans of a query that is not its own only span, each with its strand.
 
-    The spans of a query registered with `to_bed` keep only their own strand, as a registered
+    The spans of a query registered with `spans_of` keep only their own strand, as a registered
     feature's do; otherwise a span without a strand takes its query's if the query is a BED record.
     A span is used as it is when it needs no strand from its query and its class is not registered.
     """
-    if to_bed is None:
+    if spans_of is None:
         fallback = _strand(feature) if isinstance(feature, BedLike) else None
         located = _spans(feature)
     else:
-        fallback, located = None, to_bed(feature)
+        fallback, located = None, spans_of(feature)
     spans: list[ReferenceSpan] = []
     for span in located:
         if (fallback is None or _strand(span) is not None) and _registration(span) is None:
@@ -194,15 +194,15 @@ def _as_spans(feature: Any) -> tuple[ReferenceSpan, ...]:
     A BED12 query is matched by its whole extent, as an unregistered query with a `refname`,
     `start` and `end` always is.
     """
-    to_bed = _registration(feature)
-    if to_bed is None:
+    spans_of = _registration(feature)
+    if spans_of is None:
         try:
             _ = feature.refname, feature.start, feature.end
         except (AttributeError, KeyError):
             pass
         else:
             return (feature,)
-    return _query_spans(feature, to_bed)
+    return _query_spans(feature, spans_of)
 
 
 def _one_span(feature: Locatable, method: str) -> ReferenceSpan | None:
@@ -425,8 +425,8 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     def overlapping(self, feature: Locatable, *, stranded: bool = False) -> Iterator[FeatureType]:
         """Yields all the features with a span that overlaps the given query feature."""
         query: Any = feature
-        if _REGISTRY and (to_bed := _registration(feature)) is not None:
-            yield from self._overlapping_any(_query_spans(query, to_bed), stranded)
+        if _REGISTRY and (spans_of := _registration(feature)) is not None:
+            yield from self._overlapping_any(_query_spans(query, spans_of), stranded)
             return
         try:
             refname: Refname = query.refname
@@ -477,8 +477,8 @@ class TreeDetector(Iterable[FeatureType], Generic[FeatureType]):
     def overlaps(self, feature: Locatable, *, stranded: bool = False) -> bool:
         """Determine if a query feature overlaps any other features."""
         query: Any = feature
-        if _REGISTRY and (to_bed := _registration(feature)) is not None:
-            return self._overlaps_any(_query_spans(query, to_bed), stranded)
+        if _REGISTRY and (spans_of := _registration(feature)) is not None:
+            return self._overlaps_any(_query_spans(query, spans_of), stranded)
         try:
             tree = self._tree_for(query.refname)
             start, end = _closed(query.start, query.end)

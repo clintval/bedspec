@@ -641,7 +641,7 @@ _NONE: "array[int]" = array("q")
 RecordType = TypeVar("RecordType")
 """A type variable for a class of records registered with `register_locatable`."""
 
-ToBed: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
+SpansOf: TypeAlias = Callable[[Any], Iterable[ReferenceSpan]]
 """A function returning the 0-based half-open spans a record is found by."""
 
 Locatable = TypeAliasType("Locatable", object)
@@ -651,28 +651,28 @@ record with a `spans()` method, or a record of a class registered with `register
 It is a type alias of `object`, since a registration happens at runtime, and not a class.
 """
 
-_REGISTRY: dict[type, ToBed] = {}
+_REGISTRY: dict[type, SpansOf] = {}
 """The function registered for each class with `register_locatable`."""
 
-_RESOLVED: dict[type, ToBed | None] = {}
+_RESOLVED: dict[type, SpansOf | None] = {}
 """The registered function each class resolves to through its MRO, or None, until it changes."""
 
 _UNREGISTERED: set[type] = set()
 """The classes known to resolve to no registered function, until the registry changes."""
 
 
-def _registered_for(kind: type[Any]) -> ToBed | None:
+def _registered_for(kind: type[Any]) -> SpansOf | None:
     """Return the function registered for a class or the nearest class in its MRO, if any."""
     try:
         return _RESOLVED[kind]
     except KeyError:
-        to_bed: ToBed | None = None
+        spans_of: SpansOf | None = None
         if not issubclass(kind, BedLike):
-            to_bed = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
-        _RESOLVED[kind] = to_bed
-        if to_bed is None:
+            spans_of = next((_REGISTRY[base] for base in kind.__mro__ if base in _REGISTRY), None)
+        _RESOLVED[kind] = spans_of
+        if spans_of is None:
             _UNREGISTERED.add(kind)
-        return to_bed
+        return spans_of
 
 
 def _forget_resolutions() -> None:
@@ -684,17 +684,17 @@ def _forget_resolutions() -> None:
 _INSTALLERS: dict[type, "_Registration"] = {}
 """The registration that installed the function registered for each class."""
 
-_Installed: TypeAlias = tuple[ToBed | None, "_Registration | None"]
+_Installed: TypeAlias = tuple[SpansOf | None, "_Registration | None"]
 """A function registered for a class, or None, and the registration that installed it, or None."""
 
 
 def _install(kind: type, installed: _Installed) -> None:
     """Register a function for a class with the registration that installed it, or neither."""
-    to_bed, installer = installed
-    if to_bed is None:
+    spans_of, installer = installed
+    if spans_of is None:
         _ = _REGISTRY.pop(kind, None)
     else:
-        _REGISTRY[kind] = to_bed
+        _REGISTRY[kind] = spans_of
     if installer is None:
         _ = _INSTALLERS.pop(kind, None)
     else:
@@ -705,9 +705,9 @@ def _install(kind: type, installed: _Installed) -> None:
 class _Registration(AbstractContextManager[None]):
     """A registration that, used in a `with` statement, restores the one before it on exit."""
 
-    def __init__(self, kind: type, to_bed: ToBed, displaced: _Installed) -> None:
+    def __init__(self, kind: type, spans_of: SpansOf, displaced: _Installed) -> None:
         self._kind: type = kind
-        self._to_bed: ToBed = to_bed
+        self._spans_of: SpansOf = spans_of
         self._displaced_by_call: _Installed | None = displaced
         self._displaced_by_blocks: list[_Installed] = []
 
@@ -721,7 +721,7 @@ class _Registration(AbstractContextManager[None]):
             self._displaced_by_call = None
         else:
             self._displaced_by_blocks.append((_REGISTRY.get(kind), _INSTALLERS.get(kind)))
-            _install(kind, (self._to_bed, self))
+            _install(kind, (self._spans_of, self))
 
     @override
     def __exit__(
@@ -739,11 +739,11 @@ class _Registration(AbstractContextManager[None]):
 
 
 def register_locatable(
-    kind: type[RecordType], to_bed: Callable[[RecordType], Iterable[ReferenceSpan]]
+    kind: type[RecordType], spans: Callable[[RecordType], Iterable[ReferenceSpan]]
 ) -> AbstractContextManager[None]:
     """Register how detectors and territories find the spans of a class of records.
 
-    `to_bed` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
+    `spans` returns the 0-based half-open spans a record is found by, such as `Bed3` records, or
     `Bed6` records when strand matters; returning none means the record is found by nothing. It
     is used for the class and its subclasses, before anything else, replacing any earlier
     registration of the class. Used in a `with` statement, the registration holds only until the
@@ -753,7 +753,7 @@ def register_locatable(
 
     Raises:
         TypeError: If `kind` is not a class, is `object`, a `Protocol`, or a BED class, or if
-            `to_bed` is not callable.
+            `spans` is not callable.
     """
     if not isinstance(kind, type) or kind is object or is_protocol(kind):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f"Only a class of records can be registered, not {kind!r}!")
@@ -762,10 +762,10 @@ def register_locatable(
             "A BED record is found by its own spans: override spans() in a subclass of"
             + f" {kind.__name__} instead of registering it!"
         )
-    if not callable(to_bed):
-        raise TypeError(f"to_bed must be a function returning spans, not {to_bed!r}!")  # pyright: ignore[reportUnreachable]
-    registration = _Registration(kind, to_bed, (_REGISTRY.get(kind), _INSTALLERS.get(kind)))
-    _install(kind, (to_bed, registration))
+    if not callable(spans):
+        raise TypeError(f"spans must be a function returning spans, not {spans!r}!")  # pyright: ignore[reportUnreachable]
+    registration = _Registration(kind, spans, (_REGISTRY.get(kind), _INSTALLERS.get(kind)))
+    _install(kind, (spans, registration))
     return registration
 
 
@@ -784,9 +784,9 @@ def _spans(feature: Locatable) -> Iterable[ReferenceSpan]:
     """
     if _REGISTRY:
         kind = type(feature)
-        to_bed = None if kind in _UNREGISTERED else _registered_for(kind)
-        if to_bed is not None:
-            return to_bed(feature)
+        spans_of = None if kind in _UNREGISTERED else _registered_for(kind)
+        if spans_of is not None:
+            return spans_of(feature)
     if isinstance(feature, BedLike):
         return feature.spans()
     record: Any = feature

@@ -25,11 +25,11 @@ def _records(template: Template) -> Iterator[AlignedSegment]:
     return chain(template.primary_recs(), template.r1_supplementals, template.r2_supplementals)
 
 
-def as_paired_intervals(template: Template) -> list[ReferenceSpan]:
+def as_template_intervals(template: Template) -> list[ReferenceSpan]:
     """Return the interval of each primary and supplementary record of a template, on its strand."""
     return [span for record in _records(template) for span in _pysam.as_interval(record)]
 
 
-def as_paired_blocks(template: Template) -> list[Bed6]:
+def as_template_blocks(template: Template) -> list[Bed6]:
     """Return the aligned blocks of each primary and supplementary record of a template."""
     return [span for record in _records(template) for span in _pysam.as_blocks(record)]

@@ -382,10 +382,10 @@ Keep whole templates, supplementary alignments included, from a BAM grouped by r
 ```python
 from fgpyo.sam import Template
 
-from bedspec.ext.fgpyo import as_paired_blocks
+from bedspec.ext.fgpyo import as_template_blocks
 
 with (
-    register_locatable(Template, as_paired_blocks),
+    register_locatable(Template, as_template_blocks),
     TabixDetector[Bed4]("targets.bed.gz") as targets,
     pysam.AlignmentFile("grouped.bam") as bam,
     pysam.AlignmentFile("kept.bam", "wb", template=bam) as kept,
@@ -411,7 +411,7 @@ genes.overlaps(Interval("chr1", 100, 200))
 ```
 
 `bedspec.ext` has functions for these libraries, each installed with its extra, like `pip install 'bedspec[pysam]'`.
-Each module names them the same way: `as_interval` finds a record by its interval, from its first base to its last, `as_blocks` by the aligned blocks within it, and `as_paired_intervals` and `as_paired_blocks` add those of its mate, each on its own strand and never joined into one.
+Each module names them the same way: `as_interval` finds a record by its interval, from its first base to its last, `as_blocks` by the aligned blocks within it, `as_paired_intervals` and `as_paired_blocks` add those of its mate, and `as_template_intervals` and `as_template_blocks` those of every record of a template, each on its own strand and never joined into one.
 
 | Module | Function | Finds |
 | --- | --- | --- |
@@ -421,8 +421,8 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | | `as_paired_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag, each on its strand |
 | `bedspec.ext.pybedtools` | `as_interval` | an `Interval`, on its strand |
 | `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
-| | `as_paired_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
-| | `as_paired_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
+| | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
+| | `as_template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
 | `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` by its reference allele |
 | `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
 | | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
