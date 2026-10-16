@@ -40,21 +40,21 @@ from bedspec.overlap import TabixDetector
 
 with (
     register_locatable(AlignedSegment, as_paired_intervals),
-    AlignmentFile("unsorted.bam") as infile,
+    AlignmentFile("unsorted.bam") as reader,
     TabixDetector[Bed4]("panel.bed.gz") as panel,
-    Sorter[Bed3](ReferenceOrder(infile.references)) as off_target,
+    Sorter[Bed3](ReferenceOrder(reader.references)) as off_target_sorter,
     BedWriter.from_path[Bed3]("off-target.bed.gz", index=IndexFormat.TBI) as writer,
 ):
-    for alignment in infile:
+    for alignment in reader:
         if alignment.is_mapped and not panel.overlaps(alignment):
             bed = Bed3(
                 alignment.reference_name,
                 start=alignment.reference_start,
                 end=alignment.reference_end,
             )
-            off_target.add(bed)
+            off_target_sorter.add(bed)
 
-    writer.write_all(off_target.sort())
+    writer.write_all(off_target_sorter.sort())
 ```
 
 An alignment pair does not overlap the panel when neither mate's interval overlaps any region in the panel.
