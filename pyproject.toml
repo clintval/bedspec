@@ -9,8 +9,8 @@ keywords = ["bioinformatics", "BED", "NGS", "HTS", "interval"]
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
-    "pybgzf >=0.1.2",
-    "superintervals >=1.0.3",
+    "pybgzf >=0.2.0,<0.3",
+    "superintervals >=1.0.3,<2",
     "typeline >=2.4.2,<3",
     "typing-extensions >=4.12",
 ]
