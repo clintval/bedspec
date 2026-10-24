@@ -189,7 +189,7 @@ requires-dist = [
     { name = "pysam", marker = "extra == 'pysam'", specifier = ">=0.24.1" },
     { name = "spillsort", marker = "extra == 'sort'", specifier = ">=0.1.1" },
     { name = "superintervals", specifier = ">=1.0.3" },
-    { name = "typeline", specifier = ">=2.4.2" },
+    { name = "typeline", specifier = ">=2.4.2,<3" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 provides-extras = ["biopython", "cyvcf2", "fgpyo", "mappy", "pybedtools", "pybwa", "pysam", "sort"]
