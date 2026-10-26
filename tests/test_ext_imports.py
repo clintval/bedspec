@@ -13,6 +13,7 @@ BLOCKED: dict[str, tuple[str, ...]] = {
     "pybedtools": ("pybedtools",),
     "pybwa": ("pybwa",),
     "pysam": ("pysam", "pysam.libctabixproxies"),
+    "shipslog": ("shipslog", "shipslog.picard", "shipslog.riker"),
 }
 """The modules each extra installs, blocked so importing them fails as if they were missing."""
 

@@ -837,6 +837,7 @@ _EXTENSIONS: dict[str, str] = {
     "pybedtools": "pybedtools",
     "pybwa": "pybwa",
     "pysam": "pysam",
+    "shipslog": "shipslog",
 }
 """The module of `bedspec.ext` with functions for each library, by the library's package."""
 

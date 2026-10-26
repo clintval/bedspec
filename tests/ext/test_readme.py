@@ -5,6 +5,7 @@
 import gzip
 import os
 from collections import Counter
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,12 @@ HEADER = pysam.AlignmentHeader.from_dict({
     "SQ": [{"SN": "chr2", "LN": 10_000}, {"SN": "chr1", "LN": 10_000}],
 })
 """A header that lists chr2 before chr1, so sorting by its order differs from sorting by name."""
+
+PER_TARGET_COVERAGE = """chrom\tstart\tend\tlength\tname\t%gc\tmean_coverage\tnormalized_coverage\tmin_normalized_coverage\tmax_normalized_coverage\tmin_coverage\tmax_coverage\tpct_0x\tread_count
+chr2\t501\t600\t100\tT2\t0.41\t77.49\t1.098526\t0.921463\t1.261695\t65\t89\t0\t140
+chr1\t1001\t1100\t100\tT1\t0.38\t76.45\t1.083782\t0.878934\t1.332577\t62\t94\t0\t149
+"""  # noqa: E501
+"""The per-target coverage of the targets of `targets.bed.gz`, as Picard writes it, 1-based."""
 
 
 def mate(
@@ -106,6 +113,7 @@ def write_files() -> None:
                 out.new_record(contig="chr1", start=start, stop=start + 1, alleles=("A", "T"))
             )
     _ = Path("genes.gff").write_text("##gff-version 3\nchr1\tsrc\tgene\t101\t200\t.\t+\t.\tID=g1\n")
+    _ = Path("hs.per_target_coverage.txt").write_text(PER_TARGET_COVERAGE)
 
 
 def readme_blocks() -> list[tuple[int, str]]:
@@ -125,6 +133,9 @@ def test_every_readme_example_runs_against_the_files_it_reads(
     write_files()
     namespace: dict[str, object] = {"__name__": "__readme__"}
     for line, code in readme_blocks():
+        # shipslog is not on PyPI, so its example runs only where it is installed.
+        if "shipslog" in code and find_spec("shipslog") is None:
+            continue
         exec(compile(code, f"{README}:{line}", "exec"), namespace)  # noqa: S102
     with pysam.AlignmentFile("on-target.bam") as kept:
         assert Counter(segment.query_name for segment in kept) == {

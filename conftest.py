@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from importlib.util import find_spec
 
 import pytest
 from sybil import Sybil
@@ -8,6 +9,11 @@ from sybil.parsers.markdown import SkipParser
 pytest_collect_file = Sybil(
     parsers=[PythonCodeBlockParser(), SkipParser()], patterns=["*.md"]
 ).pytest()
+
+# shipslog is not on PyPI, so the doctests of its module are collected only where it is installed.
+collect_ignore: list[str] = (
+    [] if find_spec("shipslog") else ["bedspec/ext/_shipslog.py", "bedspec/ext/shipslog.py"]
+)
 
 
 @pytest.fixture(autouse=True)

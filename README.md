@@ -403,6 +403,24 @@ with (
             template.write_to(kept)
 ```
 
+Find the targets in the per-target coverage that Picard's `CollectHsMetrics` writes, read with [shipslog](https://github.com/clintval/shipslog), by their 1-based coordinates made 0-based half-open:
+
+<!-- skip: next -->
+```python
+from shipslog.picard import PerTargetCoverage, PicardCoverageReader
+
+from bedspec.ext.shipslog import as_interval
+
+with (
+    register_locatable(PerTargetCoverage, as_interval),
+    PicardCoverageReader.from_path[PerTargetCoverage]("hs.per_target_coverage.txt") as rows,
+):
+    targets = TreeDetector(rows)
+    [target] = targets.overlapping(Bed3("chr1", start=1_000, end=1_001))
+
+assert (target.name, target.start) == ("T1", 1_001)
+```
+
 Register any other type with a function of your own, which can be a `lambda`; here pybedtools, which already reads a GFF file's coordinates as 0-based half-open, though `bedspec.ext.pybedtools.as_interval` does the same and keeps strand:
 
 <!-- skip: next -->
@@ -437,6 +455,7 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
+| `bedspec.ext.shipslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
 
 Every module names its functions the same way, so rename at import to use two together:
 
