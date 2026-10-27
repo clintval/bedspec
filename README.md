@@ -416,7 +416,7 @@ with (
     PicardCoverageReader.from_path[PerTargetCoverage]("hs.per_target_coverage.txt") as rows,
 ):
     targets = TreeDetector(rows)
-    [target] = targets.overlapping(Bed3("chr1", start=1_000, end=1_001))
+    [target] = targets.overlapping(Bed3("chr1", start=900, end=1_200))
 
 assert (target.name, target.start) == ("T1", 1_001)
 ```
