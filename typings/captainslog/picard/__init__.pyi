@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from shipslog._binding import FromPath
+from captainslog._binding import FromPath
 
 @dataclass(frozen=True, kw_only=True)
 class PerTargetCoverage:

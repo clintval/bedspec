@@ -1,4 +1,4 @@
-"""Tests of the function that reads shipslog's records as spans."""
+"""Tests of the function that reads captainslog's records as spans."""
 
 # pyright: reportMissingModuleSource=false
 
@@ -7,24 +7,24 @@ from typing import Any
 
 import pytest
 
-pytest.importorskip("shipslog")
+pytest.importorskip("captainslog")
 
-from shipslog.picard import FingerprintingDetailMetrics
-from shipslog.picard import PerBaseCoverage
-from shipslog.picard import PerTargetCoverage
-from shipslog.picard import PicardCoverageReader
-from shipslog.picard import PicardReader
-from shipslog.picard import RrbsCpgDetailMetrics
-from shipslog.riker import HybcapMetrics
-from shipslog.riker import HybcapPerBase
-from shipslog.riker import HybcapPerTarget
-from shipslog.riker import RikerReader
+from captainslog.picard import FingerprintingDetailMetrics
+from captainslog.picard import PerBaseCoverage
+from captainslog.picard import PerTargetCoverage
+from captainslog.picard import PicardCoverageReader
+from captainslog.picard import PicardReader
+from captainslog.picard import RrbsCpgDetailMetrics
+from captainslog.riker import HybcapMetrics
+from captainslog.riker import HybcapPerBase
+from captainslog.riker import HybcapPerTarget
+from captainslog.riker import RikerReader
 
-import bedspec.ext.shipslog
+import bedspec.ext.captainslog
 from bedspec import Bed3
 from bedspec import Bed4
 from bedspec import register_locatable
-from bedspec.ext.shipslog import as_interval
+from bedspec.ext.captainslog import as_interval
 from bedspec.overlap import TreeDetector
 
 PER_TARGET_COVERAGE = """chrom\tstart\tend\tlength\tname\t%gc\tmean_coverage\tnormalized_coverage\tmin_normalized_coverage\tmax_normalized_coverage\tmin_coverage\tmax_coverage\tpct_0x\tread_count
@@ -204,7 +204,7 @@ def test_registered_targets_are_found_by_their_first_and_last_bases_only(tmp_pat
 def test_as_interval_of_a_record_of_another_class_raises_naming_it() -> None:
     """Test that a record of a class without an interval, like Riker's hybcap summary, raises."""
     record: Any = HybcapMetrics()
-    with pytest.raises(TypeError, match=r"of type shipslog\.riker\..*HybcapMetrics!"):
+    with pytest.raises(TypeError, match=r"of type captainslog\.riker\..*HybcapMetrics!"):
         as_interval(record)
 
 
@@ -214,8 +214,8 @@ def test_as_interval_of_a_cpg_without_a_position_raises() -> None:
         _ = as_interval(RrbsCpgDetailMetrics(sequence_name="chr1"))
 
 
-def test_bedspec_ext_shipslog_holds_only_the_functions_it_exports() -> None:
-    """Test that bedspec.ext.shipslog holds its function and none of the names it imports."""
-    module = bedspec.ext.shipslog
+def test_bedspec_ext_captainslog_holds_only_the_functions_it_exports() -> None:
+    """Test that bedspec.ext.captainslog holds its function and none of the names it imports."""
+    module = bedspec.ext.captainslog
     public = sorted(name for name in vars(module) if not name.startswith("_"))
     assert public == sorted(module.__all__) == ["as_interval"]

@@ -3,15 +3,15 @@
 from typing import overload
 
 try:
-    from shipslog.picard import FingerprintingDetailMetrics
-    from shipslog.picard import PerBaseCoverage
-    from shipslog.picard import PerTargetCoverage
-    from shipslog.picard import RrbsCpgDetailMetrics
-    from shipslog.riker import HybcapPerBase
-    from shipslog.riker import HybcapPerTarget
+    from captainslog.picard import FingerprintingDetailMetrics
+    from captainslog.picard import PerBaseCoverage
+    from captainslog.picard import PerTargetCoverage
+    from captainslog.picard import RrbsCpgDetailMetrics
+    from captainslog.riker import HybcapPerBase
+    from captainslog.riker import HybcapPerTarget
 except ImportError as error:
     raise ImportError(
-        "bedspec.ext.shipslog needs shipslog: pip install 'bedspec[shipslog]'"
+        "bedspec.ext.captainslog needs captainslog: pip install 'bedspec[captainslog]'"
     ) from error
 
 from bedspec import Bed3
@@ -40,7 +40,7 @@ def as_interval(record: object) -> list[Bed4] | list[Bed3]:
     position Picard writes.
 
     Raises:
-        TypeError: If the record is not one of shipslog's targets, bases, SNPs, or CpGs.
+        TypeError: If the record is not one of captainslog's targets, bases, SNPs, or CpGs.
         ValueError: If the record is a CpG without a position.
     """
     if isinstance(record, PerTargetCoverage | HybcapPerTarget):

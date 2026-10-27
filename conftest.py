@@ -10,9 +10,11 @@ pytest_collect_file = Sybil(
     parsers=[PythonCodeBlockParser(), SkipParser()], patterns=["*.md"]
 ).pytest()
 
-# shipslog is not on PyPI, so the doctests of its module are collected only where it is installed.
+# captainslog is not on PyPI, so its module's doctests run only where it is installed.
 collect_ignore: list[str] = (
-    [] if find_spec("shipslog") else ["bedspec/ext/_shipslog.py", "bedspec/ext/shipslog.py"]
+    []
+    if find_spec("captainslog")
+    else ["bedspec/ext/_captainslog.py", "bedspec/ext/captainslog.py"]
 )
 
 

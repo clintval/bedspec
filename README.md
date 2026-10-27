@@ -403,13 +403,13 @@ with (
             template.write_to(kept)
 ```
 
-Find the targets in the per-target coverage that Picard's `CollectHsMetrics` writes, read with [shipslog](https://github.com/clintval/shipslog), by their 1-based coordinates made 0-based half-open:
+Find the targets in the per-target coverage that Picard's `CollectHsMetrics` writes, read with [captainslog](https://github.com/clintval/captainslog), by their 1-based coordinates made 0-based half-open:
 
 <!-- skip: next -->
 ```python
-from shipslog.picard import PerTargetCoverage, PicardCoverageReader
+from captainslog.picard import PerTargetCoverage, PicardCoverageReader
 
-from bedspec.ext.shipslog import as_interval
+from bedspec.ext.captainslog import as_interval
 
 with (
     register_locatable(PerTargetCoverage, as_interval),
@@ -455,7 +455,7 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
-| `bedspec.ext.shipslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
+| `bedspec.ext.captainslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
 
 Every module names its functions the same way, so rename at import to use two together:
 
