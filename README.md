@@ -403,7 +403,7 @@ with (
             template.write_to(kept)
 ```
 
-Find the targets in the per-target coverage that Picard's `CollectHsMetrics` writes, read with [captainslog](https://github.com/clintval/captainslog), by their 1-based coordinates made 0-based half-open:
+Find the targets of a gene in the per-target coverage that Picard's `CollectHsMetrics` writes, read with [captainslog](https://github.com/clintval/captainslog), by their 1-based coordinates made 0-based half-open:
 
 <!-- skip: next -->
 ```python
@@ -411,14 +411,15 @@ from captainslog.picard import PerTargetCoverage, PicardCoverageReader
 
 from bedspec.ext.captainslog import as_interval
 
+gene = Bed3("chr1", start=500, end=2_000)
+
 with (
     register_locatable(PerTargetCoverage, as_interval),
     PicardCoverageReader.from_path[PerTargetCoverage]("hs.per_target_coverage.txt") as rows,
 ):
-    targets = TreeDetector(rows)
-    [target] = targets.overlapping(Bed3("chr1", start=900, end=1_200))
+    exons = TreeDetector(rows).overlapping(gene)
 
-assert (target.name, target.start) == ("T1", 1_001)
+assert {exon.name for exon in exons} == {"exon2", "exon3"}
 ```
 
 Register any other type with a function of your own, which can be a `lambda`; here pybedtools, which already reads a GFF file's coordinates as 0-based half-open, though `bedspec.ext.pybedtools.as_interval` does the same and keeps strand:
@@ -441,21 +442,21 @@ Each module names them the same way: `as_interval` finds a record by its interva
 
 | Module | Function | Finds |
 | --- | --- | --- |
+| `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
+| | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
+| `bedspec.ext.captainslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
+| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` from its start to its end, so a symbolic allele to its `END` |
+| `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
+| | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
+| | `as_template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
+| `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
+| | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
+| `bedspec.ext.pybedtools` | `as_interval` | an `Interval`, on its strand |
+| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
 | `bedspec.ext.pysam` | `as_interval` | an `AlignedSegment` by its whole alignment, on its strand; a `VariantRecord` from its start to its stop, so a symbolic allele to its `END`; a tabix GTF, GFF3, or BED line, on its strand |
 | | `as_blocks` | an `AlignedSegment` by its aligned blocks, on its strand |
 | | `as_paired_intervals` | an `AlignedSegment` by its interval and its mate's, from its `MC` tag, each on its strand |
 | | `as_paired_blocks` | an `AlignedSegment` by its aligned blocks and its mate's, from its `MC` tag, each on its strand |
-| `bedspec.ext.pybedtools` | `as_interval` | an `Interval`, on its strand |
-| `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
-| | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |
-| | `as_template_blocks` | a `Template` by the aligned blocks of its primary and supplementary records, each on its strand |
-| `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` from its start to its end, so a symbolic allele to its `END` |
-| `bedspec.ext.mappy` | `as_interval` | an `Alignment` by its whole alignment, on its strand |
-| | `as_blocks` | an `Alignment` by its aligned blocks, on its strand |
-| `bedspec.ext.pybwa` | `as_interval` | an `AuxHit` from an `XA` tag, on its strand, converted from the 1-based coordinates it holds |
-| `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
-| | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
-| `bedspec.ext.captainslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
 
 Every module names its functions the same way, so rename at import to use two together:
 

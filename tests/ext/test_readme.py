@@ -27,10 +27,11 @@ HEADER = pysam.AlignmentHeader.from_dict({
 """A header that lists chr2 before chr1, so sorting by its order differs from sorting by name."""
 
 PER_TARGET_COVERAGE = """chrom\tstart\tend\tlength\tname\t%gc\tmean_coverage\tnormalized_coverage\tmin_normalized_coverage\tmax_normalized_coverage\tmin_coverage\tmax_coverage\tpct_0x\tread_count
-chr2\t501\t600\t100\tT2\t0.41\t77.49\t1.098526\t0.921463\t1.261695\t65\t89\t0\t140
-chr1\t1001\t1100\t100\tT1\t0.38\t76.45\t1.083782\t0.878934\t1.332577\t62\t94\t0\t149
+chr1\t1001\t1100\t100\texon2\t0.38\t76.45\t1.083782\t0.878934\t1.332577\t62\t94\t0\t149
+chr1\t1501\t1600\t100\texon3\t0.44\t71.12\t1.008221\t0.902418\t1.187063\t64\t84\t0\t137
+chr2\t501\t600\t100\texon7\t0.41\t77.49\t1.098526\t0.921463\t1.261695\t65\t89\t0\t140
 """  # noqa: E501
-"""The per-target coverage of the targets of `targets.bed.gz`, as Picard writes it, 1-based."""
+"""The per-target coverage of two exons of a gene on chr1 and one on chr2, as Picard writes it."""
 
 
 def mate(
