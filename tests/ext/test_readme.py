@@ -5,7 +5,6 @@
 import gzip
 import os
 from collections import Counter
-from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -133,9 +132,6 @@ def test_every_readme_example_runs_against_the_files_it_reads(
     write_files()
     namespace: dict[str, object] = {"__name__": "__readme__"}
     for line, code in readme_blocks():
-        # captainslog is not on PyPI, so its example runs only where it is installed.
-        if "captainslog" in code and find_spec("captainslog") is None:
-            continue
         exec(compile(code, f"{README}:{line}", "exec"), namespace)  # noqa: S102
     with pysam.AlignmentFile("on-target.bam") as kept:
         assert Counter(segment.query_name for segment in kept) == {

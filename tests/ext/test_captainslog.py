@@ -1,14 +1,9 @@
 """Tests of the function that reads captainslog's records as spans."""
 
-# pyright: reportMissingModuleSource=false
-
 from pathlib import Path
 from typing import Any
 
 import pytest
-
-pytest.importorskip("captainslog")
-
 from captainslog.picard import FingerprintingDetailMetrics
 from captainslog.picard import PerBaseCoverage
 from captainslog.picard import PerTargetCoverage
@@ -105,7 +100,7 @@ def test_as_interval_of_a_target_runs_from_its_1_based_start_to_its_end(tmp_path
             written(tmp_path, "s.hybcap-per-target.txt", HYBCAP_PER_TARGET)
         ) as riker,
     ):
-        targets = [*picard, *riker]
+        targets: list[PerTargetCoverage | HybcapPerTarget] = [*picard, *riker]
     spans = [span for target in targets for span in as_interval(target)]
     assert spans == 2 * [
         Bed4("1", start=200, end=300, name="rs7555566"),
@@ -124,7 +119,7 @@ def test_as_interval_of_a_base_covers_its_1_based_position(tmp_path: Path) -> No
             written(tmp_path, "s.hybcap-per-base.txt", HYBCAP_PER_BASE)
         ) as riker,
     ):
-        bases = [*picard, *riker]
+        bases: list[PerBaseCoverage | HybcapPerBase] = [*picard, *riker]
     assert [span for base in bases for span in as_interval(base)] == 2 * [
         Bed4("1", start=200, end=201, name="rs7555566"),
         Bed4("1", start=299, end=300, name="rs7555566"),

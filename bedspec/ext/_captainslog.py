@@ -1,5 +1,3 @@
-# pyright: reportMissingModuleSource=false
-
 from typing import overload
 
 try:
