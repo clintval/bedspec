@@ -4,6 +4,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from captainslog import fgbio
+from captainslog import fgumi
+from captainslog.fgbio import ErrorRateByReadPositionMetric
+from captainslog.fgbio import FgbioReader
+from captainslog.fgumi import FgumiReader
 from captainslog.picard import FingerprintingDetailMetrics
 from captainslog.picard import PerBaseCoverage
 from captainslog.picard import PerTargetCoverage
@@ -72,6 +77,14 @@ chr1\t20\t4\t0\t0\tunknown\tunknown\tunknown
 
 CHR1 = "TTCATGCTGAAGCCCTCTTACGATCGTACAGATGCAAATATTAACAAACC"
 """The first bases of chr1 of the reference the RRBS rows were collected against."""
+
+REVIEW = """chrom\tpos\tref\tgenotype\tfilters\tA\tC\tG\tT\tN\tconsensus_read\tconsensus_insert\tconsensus_call\tconsensus_qual\ta\tc\tg\tt\tn
+chr1\t501\tA\tA/G\tPASS\t2\t0\t1\t0\t0\tS1-lib|S2-lib:4/1\tchr1:452-770 | F1R2\tG\t72\t0\t0\t1\t0\t0
+"""  # noqa: E501
+"""A consensus read carrying a variant, as fgumi and fgbio both write it."""
+
+CHR1_FROM_490 = "TCATAATCTCAGTGCTGGTG"
+"""The bases of chr1 from 0-based 490 of the reference the reviewed reads were aligned to."""
 
 
 def written(tmp_path: Path, name: str, text: str) -> Path:
@@ -147,6 +160,22 @@ def test_as_interval_of_a_cpg_covers_its_c_at_the_0_based_position_picard_writes
     assert CHR1[spans[0].start : spans[0].end + 1] == "CG"
 
 
+def test_as_interval_of_a_reviewed_variant_covers_its_1_based_position(tmp_path: Path) -> None:
+    """Test that a variant fgumi or fgbio reviewed covers its position, 0-based, and is unnamed."""
+    path = written(tmp_path, "review.txt", REVIEW)
+    with (
+        FgbioReader.from_path[fgbio.ConsensusVariantReviewInfo](path) as by_fgbio,
+        FgumiReader.from_path[fgumi.ConsensusVariantReviewInfo](path) as by_fgumi,
+    ):
+        variants: list[fgbio.ConsensusVariantReviewInfo | fgumi.ConsensusVariantReviewInfo] = [
+            *by_fgbio,
+            *by_fgumi,
+        ]
+    spans = [span for variant in variants for span in as_interval(variant)]
+    assert spans == 2 * [Bed3("chr1", start=500, end=501)]
+    assert CHR1_FROM_490[spans[0].start - 490 : spans[0].end - 490] == variants[0].ref
+
+
 def test_as_interval_of_a_target_or_base_without_a_name_is_unnamed() -> None:
     """Test that a target or a base whose name is empty has an interval without a name."""
     assert as_interval(PerTargetCoverage(chrom="1", start=201, end=300)) == [
@@ -196,10 +225,31 @@ def test_registered_targets_are_found_by_their_first_and_last_bases_only(tmp_pat
         assert [target.name for target in everywhere] == ["rs17272796"]
 
 
+def test_registered_reviewed_variants_are_found_by_their_base_only(tmp_path: Path) -> None:
+    """Test that registered reviewed variants are found by their base, not the bases beside it."""
+    path = written(tmp_path, "review.txt", REVIEW)
+    with (
+        FgumiReader.from_path[fgumi.ConsensusVariantReviewInfo](path) as reader,
+        register_locatable(fgumi.ConsensusVariantReviewInfo, as_interval),
+    ):
+        variants = TreeDetector(reader)
+        found = variants.overlapping(Bed3("chr1", start=500, end=501))
+        assert [variant.consensus_read for variant in found] == ["S1-lib|S2-lib:4/1"]
+        assert not variants.overlaps(Bed3("chr1", start=499, end=500))
+        assert not variants.overlaps(Bed3("chr1", start=501, end=502))
+
+
 def test_as_interval_of_a_record_of_another_class_raises_naming_it() -> None:
     """Test that a record of a class without an interval, like Riker's hybcap summary, raises."""
     record: Any = HybcapMetrics()
     with pytest.raises(TypeError, match=r"of type captainslog\.riker\..*HybcapMetrics!"):
+        as_interval(record)
+
+
+def test_as_interval_of_an_error_rate_by_read_position_raises() -> None:
+    """Test that fgbio's error rate at a position within a read, not on a reference, raises."""
+    record: Any = ErrorRateByReadPositionMetric(position=501)
+    with pytest.raises(TypeError, match=r"captainslog\.fgbio\..*ErrorRateByReadPositionMetric!"):
         as_interval(record)
 
 
