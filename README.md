@@ -380,8 +380,7 @@ with (
     pysam.AlignmentFile("sorted.bam") as bam,
 ):
     covered = Territory(bam)
-
-assert Bed3("chr1", start=1_050, end=1_060) in covered
+    assert Bed3("chr1", start=1_050, end=1_060) in covered
 ```
 
 Keep whole templates, supplementary alignments included, from a BAM grouped by read name:
@@ -418,8 +417,7 @@ with (
     PicardCoverageReader.from_path[PerTargetCoverage]("hs.per_target_coverage.txt") as rows,
 ):
     exons = TreeDetector(rows).overlapping(gene)
-
-assert {exon.name for exon in exons} == {"exon2", "exon3"}
+    assert {exon.name for exon in exons} == {"exon2", "exon3"}
 ```
 
 Register any other type with a function of your own, which can be a `lambda`; here pybedtools, which already reads a GFF file's coordinates as 0-based half-open, though `bedspec.ext.pybedtools.as_interval` does the same and keeps strand:
