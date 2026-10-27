@@ -442,7 +442,7 @@ Each module names them the same way: `as_interval` finds a record by its interva
 | --- | --- | --- |
 | `bedspec.ext.biopython` | `as_interval` | a `Bio.Align.Alignment`, like a BED12 line, by its first to last aligned base, on its strand |
 | | `as_blocks` | a `Bio.Align.Alignment` by its blocks, on its strand |
-| `bedspec.ext.captainslog` | `as_interval` | a Picard or Riker per-target or per-base coverage row, or a `FingerprintingDetailMetrics` SNP, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
+| `bedspec.ext.captainslog` | `as_interval` | a Riker or Picard per-target or per-base coverage row, a `FingerprintingDetailMetrics` SNP, or an fgumi or fgbio `ConsensusVariantReviewInfo` variant, converted from the 1-based coordinates it holds; a `RrbsCpgDetailMetrics` by the C of its CpG on the forward strand |
 | `bedspec.ext.cyvcf2` | `as_interval` | a `Variant` from its start to its end, so a symbolic allele to its `END` |
 | `bedspec.ext.fgpyo` | `as_interval` | a `SupplementaryAlignment` from an `SA` tag, on its strand |
 | | `as_template_intervals` | a `Template` by the intervals of its primary and supplementary records, each on its strand |

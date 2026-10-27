@@ -114,7 +114,7 @@ wheels = [
 
 [[package]]
 name = "bedspec"
-version = "4.3.0"
+version = "4.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "pybgzf" },
@@ -184,7 +184,7 @@ typing = [
 [package.metadata]
 requires-dist = [
     { name = "biopython", marker = "extra == 'biopython'", specifier = ">=1.88" },
-    { name = "captainslog-ngs", marker = "extra == 'captainslog'", specifier = ">=0.1.0" },
+    { name = "captainslog-ngs", marker = "extra == 'captainslog'", specifier = ">=0.2.0" },
     { name = "cyvcf2", marker = "extra == 'cyvcf2'", specifier = ">=0.34" },
     { name = "fgpyo", marker = "extra == 'fgpyo'", specifier = ">=1.5.1" },
     { name = "mappy", marker = "extra == 'mappy'", specifier = ">=2.31" },
@@ -277,15 +277,15 @@ wheels = [
 
 [[package]]
 name = "captainslog-ngs"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typeline" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/7b/fab4b26893570c8d639350f4ac24368b93b0b8bb25ee10cd0d7763321fd7/captainslog_ngs-0.1.0.tar.gz", hash = "sha256:573002b4b61d4a9f9f86b0bb26663ee491c220b6ca8765d0e6e39cf18a63169e", size = 201569, upload-time = "2026-10-27T01:19:19.362Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/c2/8e6e732ca525d2312e400db76f788a9a07f5a301527bdb9539f31bcc06b5/captainslog_ngs-0.2.0.tar.gz", hash = "sha256:f1267fd36d980f7006f3beac7b5571fad0c0afac3b0a91c85b89e599c7faf2f0", size = 256631, upload-time = "2026-10-27T20:29:13.783Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/c4/a35120ba1c81a3e721a91c5946d5345c0c5f2681039ade88358c1852bd39/captainslog_ngs-0.1.0-py3-none-any.whl", hash = "sha256:733d97df94c49f014f26a89664c504acfdf8c6d38792e9b2d79d916c7ae3863c", size = 76327, upload-time = "2026-10-27T01:19:17.918Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/c0/4d53e2be58959805c179e6baf572d7d13cf3022f6d3bd238f8de6b79f639/captainslog_ngs-0.2.0-py3-none-any.whl", hash = "sha256:a186506e7b09244950cb7e3c08596e11881e3316fb9bf0f84f0cb52e520ab71e", size = 98726, upload-time = "2026-10-27T20:29:12.564Z" },
 ]
 
 [[package]]

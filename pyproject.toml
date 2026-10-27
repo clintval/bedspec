@@ -1,6 +1,6 @@
 [project]
 name = "bedspec"
-version = "4.3.0"
+version = "4.4.0"
 description =  "An HTS-specs compliant BED toolkit."
 authors = [{ name = "Clint Valentine", email = "valentine.clint@gmail.com" }]
 license = "MIT"
@@ -39,7 +39,7 @@ classifiers = [
 
 [project.optional-dependencies]
 biopython   = ["biopython >=1.88"]
-captainslog = ["captainslog-ngs >=0.1.0"]
+captainslog = ["captainslog-ngs >=0.2.0"]
 cyvcf2      = ["cyvcf2 >=0.34"]
 fgpyo       = ["fgpyo >=1.5.1"]
 mappy       = ["mappy >=2.31"]
