@@ -728,7 +728,12 @@ def test_a_registered_function_returning_one_span_raises_naming_the_fix() -> Non
 
 
 @pytest.mark.parametrize(
-    ("module", "extension"), [("pysam.libcalignedsegment", "pysam"), ("Bio.Align", "biopython")]
+    ("module", "extension"),
+    [
+        ("pysam.libcalignedsegment", "pysam"),
+        ("Bio.Align", "biopython"),
+        ("captainslog.picard._coverage", "captainslog"),
+    ],
 )
 def test_an_unlocatable_record_names_its_type_and_a_module_of_bedspec_ext(
     module: str, extension: str
