@@ -1,4 +1,6 @@
-# bedspec
+![Banner for bedspec](https://raw.githubusercontent.com/clintval/bedspec/main/.github/img/bedspec_banner.svg)
+
+---
 
 [![PyPi Release](https://badge.fury.io/py/bedspec.svg)](https://badge.fury.io/py/bedspec)
 [![CI](https://github.com/clintval/bedspec/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/clintval/bedspec/actions/workflows/tests.yml?query=branch%3Amain)
